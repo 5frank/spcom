@@ -6,13 +6,13 @@ set(SOURCES
     src/main.c
     src/cmd.c
     src/log.c
-    #src/map.c
     src/opts.c
     src/outfmt.c
     src/port.c
     src/portinfo.c
+    src/port_wait.c
     src/shell.c
-    #src/split.c
+    src/str_split.c
     src/str.c
     src/opq.c
     src/version.c

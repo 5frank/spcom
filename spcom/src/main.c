@@ -52,9 +52,24 @@ static void on_uv_walk(uv_handle_t* handle, void* arg)
 {
     uv_close(handle, on_uv_close);
 }
+#if USE_BACKTRACE
+#include <execinfo.h>
+static void print_backtrace(void) 
+{
+  void *stackptrs[10];
+  // get entries from stack
+  size_t size = backtrace(stackptrs, 10);
+  fprintf(stderr, "backtrace:\n");
+  backtrace_symbols_fd(stackptrs, size, STDERR_FILENO);
+}
+#else
+static void print_backtrace(void) {}
+#endif
 
 void main_exit(int status) 
 {
+    if (status != EXIT_SUCCESS)
+        print_backtrace();
 
     uv_loop_t *loop = uv_default_loop();
 #if 1
@@ -178,15 +193,8 @@ int main_init(void)
         assert_z(err, "shell_init");
         m->have_shell = true;
     }
-#if 1
-    err = port_open();
-    if (err) {
-        LOG_ERR("port_open err=%d", err);
-        return err;
-    }
-#else
-#warning "no port"
-#endif
+
+
     if (opts.timeout > 0) {
         err = uv_timer_init(loop, &m->t_timeout);
         assert_uv_z(err, "uv_timer_init");
@@ -197,6 +205,11 @@ int main_init(void)
         LOG_DBG("timeout set to %d sec", opts.timeout);
     }
 
+    err = port_init();
+    if (err) {
+        LOG_ERR("port_init err=%d", err);
+        return err;
+    }
     return 0;
 }
 
@@ -223,7 +236,7 @@ void main_cleanup(void)
         shell_cleanup();
         m->have_shell = 0;
     }
-    port_close();
+    port_cleanup();
     if (uv_loop_alive(loop)) {
         err = uv_loop_close(loop);
         if (err)
@@ -239,17 +252,10 @@ int main(int argc, char *argv[])
     int err = 0;
 
     err = opts_parse(argc, argv);
-    log_set_debug(2);
-
     if (err)
         return err;
 
-    if (opts.flags.version)
-        return version_print(opts.verbose);
-    
-    if (opts.flags.list) {
-        return portinfo_print_list(opts.verbose);
-    }
+    log_set_debug(2);
 
     // TODO read config file here and ignore options provided as cli arguments
 
@@ -262,6 +268,7 @@ int main(int argc, char *argv[])
 
     uv_loop_t *loop = uv_default_loop();
     err = uv_run(loop, UV_RUN_DEFAULT);
+    //port_run();
     if (err) {
         LOG_UV_ERR(err, "uv_run");
     }

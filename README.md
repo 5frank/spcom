@@ -30,6 +30,10 @@ Features:
 
 BUILD
 =====
+On Debian/Ubuntu, install these packages:
+```
+apt install libserialport-dev libuv1-dev libreadline-dev
+```
 
 ```
 cd spcom

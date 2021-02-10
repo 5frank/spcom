@@ -225,8 +225,8 @@ static void _rlcb_on_newline(char *line)
             break;
 
         case SHELL_M_CMD:
-            cmd_run(CMD_SRC_SHELL, line);
-            free(line); // TODO free in cmd module
+            cmd_parse(CMD_SRC_SHELL, line);
+            free(line);
             break;
 
         default:

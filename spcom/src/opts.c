@@ -8,6 +8,7 @@
 #include <libserialport.h>
 
 #include "port.h"
+#include "utils.h"
 #include "shell.h"
 #include "str.h"
 #include "opts.h"
@@ -36,12 +37,13 @@ enum optno_e {
     OPT_COLOR = 127,
     OPT_AUTOCOMPLETE,
     OPT_VERSION,
-    OPT_TIMEOUT,
-    OPT_STAY,
-    OPT_TIMESTAMP,
     OPT_WAIT,
+    OPT_STAY,
+    OPT_TIMEOUT,
+    OPT_TIMESTAMP,
     //OPT_WAIT_TIMEOUT,
     //OPT_SEND_ESCAPED,
+    OPT_STICKY,
     __OPTNO_MAX,
 };
 // clang-format on
@@ -87,10 +89,10 @@ static struct option _options[] = {
     { "parity", required_argument, 0,   OPT_PARITY },
     { "databits", required_argument, 0, OPT_DATABITS },
     { "stopbits", required_argument, 0, OPT_STOPBITS },
-     // stay open forever. same as wait, but never exit.
-    { "stay", required_argument, 0, OPT_STAY },
     // wait on serial port at startup. also see timeout
     { "wait", no_argument, 0, OPT_WAIT },
+     // stay open forever. same as wait, but never exit.
+    { "stay", required_argument, 0, OPT_STAY },
     //{ "wait-timeout", required_argument, 0, OPT_WAIT_TIMEOUT },
     { "verbose", no_argument, 0, OPT_VERBOSE },
     { "color", no_argument, 0, OPT_COLOR },
@@ -100,6 +102,9 @@ static struct option _options[] = {
     // TODO if canonical set in config file, how to disable with cli arg? optional arg?
     { "canonical", required_argument, 0, OPT_CANONICAL },
     { "cmd", required_argument, 0, OPT_CMD },
+    // optional_argument?
+    { "sticky", required_argument, 0, OPT_STICKY },
+
     // send backslash escaped string 
 #if 0 // TODO
     {"send-e",required_argument, 0, OPT_SEND_ESCAPED },
@@ -111,7 +116,6 @@ static struct option _options[] = {
     // or ...
     //{"bufsize", required_argument, 0, OPT_BUFSIZE},
     // promt always at last line. unexpected behaviour if combined with unbuffered option
-    {"sticky-promt", no_argument, 0, OPT_XXX},
     /*
       Execute a single command.
       May be used multiple times and in conjunction. 
@@ -170,6 +174,7 @@ static int opt_parse_set_port(const char *s)
 #endif
     return 0;
 }
+
 static char *opts_mk_optstr(void)
 {
     static char optstr[NUM_OPTS * 2] = {};
@@ -214,9 +219,10 @@ static int opts_error(const char *msg, const char *argname,
 
     if (argval)
         fprintf(stderr, " \"%s\"", argval);
-    fprintf(stderr, "(err: %d)\n", err);
+    fprintf(stderr, " (err: %d)\n", err);
     return err;
 }
+
 #include "portinfo.h"
 #include <string.h>
 static void do_autocomplete(const char *s)
@@ -242,8 +248,32 @@ static void do_autocomplete(const char *s)
     //exit(0);
 }
 
+static int print_help(void) 
+{
+    printf("help\n");
+    return 0;
+}
+
+static void check_early_exit_flags(void) 
+{
+    if (opts.flags.help) {
+        print_help();
+        exit(0);
+    }
+
+    if (opts.flags.version) {
+        version_print(opts.verbose);
+        exit(0);
+    }
+
+    if (opts.flags.list) {
+        portinfo_print_list(opts.verbose);
+        exit(0);
+    }
+}
+
 int opt_check_mutual_exclusiv() 
-{ 
+{
     // TODO
     return 0;
 }
@@ -312,6 +342,12 @@ int opts_parse(int argc, char *argv[])
             case OPT_FLOW:
                 err = str_to_flowcontrol(optarg, &port_opts.flowcontrol);
                 break;
+            case OPT_WAIT:
+                err = str_to_bool(optarg ? optarg : "y", &port_opts.wait);
+                break;
+            case OPT_STAY:
+                err = str_to_bool(optarg ? optarg : "y", &port_opts.stay);
+                break;
             // ---- shell opts --------------
             case OPT_CANONICAL:
                 err = str_to_bool(optarg, &shell_opts.canonical);
@@ -336,6 +372,9 @@ int opts_parse(int argc, char *argv[])
             _set_optno_flag(optno);
         }
     }
+
+    check_early_exit_flags();
+
     const char *arg = NULL;
 
     if (optind < argc) {
@@ -360,5 +399,9 @@ int opts_parse(int argc, char *argv[])
     }
 
     // TODO read config file here XDG_CONFIG_HOME
+    
+    if (!port_opts.name)
+        return opts_error("No serial device given", NULL, NULL, -1);
+
     return 0;
 }

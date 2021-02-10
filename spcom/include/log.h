@@ -39,6 +39,9 @@ const char *log_wherestr(const char *file, unsigned int line, const char *func);
 
 const char *log_errnostr(int eno);
 
+#define LOG_SYS_ERR(RC, MSG) \
+    LOG_ERR("%s rc=%d - %s", MSG, (int)(RC), log_errnostr(errno))
+
 const char *log_libuv_errstr(int uvrc, int eno);
 #define LOG_UV_ERR(VAL, MSG) \
     LOG_ERR("%s - %s", MSG, log_libuv_errstr(VAL, errno))

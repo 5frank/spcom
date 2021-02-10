@@ -1,7 +1,7 @@
 
 #ifndef PORT_INCLUDE_H__
 #define PORT_INCLUDE_H__
-
+#include <stdbool.h>
 struct port_opts_s {
     /* i.e. device path on unix */
     const char *name; 
@@ -13,15 +13,16 @@ struct port_opts_s {
     int cts;
     int dtr;
     int dsr;
-    //int xonxoff;
     int flowcontrol;
     int signal;
+    bool wait;
+    bool stay;
 };
 
 extern struct port_opts_s port_opts;
 
-int port_open(void);
-void port_close(void);
+int port_init(void);
+void port_cleanup(void);
 // TODO
 int port_write(const void *data, size_t size);
 int port_putc(int c);

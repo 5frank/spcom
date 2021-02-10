@@ -13,17 +13,21 @@
 
 // clang-format off
 enum op_code_e {
-    OP_PORT_WRITE    =  1,
-    OP_PORT_PUTC     =  2,
-    OP_PORT_PUT_EOL  =  3,
-    OP_PORT_SET_RTS  =  4,
-    OP_PORT_SET_CTS  =  5,
-    OP_PORT_SET_DTR  =  6,
-    OP_PORT_SET_DSR  =  7,
-    OP_PORT_DRAIN    =  8,
-    OP_PORT_FLUSH    =  9,
-    OP_SLEEP         = 10,
-    OP_EXIT          = 11
+    OP_PORT_WRITE = 1,
+    OP_PORT_PUTC,
+    OP_PORT_PUT_EOL,
+    OP_PORT_SET_RTS,
+    OP_PORT_SET_CTS,
+    OP_PORT_SET_DTR,
+    OP_PORT_SET_DSR,
+    OP_PORT_BAUD,
+    OP_PORT_FLOW,
+    OP_PORT_PARITY,
+    OP_PORT_BREAK,
+    OP_PORT_DRAIN,
+    OP_PORT_FLUSH,
+    OP_SLEEP,
+    OP_EXIT
 };
 // clang-format on
 
