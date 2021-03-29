@@ -156,10 +156,13 @@ static void _on_sleep_done(uv_timer_t* handle)
 
 static bool update_write(const void *data, size_t size)
 {
-    
+    if (!size) 
+        return true;
+
     size_t offset = _port.offset;
     // TODO check nbytes = sp_output_waiting > N and drain!?
-    assert(size > offset);
+
+    assert(offset < size);
     size = size - offset;
 
     const char *src = data;
@@ -168,13 +171,15 @@ static bool update_write(const void *data, size_t size)
     // TODO implement option --char-delay. write one char, set timer then return!?
     int rc = sp_nonblocking_write(_port.port, data, size);
 
+    bool done;
     if (rc == size) { 
         LOG_DBG("sp_nb_write %d/%zu", rc, size);
-        return true;
+        done = true;
     }
     else if (rc == 0) { 
          // i.e. EAGAIN retry on next writable event
          LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
+        done = false;
     } 
     else if (rc < 0) {
         LOG_ERR("sp_nb_write size=%zu, rc=%d", size, rc);
@@ -185,13 +190,15 @@ static bool update_write(const void *data, size_t size)
         // incomplete write. try write remaining on next writable event
         LOG_DBG("sp_nb_write %d/%zu", rc, size);
         offset += rc;
+        done = false;
     }
-    return false; // not done
+
+    return done;
 }
 /** called before poll/select/whatever in event loop
  * check if there is read/write operations to be executed and
  * set "watchers" accordingly
- */ 
+ */
 static void _on_prepare(uv_prepare_t* handle)
 {
 #if 0 // TODO
@@ -416,7 +423,6 @@ int port_set_config(void)
                     return CONFIG_ERROR(err, "sp_set_xonxoff");
             }
         }
-
     }
 
     return 0;
@@ -448,7 +454,6 @@ static int port_open(void)
     err = sp_open(p, SP_MODE_READ_WRITE);
     if (err)
         return RET_SP_ERROR(err, "sp_open");
-
 
     // get os defualts. must be _after_ open
     err = sp_get_config(p, _port.org_config);
@@ -489,7 +494,6 @@ static int port_open(void)
     _port.state = PORT_STATE_READY;
 
     return 0;
-
 }
 
 void port_close(void) 
@@ -590,7 +594,6 @@ int port_putc(int c)
 {
     unsigned char b = c;
     return port_write(&b, 1);
-    // TODO use double buffer and put on quque
 }
 
 int port_write_line(const char *line)

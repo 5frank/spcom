@@ -318,7 +318,7 @@ int str_to_baud_dps(const char *s, int *baud, int *databits, int *parity, int *s
     }
 
     if ((*ep == '/') || (*ep == ':'))
-        s = ep++;
+        s = ep + 1;
     else
         return STR_EFMT;
 

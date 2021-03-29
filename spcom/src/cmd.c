@@ -15,11 +15,6 @@
 
 struct cmd_ap_s {
     char matchbuf[32];
-#if 0
-    char name[16];
-    const char *argstr;
-    size_t bufsize;
-#endif
     enum cmd_src_e cmdsrc;
     int argc;
     char *argv[32]; 
@@ -139,6 +134,10 @@ static CMD_FUNC(_cmd_send)
         // TODO 
 
     }
+
+    if (sendeol)
+        opq_push_value(ap->q, OP_PORT_PUT_EOL, 1);
+
     return 0;
 }
 
@@ -217,7 +216,7 @@ static struct cmd_s _cmds[] = {
         .callback = _cmd_send,
         // TODO with or without eol?
         .usage = "send data to serial port. \n"\
-        "send [-nexh] [STRING]\n"\
+        "send [-nexh] STRING\n"\
         "Flags are the same as for common shell `echo`.\n"\
         "`-e` enable backslash escaped string interpretation\n"\
         "`-n` do not output the trailing eol (as specified by `--eol`)\n"\
@@ -270,108 +269,6 @@ const char **cmd_match_cmdnames(const char *s)
     _matchlist[n] = NULL;
     return _matchlist;
 }
-#if 0
-static int _copy_argstr(struct cmd_ap_s *ap, const char *s)
-{
-    const size_t defsize = 256;
-    const size_t maxsize = 4096;
-
-    int len = (*s == '\0') ? 0 : strlen(s);
-    size_t strsize = len + 1;
-
-    if (strsize > ap->bufsize) {
-
-        char *buf = NULL;
-        // multiple of defsize
-        size_t bufsize = defsize * ((strsize + defsize) / defsize);
-
-        if (bufsize >= maxsize) {
-            LOG_ERR("command string len=%d exceeds max", len);
-            return -E2BIG;
-        }
-
-        if (!ap->buf) {
-            buf = malloc(bufsize);
-            if (!buf) {
-                LOG_ERR("malloc(%zu) failed", bufsize);
-                return -ENOMEM;
-            }
-        }
-        else {
-            buf = realloc(ap->buf, bufsize);
-            if (!buf) {
-                LOG_ERR("realloc(p, %zu) failed", bufsize);
-                return -ENOMEM;
-            }
-        }
-
-        ap->buf = buf;
-        ap->bufsize = bufsize;
-    }
-
-    strcpy(ap->buf, s);
-    ap->argstr = ap->buf;
-
-    return 0;
-}
-
-static int cmd_parse_name(struct cmd_ap_s *ap, const char *s)
-{
-    ap->name[0] = '\0';
-    ap->argstr = NULL;
-    int err = 0;
-    int i = 0;
-    const int maxlen = sizeof(ap->name) - 1;
-    char *dst = &ap->name[0];
-
-    for (i = 0; i < maxlen; i++) {
-        char c = *s++;
-        if (_is_termchar(c, "-=")) {
-            *dst = '\0';
-            break;
-        }
-        *dst++ = c;
-    }
-
-    if (i >= maxlen) {
-        LOG_ERR("command name to long");
-        return -E2BIG;
-    }
-
-    err = _copy_argstr(ap, s);
-    if (err) {
-        LOG_ERR("copy arg string failed");
-        return err;
-    }
-
-    return 0;
-}
-
-static int cmd_parse_name(const char *s, struct cmd_ap_s *ap)
-{
-    ap->name[0] = '\0';
-    int err = 0;
-    const int maxlen = sizeof(ap->name) - 1;
-    char *dst = &ap->name[0];
-
-    int i = 0;
-    for (i = 0; i < maxlen; i++) {
-        char c = *s++;
-        if (_is_termchar(c, NULL)) {
-            *dst = '\0';
-            break;
-        }
-        *dst++ = c;
-    }
-
-    if (i >= maxlen) {
-        LOG_ERR("command name to long");
-        return -E2BIG;
-    }
-
-    return 0;
-}
-#endif
 
 const char **cmd_match(const char *s)
 {
@@ -445,7 +342,6 @@ int cmd_parse(enum cmd_src_e cmdsrc, char *s)
             break;
     }
 
-    // this should not occur
     assert(cmd->callback);
     err = cmd->callback(cmd, ap);
 

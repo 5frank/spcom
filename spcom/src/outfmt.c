@@ -192,10 +192,10 @@ static void print_timestamp(void)
     tmpbuf_puts(buf);
 }
 
-/** 
+/**
  * handle seq crlf:
  * -always replace with \n on stdout
- */  
+ */
 void outfmt_write(const void *data, size_t size)
 {
     if (!size)
@@ -228,7 +228,6 @@ void outfmt_write(const void *data, size_t size)
                 // this was not a eol 
                 tmpbuf_write(eolseq->seq, n);
             }
-
             continue;
         }
 

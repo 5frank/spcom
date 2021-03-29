@@ -324,7 +324,7 @@ int shell_update(const void *user_input, size_t size)
 
     if (!size)
         return 0;
-
+    // TODO prev_c shared between modes --> bug?
     int prev_c = _shell.prev_c;
     const char *p = user_input;
     for (size_t i = 0; i < size; i++) {
@@ -426,9 +426,7 @@ void shell_printf(int fd, const char *fmt, ...)
  *       sp->ignorefunc = rl_ignore_some_completions_function;
  *       sp->attemptfunc = rl_attempted_completion_function;
  *       sp->wordbreakchars = rl_completer_word_break_characters;
- *       ...
  * ```
- *
  */ 
 static void shell_init_modes(void)
 {
