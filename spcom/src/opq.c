@@ -129,7 +129,7 @@ void opq_free_head(struct opq *q, struct opq_item *itm)
 
     if (itm->buf.data) {
         if (!itm->buf.size) {
-            LOG_WRN("data ptr but no size? (op_code=%d, index=%u)", itm->op_code, q->rdidx);
+            LOG_DBG("data ptr but no size (op_code=%d, index=%u)", itm->op_code, q->rdidx);
         }
         free(itm->buf.data);
         itm->buf.size = 0;

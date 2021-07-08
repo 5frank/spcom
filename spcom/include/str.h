@@ -1,6 +1,7 @@
 #ifndef STR_INCLUDE_H__
 #define STR_INCLUDE_H__
 #include <stdbool.h>
+#include <stdint.h>
 
 /**
  * str_to functions:
@@ -62,5 +63,8 @@ int str_to_flowcontrol(const char *s, int *flowcontrol);
 const char **str_match_flowcontrol(const char *s);
 
 // simple destructive to argv parse. will not handle string escaped etc
-static int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc);
+//int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc);
+
+
+int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
 #endif

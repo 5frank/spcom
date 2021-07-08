@@ -98,6 +98,9 @@ int portinfo_print_osconfig(const char *name)
 
 cleanup:
 
+    if (err)
+        PINDENT(4, "<unknown>");
+
     if (port)
         sp_free_port(port);
 
@@ -210,7 +213,7 @@ int portinfo_print_list(int verbose)
 
         err = portinfo_print(_devnames[i], verbose);
         if (err)
-            goto cleanup;
+            continue;
 
         if (verbose < 2) 
             continue;
@@ -218,7 +221,7 @@ int portinfo_print_list(int verbose)
         PINDENT(2, "OS Settings:");
         err = portinfo_print_osconfig(_devnames[i]);
         if (err)
-            goto cleanup;
+            continue;
     }
 
 cleanup:

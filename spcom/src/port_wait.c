@@ -39,7 +39,7 @@ static void _on_rw_access_timeout(uv_timer_t* handle)
 static void _start_rw_timeout(unsigned int ms)
 {
     struct port_wait_s *pw = &_port_wait;
-    int err = uv_timer_start(&pw->rw_timer, _on_rw_access_timeout, ms, 1);
+    int err = uv_timer_start(&pw->rw_timer, _on_rw_access_timeout, ms, 0);
     assert_uv_z(err, "uv_timer_start");
 }
 

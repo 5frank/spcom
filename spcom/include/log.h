@@ -52,5 +52,7 @@ const char *log_libsp_errstr(int sprc, int eno);
     LOG_ERR("%s - %s", MSG, log_libsp_errstr(VAL, errno))
 
 const char *log_uv_handle_type_to_str(int n);
-void log_set_debug(int verbose);
+
+int log_init(const char *path, int level);
+void log_cleanup(void);
 #endif

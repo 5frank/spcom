@@ -22,7 +22,7 @@
 #include "shell.h"
 
 struct shell_opts_s shell_opts = {
-    .canonical = true,
+    .canonical = false,
     .keybind = {
         .cmd_enter = VT_CTRL_KEY('B'),
         .cmd_exit = VT_CTRL_KEY('B'),

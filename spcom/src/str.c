@@ -454,19 +454,6 @@ int str_parse_bindkey(const char *s, int *vtkey)
     return 0;
 }
 
-static inline int _hex2nib(unsigned char c)
-{
-
-    if ((c >= '0') && (c <= '9'))
-        return (c - '0');
-
-    unsigned char lc = c | (1 << 5);
-    if ((lc >= 'a') && (lc <= 'f'))
-        return c - 'a' + 10;
-
-    return -1;
-
-}
 
 static int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc)
 {
@@ -501,4 +488,56 @@ static int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc)
     argv[n] = 0;
 
     return err;
+}
+
+static int str_hex2nib(char sc, uint8_t *b)
+{
+    uint8_t c = sc;
+    if ((c >= '0') && (c <= '9')) {
+
+        *b = (c - '0');
+        return 0;
+    }
+
+    unsigned char lc = c | (1 << 5); // to lower
+    if ((lc >= 'a') && (lc <= 'f')) {
+        *b = c - 'a' + 10;
+        return 0;
+    }
+
+    return -1;
+}
+
+int str_0xhextou8(const char *s, uint8_t *res, const char **ep) 
+{
+    int err;
+    uint8_t b = 0;
+    if (*s != '0') 
+        return EINVAL;
+    s++;
+
+    if (*s != 'x') 
+        return EINVAL;
+    s++;
+
+    err = str_hex2nib(*s, &b);
+    if (err)
+        return EINVAL;
+    b <<= 4;
+    s++;
+
+    err = str_hex2nib(*s, &b);
+    if (err)
+        return EINVAL;
+    s++;
+
+    if (isxdigit(*s))
+        return EINVAL; // ambigous end
+
+    *res = b;
+
+    if (ep)
+        *ep = s;
+
+    return 0;
 }

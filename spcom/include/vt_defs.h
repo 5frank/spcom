@@ -23,4 +23,13 @@
 
 #define VT_ESC     (0x1B)  //  ESC (escape) same as ASCII ESC
 
+/// LINE_MAX might be here
+#include <limits.h> 
+
+#ifndef LINE_MAX 
+#include "posixver.h"
+#define LINE_MAX _POSIX2_LINE_MAX
+#endif
+
+
 #endif

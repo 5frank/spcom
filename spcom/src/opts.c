@@ -12,8 +12,9 @@
 #include "shell.h"
 #include "str.h"
 #include "opts.h"
+#include "eol.h"
 
-#define ARRAY_LEN(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
+
 // clang-format off
 enum optno_e {
     /*
@@ -41,9 +42,15 @@ enum optno_e {
     OPT_STAY,
     OPT_TIMEOUT,
     OPT_TIMESTAMP,
+
+    OPT_EOL,
+    OPT_EOL_TX,
+    OPT_EOL_RX,
     //OPT_WAIT_TIMEOUT,
-    //OPT_SEND_ESCAPED,
+    OPT_CHARDELAY,
     OPT_STICKY,
+    OPT_LOGFILE,
+    OPT_LOGLEVEL,
     __OPTNO_MAX,
 };
 // clang-format on
@@ -104,13 +111,17 @@ static struct option _options[] = {
     { "cmd", required_argument, 0, OPT_CMD },
     // optional_argument?
     { "sticky", required_argument, 0, OPT_STICKY },
+    { "logfile", required_argument, 0, OPT_LOGFILE },
+    { "loglevel", required_argument, 0, OPT_LOGLEVEL },
+    { "char-delay", required_argument, 0, OPT_CHARDELAY },
 
-    // send backslash escaped string 
+    {"eol", required_argument, 0, OPT_EOL},
+    {"eol-tx", required_argument, 0, OPT_EOL_TX},
+    {"eol-rx", required_argument, 0, OPT_EOL_RX},
 #if 0 // TODO
+    // send backslash escaped string 
     {"send-e",required_argument, 0, OPT_SEND_ESCAPED },
     { "cmd-on-open", required_argument, 0, OPT_CMD_ON_OPEN },
-    // end of line.
-    {"eol/eol-rx/eol-tx", no_argument, 0, OPT_EOL},
 
     {"unbuffered", no_argument, 0, OPT_UNBUFFERED},
     // or ...
@@ -154,7 +165,7 @@ static inline int _get_optno_flag(unsigned int optno)
     return _have.flags[ary_idx] & (1 << bit_idx) ? 1 : 0;
 }
 
-int opts_have_opt(unsigned int optno)
+static int have_opt(unsigned int optno)
 {
     return _get_optno_flag(optno);
 }
@@ -163,7 +174,7 @@ int opts_have_opt(unsigned int optno)
 
 static int opt_parse_set_port(const char *s)
 {
-#ifdef SERCOM_ARGV_COPY
+#ifdef SPCOM_ARGV_COPY
     // TODO remove!?
     // https://stackoverflow.com/questions/10249026/c-why-should-someone-copy-argv-string-to-a-buffer
     port_opts.name = strdup(s);
@@ -287,6 +298,20 @@ int opts_read_conf_file()
     return 0;
 }
 
+static void opts_set_defaults(void)
+{
+    int err;
+    if (!have_opt(OPT_EOL) && !have_opt(OPT_EOL_TX)) {
+        err = eol_config(EOL_TX, "\n", 1);
+        assert(!err);
+    }
+    if (!have_opt(OPT_EOL) && !have_opt(OPT_EOL_RX)) {
+        err = eol_config(EOL_RX, "\n", 1);
+        assert(!err);
+        err = eol_config(EOL_RX, "\r", 1);
+        assert(!err);
+    }
+}
 int opts_parse(int argc, char *argv[])
 {
     int err      = 0;
@@ -348,20 +373,48 @@ int opts_parse(int argc, char *argv[])
             case OPT_STAY:
                 err = str_to_bool(optarg ? optarg : "y", &port_opts.stay);
                 break;
+            case OPT_CHARDELAY:
+                err = str_dectoi(optarg, &port_opts.chardelay, NULL);
+                break;
+
+            // ---- eol opts --------------
+            case OPT_EOL:
+                err = eol_parse_opts(EOL_TX | EOL_RX, optarg);
+                break;
+            case OPT_EOL_TX:
+                err = eol_parse_opts(EOL_TX, optarg);
+                break;
+            case OPT_EOL_RX:
+                err = eol_parse_opts(EOL_RX, optarg);
+                break;
+
+            // ---- log opts --------------
+            case OPT_LOGFILE:
+                opts.logfile = strdup(optarg);
+                assert(opts.logfile);
+                break;
+            case OPT_LOGLEVEL:
+                err = str_dectoi(optarg, &opts.loglevel, NULL);
+                break;
+
             // ---- shell opts --------------
             case OPT_CANONICAL:
                 err = str_to_bool(optarg, &shell_opts.canonical);
+                break;
+            case OPT_STICKY:
+                err = str_to_bool(optarg, &shell_opts.sticky);
                 break;
 
             case ':': //
             case '?': // error when opterr=0
             default:
-                // fprintf(stderr, "unrecognized option \"%s\"\n",
+                fprintf(stderr, "unrecognized option \"%s\"\n", argv[optind]);
+                // return opts_error("invalid value", NULL, optarg, -1);
                 // argv[optind]); err = -1;
                 return -EINVAL;
                 break;
         };
-     
+
         if (err) {
             char name[32] = { 0 };
             opts_pretty_argname(lindex, name, sizeof(name));
@@ -399,9 +452,11 @@ int opts_parse(int argc, char *argv[])
     }
 
     // TODO read config file here XDG_CONFIG_HOME
-    
+
     if (!port_opts.name)
         return opts_error("No serial device given", NULL, NULL, -1);
+
+    opts_set_defaults();
 
     return 0;
 }

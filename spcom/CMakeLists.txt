@@ -5,6 +5,7 @@ project (spcom)
 set(SOURCES
     src/main.c
     src/cmd.c
+    src/eol.c
     src/log.c
     src/opts.c
     src/outfmt.c

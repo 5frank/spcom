@@ -6,32 +6,38 @@
 
 #include "vt_defs.h"
 #include "log.h"
+#include "eol.h"
 #include "shell.h"
 #include "outfmt.h"
 
 
 #define HEX_CHR_LUT_UPPER "0123456789ABCDEF"
 #define HEX_CHR_LUT_LOWER "0123456789abcdef"
-
+/*
+enum eol_e {
+    EOL_CR_OR_LF,
+    EOL_CR,
+    EOL_LF,
+    EOL_CRLF
+};
+*/
 static struct outfmt_s 
 {
     // end-of-line sequence
-    struct eolseq_s {
+    /*struct eolseq_s {
         int matchcount;
         int seqlen;
         char seq[4];
-    } eolseq;
+    } eolseq[4];
+    */
     bool had_eol;
 
+    //enum eol_e eol_opt;
     // hex char lookup table
     const char *hexlut;
     int prev_c;
 } _outfmt = {
     .prev_c = -1,
-    .eolseq = {
-        .seqlen = 1,
-        .seq = {'\n', '\0'},
-    },
     .hexlut = HEX_CHR_LUT_UPPER
 };
 
@@ -41,7 +47,49 @@ struct outfmt_opts_s outfmt_opts = {
         .hexesc = VT_COLOR_RED
     },
 };
+#if 0
+/**
+ * find end-of-line charachter sequence. 
+ * @return numbers of EOL chars matched before a non-match, or a comlpete match occur. 
+ * otherwise returns zero. i.e. if beginning of EOL sequence detected or nonmatch/
+ */ 
+static int eolseq_matches(struct eolseq_s *es, char c)
+{
+    int ret = 0;
+    if (es->seq[es->matchcount] == c) {
+        // have a match
+        es->matchcount++;
 
+        // a complete match. reset and return num matches
+        if (es->matchcount >= es->seqlen) {
+            ret = es->matchcount;
+            es->matchcount = 0;
+        }
+    }
+    else {
+        // no match, reset matchcount but return number of matches "consumed" until this point
+        ret = es->matchcount;
+        es->matchcount = 0;
+    }
+
+    return ret;
+}
+
+static int eol_check(char prev_c, char c) 
+{
+    switch (_outfmt.eol_opt) {
+        default:
+        case EOL_CR_OR_LF:
+            return (c == '\r' || c == '\n');
+        case EOL_CR:
+            return (c == '\r');
+        case EOL_LF:
+            return (c == '\n');
+        case EOL_CRLF:
+            return (prev_c == '\r' && c == '\n');
+    }
+}
+#endif
 /** 
  * premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for
@@ -99,33 +147,6 @@ static void tmpbuf_puts(const char *s)
     while (*s) {
         tmpbuf_putc(*s++);
     }
-}
-
-/**
- * find end-of-line charachter sequence. 
- * @return numbers of EOL chars matched before a non-match, or a comlpete match occur. 
- * otherwise returns zero. i.e. if beginning of EOL sequence detected or nonmatch/
- */ 
-static int eolseq_matches(struct eolseq_s *es, char c)
-{
-    int ret = 0;
-    if (es->seq[es->matchcount] == c) {
-        // have a match
-        es->matchcount++;
-
-        // a complete match. reset and return num matches
-        if (es->matchcount >= es->seqlen) {
-            ret = es->matchcount;
-            es->matchcount = 0;
-        }
-    }
-    else {
-        // no match, reset matchcount but return number of matches "consumed" until this point
-        ret = es->matchcount;
-        es->matchcount = 0;
-    }
-
-    return ret;
 }
 
 static void print_hexesc(char c)
@@ -202,41 +223,33 @@ void outfmt_write(const void *data, size_t size)
         return;
     const char *p = data;
     int prev_c = _outfmt.prev_c;
+
     bool is_first_c = prev_c < 0;
+    if (is_first_c) 
+        print_timestamp();
 
     bool had_eol = _outfmt.had_eol;
 
-    struct eolseq_s *eolseq = &_outfmt.eolseq;
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
-        // have first char after eol
-        if (had_eol || is_first_c) {
+        if (had_eol) {
             print_timestamp();
-            had_eol = false;
         }
 
-        // eol seq can be set to any sequence. check that first
-        int n = eolseq_matches(eolseq, c);
-        // n==0 c consumed by eol sequence, might be printed later on mismatch
-        if (n > 0) {
+        had_eol = eol_rx_check(c);
 
-            if (n >= eolseq->seqlen) {
-                had_eol = true;
-                tmpbuf_putc('\n'); // TODO
-            }
-            else if (n > 0) {
-                // this was not a eol 
-                tmpbuf_write(eolseq->seq, n);
-            }
-            continue;
+        if (had_eol) {
+            // TODO optionaly print escaped CR 
+            tmpbuf_putc('\n');
         }
-
-        if (isprint(c)) {
+        else if (isprint(c)) {
             tmpbuf_putc(c);
         }
         else if (1) { // TODO outfmt.opts.escape map..
             print_hexesc(c);
         }
+
+        prev_c = c;
     }
     tmpbuf_flush();
 
@@ -246,3 +259,4 @@ void outfmt_write(const void *data, size_t size)
 
 void out_drain_reset(void)
 {}
+

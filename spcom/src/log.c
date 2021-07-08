@@ -11,6 +11,7 @@
 
 
 static const char *_errnonamestr(int n);
+static FILE *logfp = NULL;
 
 static char *_truncate(char *buf, size_t size) 
 {
@@ -156,30 +157,34 @@ const char *log_wherestr(const char *file, unsigned int line, const char *func)
 void log_printf(int tag, const char *where, const char *fmt, ...)
 {
     va_list args;
+
+    if (!logfp)
+        logfp = stderr;
+
     struct shell_rls_s *rls = shell_rls_save();
 #if 1 // behave like normal printf on log_printf(0, 0, ...)
     if (tag) {
-        fputs(log_tagstr(tag), stderr);
-        fputc(':', stderr);
+        fputs(log_tagstr(tag), logfp);
+        fputc(':', logfp);
     }
     if (where) {
-        fputs(where, stderr);
-        fputc(':', stderr);
+        fputs(where, logfp);
+        fputc(':', logfp);
     }
-    fputc(' ', stderr);
+    fputc(' ', logfp);
 #else
     if (!where)
         where = "";
-    fprintf(stderr, "%s:%s: ", , where);
+    fprintf(logfp, "%s:%s: ", , where);
 #endif
 
     int rc;
     va_start(args, fmt);
-    rc = vfprintf(stderr, fmt, args);
+    rc = vfprintf(logfp, fmt, args);
     va_end(args);
     (void) rc;
 
-    fputc('\n', stderr);
+    fputc('\n', logfp);
 
     shell_rls_restore(rls);
 }
@@ -187,12 +192,14 @@ void log_printf(int tag, const char *where, const char *fmt, ...)
 static void _sp_log_handler(const char *fmt, ...)
 {
     va_list args;
+    if (!logfp)
+        return;
 
     struct shell_rls_s *rls = shell_rls_save();
 
-    fputs("DBG:SP:", stderr);
+    fputs("DBG:SP:", logfp);
     va_start(args, fmt);
-    int rc = vfprintf(stderr, fmt, args);
+    int rc = vfprintf(logfp, fmt, args);
     va_end(args);
     (void) rc;
 
@@ -235,6 +242,39 @@ const char *log_uv_handle_type_to_str(int n)
         default:                return "<unknown>";
     }
     // clang-format on
+}
+
+int log_init(const char *path, int level) 
+{
+    if (!path) {
+        logfp = stderr;
+    }
+    else {
+        logfp = fopen(path, "w");
+        if (!logfp) {
+            fprintf(stderr, "ERR: failed to open log file");
+            return -1;
+        }
+        setlinebuf(logfp);
+    }
+    // TODO set debug for this application
+    if (level == 0) {
+        //
+    }
+    if (level > 3) {
+        sp_set_debug_handler(_sp_log_handler);
+    }
+    return 0;
+}
+
+void log_cleanup(void)
+{
+    if (!logfp)
+        return;
+    if ((logfp == stderr) || (logfp == stdout))
+        return;
+    fclose(logfp);
+    logfp = NULL;
 }
 
 static const char *_errnonamestr(int n)

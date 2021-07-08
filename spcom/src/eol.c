@@ -9,41 +9,6 @@
 #include "str.h"
 #include "utils.h"
 
-#if 0
-/// sort largest first
-static int qsort_seqlen_cmp(const void *a, const void *b) 
-{
-    struct eol_seq *es_a = a;
-    struct eol_seq *es_b = b;
-    return es_b->seqlen - es_a->seqlen;
-}
-
-void outfmt_add_eol(const char *s)
-{
-    struct eol_seq *eolseq = NULL; 
-    for (int i = 0; i < ARRAY_LEN(_outfmt.eolseqs); i++) {
-        struct eol_seq *tmp = &_outfmt.eolseqs[i];
-        if (tmp->seqlen == 0) {
-            eolseq = tmp;
-            break;
-        }
-    }
-    if (!eolseq) {
-        assert(0);
-    }
-    int len = strlen(s);
-    assert(len > 0);
-    assert(len < ARRAY_LEN(eolseq->seq));
-
-    strcpy(eolseq->seq, s);
-    eolseq->seqlen = len;
-
-    size_t nmemb = ARRAY_LEN(_outfmt.eolseqs);
-    size_t membsize = sizeof(_outfmt.eolseqs[0]);
-    qsort(_outfmt.eolseqs, nmemb, membsize, qsort_seqlen_cmp);
-}
-#endif
-
 
 
 static struct eol_rx_s {

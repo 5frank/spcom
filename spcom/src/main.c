@@ -199,8 +199,7 @@ int main_init(void)
         err = uv_timer_init(loop, &m->t_timeout);
         assert_uv_z(err, "uv_timer_init");
         uint64_t ms = (uint64_t) opts.timeout * 1000;
-        uint64_t repeat = 1;
-        err = uv_timer_start(&m->t_timeout, _uvcb_on_timeout, ms, repeat);
+        err = uv_timer_start(&m->t_timeout, _uvcb_on_timeout, ms, 0);
         assert_uv_z(err, "uv_timer_start");
         LOG_DBG("timeout set to %d sec", opts.timeout);
     }
@@ -243,7 +242,9 @@ void main_cleanup(void)
             LOG_UV_ERR(err, "uv_loop_close");
     }
 
+
     LOG_DBG("done");
+    log_cleanup(); // last before exit
     m->cleanup_done = true;
 }
 
@@ -255,7 +256,9 @@ int main(int argc, char *argv[])
     if (err)
         return err;
 
-    log_set_debug(2);
+    err = log_init(opts.logfile, opts.loglevel);
+    if (err)
+        return err;
 
     // TODO read config file here and ignore options provided as cli arguments
 

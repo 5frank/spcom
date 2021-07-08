@@ -55,6 +55,7 @@ static inline bool _is_termchar(int c, const char* termchars)
 
 static CMD_FUNC(_cmd_help)
 {
+    // TODO
     LOG_DBG("help");
     return 0;
 }

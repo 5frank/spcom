@@ -15,6 +15,7 @@ struct port_opts_s {
     int dsr;
     int flowcontrol;
     int signal;
+    int chardelay;
     bool wait;
     bool stay;
 };

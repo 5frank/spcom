@@ -16,6 +16,8 @@ struct opts_s {
 
     int verbose;
     int timeout;
+    const char *logfile;
+    int loglevel;
 };
 extern struct opts_s opts;
 

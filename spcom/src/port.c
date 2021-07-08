@@ -11,6 +11,7 @@
 #include "assert.h"
 #include "opts.h"
 #include "utils.h"
+#include "eol.h"
 #include "log.h"
 #include "outfmt.h"
 #include "cmd.h"
@@ -63,6 +64,7 @@ static struct port_s {
     uv_poll_t poll_handle;
     uv_prepare_t prepare_handle;
     uv_timer_t t_sleep;
+    uint64_t ts_lastc; 
     size_t offset;
     struct opq_item *current_op;
     enum port_state_e state;
@@ -86,7 +88,6 @@ static int port_exists(void)
 static void on_port_discovered(int err)
 {
     LOG_DBG("wait done");
-    //TODO open port here
     port_open();
 }
 
@@ -95,6 +96,7 @@ static void port_panic(const char *msg)
 {
 
     if (!port_opts.stay) {
+        // TODO user error
         LOG_ERR("port error - %s", msg);
         main_exit(EXIT_FAILURE);
         return;
@@ -154,22 +156,40 @@ static void _on_sleep_done(uv_timer_t* handle)
     op_done(_port.current_op);
 }
 
-static bool update_write(const void *data, size_t size)
+static bool update_write(const void *buf, size_t bufsize)
 {
-    if (!size) 
+    struct port_s *p = &_port;
+
+    if (!bufsize) 
         return true;
 
-    size_t offset = _port.offset;
     // TODO check nbytes = sp_output_waiting > N and drain!?
 
-    assert(offset < size);
-    size = size - offset;
+    assert(p->offset < bufsize);
+    size_t size = bufsize - p->offset;
+    const char *src = ((const char *)buf) + p->offset;
 
-    const char *src = data;
-    src += offset;
+    int rc;
 
-    // TODO implement option --char-delay. write one char, set timer then return!?
-    int rc = sp_nonblocking_write(_port.port, data, size);
+    const int chardelay = port_opts.chardelay;
+    if (chardelay) {
+        uint64_t ts_now = uv_now(uv_default_loop());
+        uint64_t dt = ts_now - p->ts_lastc;
+
+        if (dt < chardelay)
+            return false; // try on next loop iteration
+
+        // done false below as rc not equal to size until last char
+        rc = sp_nonblocking_write(p->port, src, 1);
+
+        // no delay on EAGIAN rc == 0
+        if (rc != 0)
+            p->ts_lastc = ts_now;
+    }
+    else {
+        rc = sp_nonblocking_write(p->port, src, size);
+    }
+
 
     bool done;
     if (rc == size) { 
@@ -177,19 +197,19 @@ static bool update_write(const void *data, size_t size)
         done = true;
     }
     else if (rc == 0) { 
-         // i.e. EAGAIN retry on next writable event
-         LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
+        // i.e. EAGAIN retry on next writable event
+        LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
         done = false;
     } 
     else if (rc < 0) {
         LOG_ERR("sp_nb_write size=%zu, rc=%d", size, rc);
         port_panic("write error");
-        return false;
+        done = false; // should not get here
     }
     else {
         // incomplete write. try write remaining on next writable event
         LOG_DBG("sp_nb_write %d/%zu", rc, size);
-        offset += rc;
+        p->offset += rc;
         done = false;
     }
 
@@ -213,10 +233,24 @@ static void _on_prepare(uv_prepare_t* handle)
     struct opq_item *op = opq_peek_head(&opq_rt);
     if (!op) {
         _tx_stop();
+        return;
+    }
+
+    // load/start operation prior sleep timer start
+    _port.current_op = op;
+
+    if (op->op_code == OP_EXIT) {
+        main_exit(EXIT_SUCCESS);
+    }
+    else if (op->op_code == OP_SLEEP) {
+        //if (_port.sleep_active) {
+        //uv_timer_get_due_in
+        uint64_t ms = (uint64_t) op->val * 1000;
+        int err = uv_timer_start(&_port.t_sleep, _on_sleep_done, ms, 0);
+        LOG_DBG("sleeping %d ms", (unsigned int) ms);
+        assert_uv_z(err, "uv_timer_start");
     }
     else {
-        _port.offset = 0;
-        _port.current_op = op;
         _tx_start();
     }
 }
@@ -245,9 +279,10 @@ static void _on_writable(uv_poll_t* handle)
             done = update_write(&tmpc, 1);
             break;
 
-        case OP_PORT_PUT_EOL:
-            tmpc = '\n'; // TODO from config
-            done = update_write(&tmpc, 1);
+        case OP_PORT_PUT_EOL: {
+            const struct eol_seq *es = eol_tx_get();
+            done = update_write(es->seq, es->len);
+            }
             break;
 
         case OP_PORT_SET_RTS:
@@ -294,21 +329,11 @@ static void _on_writable(uv_poll_t* handle)
             done = true;
             break;
 
-        case OP_SLEEP: {
-            uint64_t ms = (uint64_t) op->val * 1000;
-            err = uv_timer_start(&_port.t_sleep, _on_sleep_done, ms, 1);
-            LOG_DBG("sleeping %d ms", (unsigned int) ms);
-            if (err)
-                LOG_UV_ERR(err, "uv_timer_start");
+        case OP_SLEEP:
+        case OP_EXIT:
             done = false;
-            }
             break;
 
-        case OP_EXIT:
-            main_exit(EXIT_SUCCESS);
-            // should not get here
-            done = true;
-            break;
         default:
             LOG_ERR("unknown op_code %d", op->op_code);
             done = true;
@@ -617,8 +642,10 @@ int port_init(void)
     err = uv_timer_init(loop, &_port.t_sleep);
     assert_uv_z(err, "uv_timer_init");
 
+    _port.ts_lastc = uv_now(loop);
+
     port_wait_init(port_opts.name);
-    
+
     if (!port_exists()) {
         if (port_opts.wait || port_opts.stay) {
             port_wait_start(on_port_discovered);

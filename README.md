@@ -73,6 +73,6 @@ Alternatives
 - https://github.com/aitjcize/neocon have "watch functionality"
 - github.com/pyserial/pyserial tools/miniterm. 
 - something similar might be achivable with a combination of `stty`, `socat` and `inotify`. 
-
+- https://github.com/tbird20d/grabserial python
 
 
