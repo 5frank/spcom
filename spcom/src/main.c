@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     if (err)
         return err;
 
-    err = log_init(opts.logfile, opts.loglevel);
+    err = log_init();
     if (err)
         return err;
 

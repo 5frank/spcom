@@ -13,23 +13,10 @@
 
 #define HEX_CHR_LUT_UPPER "0123456789ABCDEF"
 #define HEX_CHR_LUT_LOWER "0123456789abcdef"
-/*
-enum eol_e {
-    EOL_CR_OR_LF,
-    EOL_CR,
-    EOL_LF,
-    EOL_CRLF
-};
-*/
+
 static struct outfmt_s 
 {
     // end-of-line sequence
-    /*struct eolseq_s {
-        int matchcount;
-        int seqlen;
-        char seq[4];
-    } eolseq[4];
-    */
     bool had_eol;
 
     //enum eol_e eol_opt;
@@ -47,49 +34,7 @@ struct outfmt_opts_s outfmt_opts = {
         .hexesc = VT_COLOR_RED
     },
 };
-#if 0
-/**
- * find end-of-line charachter sequence. 
- * @return numbers of EOL chars matched before a non-match, or a comlpete match occur. 
- * otherwise returns zero. i.e. if beginning of EOL sequence detected or nonmatch/
- */ 
-static int eolseq_matches(struct eolseq_s *es, char c)
-{
-    int ret = 0;
-    if (es->seq[es->matchcount] == c) {
-        // have a match
-        es->matchcount++;
 
-        // a complete match. reset and return num matches
-        if (es->matchcount >= es->seqlen) {
-            ret = es->matchcount;
-            es->matchcount = 0;
-        }
-    }
-    else {
-        // no match, reset matchcount but return number of matches "consumed" until this point
-        ret = es->matchcount;
-        es->matchcount = 0;
-    }
-
-    return ret;
-}
-
-static int eol_check(char prev_c, char c) 
-{
-    switch (_outfmt.eol_opt) {
-        default:
-        case EOL_CR_OR_LF:
-            return (c == '\r' || c == '\n');
-        case EOL_CR:
-            return (c == '\r');
-        case EOL_LF:
-            return (c == '\n');
-        case EOL_CRLF:
-            return (prev_c == '\r' && c == '\n');
-    }
-}
-#endif
 /** 
  * premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for

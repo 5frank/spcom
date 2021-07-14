@@ -14,6 +14,15 @@ enum log_tag_e {
     LOG_TAG_INF = 3,
     LOG_TAG_DBG = 4
 };
+
+
+struct log_opts_s {
+    const char *file;
+    int level;
+};
+
+extern struct log_opts_s log_opts;
+
 __attribute__((format(printf, 3, 4)))
 void log_printf(int tag, const char *where, const char *fmt, ...);
 
@@ -53,6 +62,6 @@ const char *log_libsp_errstr(int sprc, int eno);
 
 const char *log_uv_handle_type_to_str(int n);
 
-int log_init(const char *path, int level);
+int log_init(void);
 void log_cleanup(void);
 #endif

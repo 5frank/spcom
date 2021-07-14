@@ -16,7 +16,7 @@ struct eol_seq {
 
 int eol_parse_opts(int type, const char *s);
 
-int eol_config(int type, const void *data, size_t len);
+int eol_set(int type, const void *data, size_t len);
 
 //const struct eol_seq *eol_rx_check(char c);
 int eol_rx_check(char c);

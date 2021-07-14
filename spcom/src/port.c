@@ -117,8 +117,6 @@ static void port_panic(const char *msg)
     _port.state = PORT_STATE_WAITING;
 }
 
-
-
 static void _set_event_flags(int flags)
 {
     // will thix ever occur? 

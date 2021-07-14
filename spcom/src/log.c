@@ -10,6 +10,10 @@
 #include "assert.h"
 
 
+struct log_opts_s log_opts = {
+    .level = 3
+};
+
 static const char *_errnonamestr(int n);
 static FILE *logfp = NULL;
 
@@ -158,6 +162,9 @@ void log_printf(int tag, const char *where, const char *fmt, ...)
 {
     va_list args;
 
+    if (tag >= log_opts.level)
+        return;
+
     if (!logfp)
         logfp = stderr;
 
@@ -244,8 +251,11 @@ const char *log_uv_handle_type_to_str(int n)
     // clang-format on
 }
 
-int log_init(const char *path, int level) 
+int log_init(void) 
 {
+
+    const char *path = log_opts.file;
+    int level = log_opts.level;
     if (!path) {
         logfp = stderr;
     }

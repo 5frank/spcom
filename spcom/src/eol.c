@@ -2,9 +2,10 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <assert.h>
 #include <ctype.h>
 #include <string.h>
-
 #include "eol.h"
 #include "str.h"
 #include "utils.h"
@@ -119,7 +120,7 @@ static int eol_set_tx(const void *data, size_t len)
     return 0;
 }
 
-int eol_config(int type, const void *data, size_t len)
+int eol_set(int type, const void *data, size_t len)
 {
     int err = 0;
     if (!type || !data || !len)
@@ -140,83 +141,120 @@ int eol_config(int type, const void *data, size_t len)
     return 0;
 }
 
-struct eol_alias {
-    const char *name;
-    const char *val;
-};
 
-static const struct eol_alias eol_aliases[] = {
+static const struct str_kv eol_aliases[] = {
     { "CRLF",   "\r\n" },
     { "LFCR",   "\n\r" },
     { "CR",     "\r" },
     { "LF",     "\n" },
 };
-
-static const struct eol_alias *parse_lookup_alias(const char *s) 
+#if 0
+static const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int nitems)
 {
-    for (int i = 0; i < ARRAY_LEN(eol_aliases); i++) {
-        const struct eol_alias *p = &eol_aliases[i];
-        if (!strcasecmp(s, p->name))
-            return p;
+    for (int i = 0; i < nitems; i++) {
+        const struct str_kv *kv = &items[i];
+        if (!strcasecmp(s, kv->key))
+            return kv;
     }
 
     return NULL;
 }
+#endif
 
-
-int eol_parse_opts(int type, const char *s)
+static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
 {
     int err = 0;
-    if (!s)
-        return EINVAL;
+    char *toks[4]; // TODO ARRAY_LEN
+    int ntoks = ARRAY_LEN(toks);
+    err = str_split(s, ",", toks, &ntoks);
+    if (err)
+        return err;
 
-    int count = 0;
-    while (1) {
-        char c = *s;
-        if (c == '\0') {
-            break;
-        }
+    const int bcountmax = *n;
+    *n = 0;
 
-        if (c == ',') {
-            s++;
-            continue;
-        }
+    for (int i = 0; i < ntoks; i++) {
+        char *tok = toks[i];
+        char c = *tok;
 
         if (c == '0') {
             uint8_t b = 0;
-            const char *ep = NULL;
-            err = str_0xhextou8(s, &b, &ep);
+            err = str_0xhextou8(tok, &b, NULL);
             if (err)
                 return err;
 
-            err = eol_config(type, &b, 1);
-            if (err)
-                return err;
-            s = ep;
-            count++;
+            if (*n >= bcountmax)
+                return E2BIG;
+
+            bytes[*n] = b;
+            *n += 1;
             continue;
         }
-
-        const struct eol_alias *ea = parse_lookup_alias(s);
+        size_t nitems = ARRAY_LEN(eol_aliases);
+        const struct str_kv *ea = str_kv_get(tok, eol_aliases, nitems);
         if (ea) {
-            err = eol_config(type, ea->val, strlen(ea->val));
-            if (err)
-                return err;
-            s += strlen(ea->name);
-            count++;
+            int slen = strlen(ea->val);
+            if ((*n + slen) >= bcountmax)
+                return E2BIG;
+
+            memcpy(&bytes[*n], ea->val, slen);
+            *n += slen;
             continue;
         }
-
-        return EINVAL;
     }
 
-    if (!count)
-        return EINVAL;
-
     return 0;
+}
+int eol_parse_opts(int type, const char *s)
+{
+    int err = 0;
+    char *sdup = strdup(s);
+    assert(sdup);
+
+    char *sp = sdup;
+
+    char *toks[4]; // TODO ARRAY_LEN
+    int ntoks = ARRAY_LEN(toks);
+    err = str_split(sp, "|", toks, &ntoks);
+    if (err)
+        goto done;
+
+    err = ((type != EOL_RX) && (ntoks != 1)) ? EINVAL : 0;
+    if (err)
+        goto done;
+
+    err = (ntoks <= 0) ? EINVAL : 0;
+    if (err)
+        goto done;
+
+    uint8_t bytes[4];
+    for (int i = 0; i < ntoks; i++) {
+        int nbytes = ARRAY_LEN(bytes);
+        err = eol_sseq_to_bytes(toks[i], bytes, &nbytes);
+        if (err)
+            goto done;
+
+        err = (nbytes <= 0) ? EINVAL : 0;
+        if (err)
+            goto done;
+
+        err = eol_set(type, bytes, nbytes);
+        if (err)
+            goto done;
+    }
+
+done:
+    free(sdup);
+
+    return err;
 }
 
 const struct eol_seq *eol_tx_get(void)
 {
     return &g_eol_tx.seq;
+}
+
+int eol_init(void)
+{
+    return 0;
 }

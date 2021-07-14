@@ -28,11 +28,8 @@
 // something did not fit (same as E2BIG on most platforms)
 #define STR_E2BIG  (7)
 
-/// string to int map
-struct stoi_map_s {
-    const char *s;
-    int val;
-};
+//#define STR_ENO0xPREFIX (305)
+
 
 static const char *_matchresult[32];
 
@@ -79,12 +76,12 @@ static const char **_match_list(const char *s, const void *items, size_t itemsiz
 
     return _matchresult;
 }
-
-static int _lookup_stoimap(const char *s, int *res, const struct stoi_map_s *map, size_t maplen)
+// str_kv_getv
+static int str_kvi_lookup(const char *s, int *res, const struct str_kvi *map, size_t maplen)
 {
 
    for (int i = 0; i < maplen; i++) {
-       if (!strcasecmp(s, map[i].s)) {
+       if (!strcasecmp(s, map[i].key)) {
            *res = map[i].val;
            return 0;
        }
@@ -348,7 +345,7 @@ int str_to_baud_dps(const char *s, int *baud, int *databits, int *parity, int *s
 }
 #if 0
 // clang-format off
-static const struct stoi_map_s _xonoff_map[] = {
+static const struct str_kvi _xonoff_map[] = {
     // { "off",     SP_XONXOFF_DISABLED },
     // { "i",     SP_XONXOFF_IN },
     { "in",    SP_XONXOFF_IN },
@@ -380,7 +377,7 @@ int str_to_xonxoff(const char *s, int *xonxoff)
 #define FLOW_XONXOFF_TX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_OUT << 8))
 #define FLOW_XONXOFF_RX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_IN << 8))
 
-static const struct stoi_map_s flowcontrol_map[] = {
+static const struct str_kvi flowcontrol_map[] = {
     // No flow control
     { "none", SP_FLOWCONTROL_NONE },
     // Hardware flow control using RTS/CTS. 
@@ -406,7 +403,7 @@ int str_to_flowcontrol(const char *s, int *flowcontrol)
     _Static_assert((unsigned int) SP_XONXOFF_IN < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_OUT < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_INOUT < 256, "");
-    return _lookup_stoimap(s, flowcontrol, flowcontrol_map, ARRAY_LEN(flowcontrol_map));
+    return str_kvi_lookup(s, flowcontrol, flowcontrol_map, ARRAY_LEN(flowcontrol_map));
 }
 
 const char **str_match_flowcontrol(const char *s)
@@ -540,4 +537,150 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
         *ep = s;
 
     return 0;
+}
+
+
+
+char *str_lstrip(char *s) 
+{
+    while(isspace(*s)) s++;
+    return s;
+}
+
+char *str_rstrip(char *s) 
+{
+    char* back = s + strlen(s);
+    while(isspace(*--back));
+    *(back + 1) = '\0';
+    return s;
+}
+
+char *str_strip(char *s) 
+{
+    return str_rstrip(str_lstrip(s)); 
+}
+
+char *str_lstripc(char *s, char c)
+{
+    while(*s == c) s++;
+    return s;
+}
+
+char *str_rstripc(char *s, char c)
+{
+    char* back = s + strlen(s);
+    while(*--back == c);
+    *(back + 1) = '\0';
+    return s;
+}
+
+char *str_stripc(char *s, char c)
+{
+    return str_rstripc(str_lstripc(s, c), c);
+}
+
+static int str_is0xbyte(const char *s)
+{
+    if (!s || s[0] == '\0')
+        return false;
+
+    if (*s != '0')
+        return false;
+    s++;
+
+    if (*s != 'x')
+        return false;
+    s++;
+
+
+    if (!isxdigit(*s))
+        return false;
+    s++;
+
+    if (isxdigit(*s))
+        s++;
+
+    if (*s != '\0')
+        return false;
+
+    return true;
+}
+
+int str_split(char *s, const char *delim, char *toks[], int *n)
+{
+   const int nmax = *n; 
+   *n = 0;
+    while (1) {
+        char *tok = strsep(&s, delim);
+
+        if (!tok)
+            break;
+
+        if (tok[0] == '\0')
+            continue;
+
+        if (*n >= nmax)
+            return E2BIG;
+
+        toks[*n] = tok;
+        (*n)++;
+    }
+
+    return 0;
+}
+
+int str_split_kv(char *s, struct str_kv *kv) 
+{
+    char *toks[2];
+    int n = ARRAY_LEN(toks);
+    int err = str_split(s, ":", toks, &n);
+    if (err)
+        return err;
+
+    if (n != ARRAY_LEN(toks))
+        return EINVAL;
+
+    kv->key = str_strip(toks[0]);
+    kv->val = str_strip(toks[1]);
+
+    return 0;
+}
+
+int str_split_kv_list(char *s, struct str_kv *kvlist, int *n)
+{
+    int err = 0;
+    const int nmax = *n;
+    *n = 0;
+    while (1) {
+        char *tok = strsep(&s, ",");
+
+        if (!tok)
+            break;
+
+        if (tok[0] == '\0')
+            continue;
+
+        if (*n >= nmax)
+            return E2BIG;
+
+        struct str_kv *kv = &kvlist[*n];
+        err = str_split_kv(tok, kv);
+        if (err)
+            break;
+
+        (*n)++;
+    }
+
+    return err;
+}
+
+const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int nitems)
+{
+    for (int i = 0; i < nitems; i++) {
+        const struct str_kv *kv = &items[i];
+        if (!strcasecmp(s, kv->key))
+            return kv;
+    }
+
+    return NULL;
 }

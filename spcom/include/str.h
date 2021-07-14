@@ -67,4 +67,29 @@ const char **str_match_flowcontrol(const char *s);
 
 
 int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
+
+
+char *str_lstrip(char *s);
+char *str_rstrip(char *s);
+char *str_strip(char *s);
+
+char *str_lstripc(char *s, char c);
+char *str_rstripc(char *s, char c);
+char *str_stripc(char *s, char c);
+
+
+/// string to int map
+struct str_kvi {
+    const char *key;
+    int val;
+};
+
+struct str_kv {
+    const char *key;
+    const char *val;
+};
+
+int str_split(char *s, const char *delim, char *toks[], int *n);
+int str_split_kv(char *s, struct str_kv *kv);
+int str_split_kv_list(char *s, struct str_kv *kvlist, int *n);
 #endif

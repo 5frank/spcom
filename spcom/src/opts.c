@@ -283,9 +283,16 @@ static void check_early_exit_flags(void)
     }
 }
 
-int opt_check_mutual_exclusiv() 
+int opt_check_mutual_exclusiv(void) 
 {
-    // TODO
+#if 0
+    if (have_opt(OPT_EOL)) {
+        if (have_opt(OPT_EOL_TX) || have_opt(OPT_EOL_RX)) {
+                fprintf(stderr, "invaild combination of eol args\n");
+                return -1;
+        }
+    }
+#endif    
     return 0;
 }
 
@@ -301,16 +308,20 @@ int opts_read_conf_file()
 static void opts_set_defaults(void)
 {
     int err;
-    if (!have_opt(OPT_EOL) && !have_opt(OPT_EOL_TX)) {
-        err = eol_config(EOL_TX, "\n", 1);
-        assert(!err);
+
+    if (!have_opt(OPT_EOL)) {
+        if (!have_opt(OPT_EOL_TX)) {
+            err = eol_set(EOL_TX, "\n", 1);
+            assert(!err);
+        }
+        if (!have_opt(OPT_EOL_RX)) {
+            err = eol_set(EOL_RX, "\n", 1);
+            assert(!err);
+            err = eol_set(EOL_RX, "\r", 1);
+            assert(!err);
+        }
     }
-    if (!have_opt(OPT_EOL) && !have_opt(OPT_EOL_RX)) {
-        err = eol_config(EOL_RX, "\n", 1);
-        assert(!err);
-        err = eol_config(EOL_RX, "\r", 1);
-        assert(!err);
-    }
+
 }
 int opts_parse(int argc, char *argv[])
 {
@@ -390,11 +401,11 @@ int opts_parse(int argc, char *argv[])
 
             // ---- log opts --------------
             case OPT_LOGFILE:
-                opts.logfile = strdup(optarg);
-                assert(opts.logfile);
+                log_opts.file= strdup(optarg);
+                assert(log_opts.file);
                 break;
             case OPT_LOGLEVEL:
-                err = str_dectoi(optarg, &opts.loglevel, NULL);
+                err = str_dectoi(optarg, &log_opts.level, NULL);
                 break;
 
             // ---- shell opts --------------
@@ -457,6 +468,9 @@ int opts_parse(int argc, char *argv[])
         return opts_error("No serial device given", NULL, NULL, -1);
 
     opts_set_defaults();
+    err = opt_check_mutual_exclusiv();
+    if (err)
+        return err;
 
     return 0;
 }
