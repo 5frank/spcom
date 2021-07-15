@@ -78,18 +78,26 @@ char *str_rstripc(char *s, char c);
 char *str_stripc(char *s, char c);
 
 
-/// string to int map
-struct str_kvi {
-    const char *key;
-    int val;
-};
-
+/// string to string map item
 struct str_kv {
     const char *key;
     const char *val;
 };
 
+const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map, size_t n);
+
+/// string to int map item
+struct str_kvi {
+    const char *key;
+    int val;
+};
+const struct str_kvi *str_kvi_lookup(const char *s, const struct str_kvi *map, size_t n);
+int str_kvi_getval(const char *s, int *val, const struct str_kvi *map, size_t n);
+
 int str_split(char *s, const char *delim, char *toks[], int *n);
 int str_split_kv(char *s, struct str_kv *kv);
 int str_split_kv_list(char *s, struct str_kv *kvlist, int *n);
+
+int str_split_quoted(char *s, int *argc, char *argv[], int argvmax);
+char *str_strcasestr(const char *s, const char *find);
 #endif

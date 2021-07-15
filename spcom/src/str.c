@@ -76,20 +76,40 @@ static const char **_match_list(const char *s, const void *items, size_t itemsiz
 
     return _matchresult;
 }
-// str_kv_getv
-static int str_kvi_lookup(const char *s, int *res, const struct str_kvi *map, size_t maplen)
-{
 
-   for (int i = 0; i < maplen; i++) {
-       if (!strcasecmp(s, map[i].key)) {
-           *res = map[i].val;
-           return 0;
+const struct str_kvi *str_kvi_lookup(const char *s, const struct str_kvi *map, size_t n)
+{
+   for (int i = 0; i < n; i++) {
+        const struct str_kvi *kvi = &map[i];
+       if (!strcasecmp(s, kvi->key)) {
+           return kvi;
        }
    }
 
-   return STR_ENOMATCH;
+   return NULL;
 }
 
+int str_kvi_getval(const char *s, int *val, const struct str_kvi *map, size_t n)
+{
+    const struct str_kvi *kvi = str_kvi_lookup(s, map, n);
+    if (!kvi)
+        return STR_ENOMATCH;
+
+    *val = kvi->val;
+    return 0;
+}
+
+const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map, size_t n)
+{
+   for (int i = 0; i < n; i++) {
+        const struct str_kv *kv = &map[i];
+       if (!strcasecmp(s, kv->key)) {
+           return kv;
+       }
+   }
+
+   return NULL;
+}
 int _lookup_oddtruelist(const char *s, int *res, const char *list[], size_t listlen)
 {
    for (int i = 0; i < listlen; i++) {
@@ -403,7 +423,8 @@ int str_to_flowcontrol(const char *s, int *flowcontrol)
     _Static_assert((unsigned int) SP_XONXOFF_IN < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_OUT < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_INOUT < 256, "");
-    return str_kvi_lookup(s, flowcontrol, flowcontrol_map, ARRAY_LEN(flowcontrol_map));
+    const size_t nmemb = ARRAY_LEN(flowcontrol_map);
+    return str_kvi_getval(s, flowcontrol, flowcontrol_map, nmemb);
 }
 
 const char **str_match_flowcontrol(const char *s)

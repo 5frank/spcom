@@ -4,6 +4,7 @@ project (spcom)
 
 set(SOURCES
     src/main.c
+    src/charmap.c
     src/cmd.c
     src/eol.c
     src/log.c
@@ -13,8 +14,9 @@ set(SOURCES
     src/portinfo.c
     src/port_wait.c
     src/shell.c
-    src/str_split.c
     src/str.c
+    src/str_split_quoted.c
+    src/str_strcasestr.c
     src/opq.c
     src/version.c
 )

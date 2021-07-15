@@ -148,18 +148,6 @@ static const struct str_kv eol_aliases[] = {
     { "CR",     "\r" },
     { "LF",     "\n" },
 };
-#if 0
-static const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int nitems)
-{
-    for (int i = 0; i < nitems; i++) {
-        const struct str_kv *kv = &items[i];
-        if (!strcasecmp(s, kv->key))
-            return kv;
-    }
-
-    return NULL;
-}
-#endif
 
 static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
 {
@@ -191,7 +179,7 @@ static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
             continue;
         }
         size_t nitems = ARRAY_LEN(eol_aliases);
-        const struct str_kv *ea = str_kv_get(tok, eol_aliases, nitems);
+        const struct str_kv *ea = str_kv_lookup(tok, eol_aliases, nitems);
         if (ea) {
             int slen = strlen(ea->val);
             if ((*n + slen) >= bcountmax)
@@ -205,12 +193,12 @@ static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
 
     return 0;
 }
+
 int eol_parse_opts(int type, const char *s)
 {
     int err = 0;
     char *sdup = strdup(s);
     assert(sdup);
-
     char *sp = sdup;
 
     char *toks[4]; // TODO ARRAY_LEN

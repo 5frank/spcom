@@ -4,7 +4,7 @@
 
 #include <ctype.h>
 #include "assert.h"
-#include "str_split.h"
+#include "str.h"
 
 // Strips backslashes from quotes
 static char *unescapeToken(char *token)

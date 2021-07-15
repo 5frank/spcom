@@ -10,7 +10,6 @@
 #include "utils.h"
 #include "opq.h"
 #include "str.h"
-#include "str_split.h"
 #include "cmd.h"
 
 struct cmd_ap_s {
