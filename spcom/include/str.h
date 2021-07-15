@@ -99,5 +99,5 @@ int str_split_kv(char *s, struct str_kv *kv);
 int str_split_kv_list(char *s, struct str_kv *kvlist, int *n);
 
 int str_split_quoted(char *s, int *argc, char *argv[], int argvmax);
-char *str_strcasestr(const char *s, const char *find);
+
 #endif

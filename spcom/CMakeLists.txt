@@ -16,7 +16,6 @@ set(SOURCES
     src/shell.c
     src/str.c
     src/str_split_quoted.c
-    src/str_strcasestr.c
     src/opq.c
     src/version.c
 )
