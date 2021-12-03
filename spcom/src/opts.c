@@ -283,7 +283,7 @@ static void check_early_exit_flags(void)
     }
 }
 
-int opt_check_mutual_exclusiv(void) 
+int opt_check_mutual_exclusive(void) 
 {
 #if 0
     if (have_opt(OPT_EOL)) {
@@ -468,7 +468,7 @@ int opts_parse(int argc, char *argv[])
         return opts_error("No serial device given", NULL, NULL, -1);
 
     opts_set_defaults();
-    err = opt_check_mutual_exclusiv();
+    err = opt_check_mutual_exclusive();
     if (err)
         return err;
 

@@ -233,9 +233,6 @@ cleanup:
 
 const char** portinfo_match(const char *s)
 {
-    // TODO need to sort these or fixed by bash/readline?
-    const bool sort = false;
-
     _matchlist[0] = NULL;
     struct sp_port **portlist = NULL;
     int err = sp_list_ports(&portlist);
@@ -262,6 +259,9 @@ const char** portinfo_match(const char *s)
     }
 
     _matchlist[n] = NULL;
+
+    // TODO need to sort these or fixed by bash/readline?
+    const bool sort = false;
 
     // dont pass NULL to qsort
     if (n > 0 && sort)

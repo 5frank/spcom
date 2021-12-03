@@ -10,8 +10,6 @@
 #include "str.h"
 #include "utils.h"
 
-
-
 static struct eol_rx_s {
     struct eol_seq hist;
     struct eol_seq seqs[4];

@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
-#define _GNU_SOURCE // TODO portable strcasestr
 #include <string.h>
 
 #include "eol.h"
@@ -46,17 +45,19 @@ struct char_map {
     uint16_t map[UCHAR_MAX + 1];
 };
 
+// clang-format off
 static const char *ascii_cntrl_names[] = {
    //0,     1,     2,     3,     4,     5,     6,     7
-    "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", 
+    "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
     "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI",
     "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
     "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
 };
+// clang-format on
 
-static const char *val_to_cntrl_str(char c)
+static const char *cntrl_valtostr(int val)
 {
-    unsigned char n = c;
+    unsigned int n = val;
     if (n < ARRAY_LEN(ascii_cntrl_names))
         return ascii_cntrl_names[n];
 
@@ -66,17 +67,16 @@ static const char *val_to_cntrl_str(char c)
     return NULL;
 }
 
-
-static int str_to_cntrl_val(const char *s, int *r)
+static int cntrl_strtoval(const char *s, int *val)
 {
     for (int i = 0; i < ARRAY_LEN(ascii_cntrl_names); i++) {
         if (!strcasecmp(s, ascii_cntrl_names[i])) {
-            *r = i;
+            *val = i;
             return 0;
         }
     }
     if (!strcasecmp(s, "DEL")) {
-        *r = 127;
+        *val = 127;
         return 0;
     }
 
@@ -103,7 +103,7 @@ static int hex_is_valid_fmt(const char *fmt)
     return 0;
 }
 
-char g_hextbl[UCHAR_MAX + 1][REPR_BUF_SIZE];
+static char g_hextbl[UCHAR_MAX + 1][REPR_BUF_SIZE];
 
 static void hex_mk_table(void) 
 {
@@ -119,6 +119,7 @@ static void hex_mk_table(void)
 
 struct strlits {
     unsigned int count;
+    // TODO use small buf instead. same space required on 64 bit system
     const char *strs[UCHAR_MAX + 1];
 };
 
@@ -211,25 +212,17 @@ static int bufputs(char *dst, const char *src)
     return 0;
 }
 
-int charmap_get(const struct char_map *cm, char c, char *buf)
+int charmap_get(const struct char_map *cm, char c, char *buf, int *remapped)
 {
     unsigned char i = c;
-#if 0
-
-    const char *s = cm->map[i].s;
-    if (*s == '\0')
-        return NULL;
-
-    return s;
-#else
-    int paranoid = 1;
-    if (!cm && paranoid)
-        return bufputc(buf, c);
 
     const char *s;
     uint16_t x = cm->map[i];
+
+    *remapped = ((int) x == (int) c) ? false : true;
+
     if (x < CHAR_REPR_BASE)
-        return bufputc(buf, c);
+        return bufputc(buf, x);
 
     if (x == CHAR_REPR_HEX)
         return bufputs(buf, g_hextbl[i]);
@@ -238,7 +231,7 @@ int charmap_get(const struct char_map *cm, char c, char *buf)
         return 0;
 
     if (x == CHAR_REPR_CNTRLNAME) {
-        s = val_to_cntrl_str(c);
+        s = cntrl_valtostr(c);
         if (s)
             return bufputs(buf, s);
         else
@@ -255,7 +248,6 @@ int charmap_get(const struct char_map *cm, char c, char *buf)
 
     assert(0); // should not get here
     return bufputc(buf, c);
-#endif
 }
 
 #if 0
@@ -298,30 +290,18 @@ int mk_hexformater(const char *fmt)
 #endif
 
 
-/**
- *
---char-map=cntrl:hex
---char-map=lf:hex
---char-map=cr:null # or none
---char-map=noprint:hex
---char-map=bel:bs
---char-map=0xa:0xb
-
---char-map=cr:cntrlname
---char-map=lf:cntrlname == --char-map=lf:\"LF\"
-
---char-map=cntrl:cntrlname
---char-map-cntrl-names=yes
-*/
 
 
 
+// clang-format off
 static const struct str_kvi cclass_id_strmap[] = {
-    { "cntrl", CHAR_CLASS_CNTRL },
-    { "ctrl", CHAR_CLASS_CNTRL },
+    { "cntrl",    CHAR_CLASS_CNTRL },
+    { "ctrl",     CHAR_CLASS_CNTRL },
     { "nonprint", CHAR_CLASS_NONPRINT },
     { "!isprint", CHAR_CLASS_NONPRINT },
 };
+// clang-format on
+
 
 static int str_to_cclass_id(const char *s, int *id)
 {
@@ -329,11 +309,13 @@ static int str_to_cclass_id(const char *s, int *id)
     return str_kvi_getval(s, id, cclass_id_strmap, nmemb);
 }
 
+// clang-format off
 static const struct str_kvi crepr_id_strmap[] = {
-    { "hex", CHAR_REPR_HEX },
-    { "none", CHAR_REPR_IGNORE },
+    { "hex",    CHAR_REPR_HEX },
+    { "none",   CHAR_REPR_IGNORE },
     { "ignore", CHAR_REPR_IGNORE },
 };
+// clang-format on
 
 static int str_to_crepr_id(const char *s, int *id)
 {
@@ -396,7 +378,7 @@ static int charmap_parse_opts_class(const char *skey, int *key)
     if (!err)
         return 0;
 
-    err = str_to_cntrl_val(skey, key);
+    err = cntrl_strtoval(skey, key);
     if (!err)
         return 0;
 
@@ -407,7 +389,7 @@ static int charmap_parse_opts_class(const char *skey, int *key)
     return EINVAL;
 }
 
-int str_isquoted(const char *s, char qc) 
+int str_isquoted(const char *s, char qc)
 {
     if (!s)
         return false;
@@ -428,7 +410,7 @@ static int charmap_parse_opts_repr(const char *sval, int *reprid)
     if (!err)
         return 0;
 
-    err = str_to_cntrl_val(sval, reprid);
+    err = cntrl_strtoval(sval, reprid);
     if (!err)
         return 0;
 
@@ -447,6 +429,20 @@ static int charmap_parse_opts_repr(const char *sval, int *reprid)
     return EINVAL;
 }
 
+/**
+  examples of key:value options
+        cntrl:hex
+        lf:hex
+        cr:null # or none
+        noprint:hex
+        bel:bs
+        0xa:0xb
+
+        cr:cntrlname
+        lf:cntrlname == lf:\"LF\"
+        cntrl:cntrlname
+
+*/
 static int charmap_set(struct char_map *cm, const char *skey, const char *sval)
 {
     int err = 0;
@@ -477,23 +473,25 @@ int charmap_parse_opts(int type, const char *s)
     char *sdup = strdup(s);
     assert(sdup);
 
-    struct str_kv kvlist[8] = { 0 };
-    int n = ARRAY_LEN(kvlist);
-    err = str_split_kv_list(sdup, kvlist, &n);
+    int numkv = 256;
+    struct str_kv *kvls = malloc(sizeof(struct str_kv) * numkv);
+    assert(kvls);
+
+    err = str_split_kv_list(sdup, kvls, &numkv);
     if (err)
         goto done;
 
-    for (int i = 0; i < n; i++) {
-        struct str_kv *kv = &kvlist[i];
+    for (int i = 0; i < numkv; i++) {
+        struct str_kv *kv = &kvls[i];
         err = charmap_set(cm, kv->key, kv->val);
         if (err)
             goto done;
-
     }
 
 done:
-
     free(sdup);
+    free(kvls);
+
     return err;
 }
 

@@ -64,15 +64,16 @@ make
 Alternatives
 ============
 
-- https://github.com/npat-efault/picocom most notable mention. Currently missing support for canonical input.
-- screen - do not handle high baudrate 
-- minicom - menu driven.
-- putty
-- cu https://linux.die.net/man/1/cu
-- https://github.com/dun/conman similar to picocom
-- https://github.com/aitjcize/neocon have "watch functionality"
-- github.com/pyserial/pyserial tools/miniterm. 
+- [picocom](https://github.com/npat-efault/picocom) most notable mention. Currently missing support for canonical input.
+- [screen](https://linux.die.net/man/1/screen) - do not handle high baudrate 
+- [minicom](https://linux.die.net/man/1/minicom) - menu driven.
+- [putty](https://www.putty.org/) windows and unix support.
+- [gtkterm](https://github.com/Jeija/gtkterm)
+- [cu](https://linux.die.net/man/1/cu)
+- [conman](https://github.com/dun/conman) similar to picocom
+- [necon](https://github.com/aitjcize/neocon) have "watch functionality"
+- [pyserial/tools/miniterm](https://github.com/pyserial/pyserial)
 - something similar might be achivable with a combination of `stty`, `socat` and `inotify`. 
-- https://github.com/tbird20d/grabserial python
+- [grabserial](https://github.com/tbird20d/grabserial) python
 
 
