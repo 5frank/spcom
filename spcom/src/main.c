@@ -21,7 +21,6 @@
 #include "cmd.h"
 
 #include "port.h"
-#include "portinfo.h"
 
 struct main_s {
     int exit_status;

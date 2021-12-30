@@ -45,7 +45,7 @@ const char *_parity_tostr(enum sp_parity parity)
  * note this will briefly open the port in read mode and could alter the
  * state(s) of RTS, CTS, DTR and/or DSR depending on OS and configuration.
  */ 
-int portinfo_print_osconfig(const char *name)
+int port_info_print_osconfig(const char *name)
 {
     int err = 0;
     struct sp_port *port = NULL;
@@ -110,7 +110,7 @@ cleanup:
     return err;
 }
 
-int portinfo_print(const char *name, int verbose)
+int port_info_print(const char *name, int verbose)
 {
     // TODO use shell printf
     // sp_get_port_name(port);
@@ -179,7 +179,7 @@ cleanup:
 }
 
 
-int portinfo_print_list(int verbose)
+int port_info_print_list(int verbose)
 {
     struct sp_port **portlist = NULL;
 
@@ -211,7 +211,7 @@ int portinfo_print_list(int verbose)
             continue;
         }
 
-        err = portinfo_print(_devnames[i], verbose);
+        err = port_info_print(_devnames[i], verbose);
         if (err)
             continue;
 
@@ -219,7 +219,7 @@ int portinfo_print_list(int verbose)
             continue;
 
         PINDENT(2, "OS Settings:");
-        err = portinfo_print_osconfig(_devnames[i]);
+        err = port_info_print_osconfig(_devnames[i]);
         if (err)
             continue;
     }
@@ -231,7 +231,7 @@ cleanup:
     return err;
 }
 
-const char** portinfo_match(const char *s)
+const char** port_info_match(const char *s)
 {
     _matchlist[0] = NULL;
     struct sp_port **portlist = NULL;

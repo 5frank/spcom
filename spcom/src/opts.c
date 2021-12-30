@@ -234,7 +234,6 @@ static int opts_error(const char *msg, const char *argname,
     return err;
 }
 
-#include "portinfo.h"
 #include <string.h>
 static void do_autocomplete(const char *s)
 {
@@ -243,7 +242,7 @@ static void do_autocomplete(const char *s)
 
     const char **matches = NULL;
     if (!strcmp(s, "port")) 
-        matches = portinfo_match("");
+        matches = port_info_match("");
     else
         return;
 
@@ -278,7 +277,7 @@ static void check_early_exit_flags(void)
     }
 
     if (opts.flags.list) {
-        portinfo_print_list(opts.verbose);
+        port_info_print_list(opts.verbose);
         exit(0);
     }
 }

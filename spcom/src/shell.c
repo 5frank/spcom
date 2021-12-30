@@ -115,13 +115,13 @@ static void shell_set_mode(enum shell_mode_e new_m)
     // TODO set/unset some rl_callback?
     enum shell_mode_e prev_m = _shell.mode;
     struct shell_mode_data_s *mdp = NULL;
-   
+
     switch (prev_m) {
         case SHELL_M_NONE:
             break;
         case SHELL_M_RAW:
             break;
-        
+
         case SHELL_M_CANON:
         case SHELL_M_CMD:
             mdp = &_shell.mode_data[prev_m];

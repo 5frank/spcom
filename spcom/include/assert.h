@@ -12,7 +12,6 @@
 
 #include <stdlib.h> // EXIT_FAILURE
 #include <errno.h>
-#include "log.h"
 #include "main.h"
 
 #ifndef STRINGIFY

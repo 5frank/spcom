@@ -11,7 +11,7 @@ set(SOURCES
     src/opts.c
     src/outfmt.c
     src/port.c
-    src/portinfo.c
+    src/port_info.c
     src/port_wait.c
     src/shell.c
     src/str.c
