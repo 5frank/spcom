@@ -9,8 +9,8 @@ set(SOURCES
     src/btree.c
     src/eol.c
     src/log.c
-    src/opts.c
     src/opt.c
+    src/opt_shortstr.c
     src/opt_argviter.c
     src/opt_ap.c
     src/outfmt.c

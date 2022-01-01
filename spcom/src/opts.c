@@ -361,6 +361,7 @@ int opts_parse(int argc, char *argv[])
             case OPT_TIMEOUT:
                 err = str_dectoi(optarg, &opts.timeout, NULL); // TODO check not negative
                 break;
+
             // ---- port opts --------------
             case OPT_BAUD:
                 err = str_to_baud(optarg, &port_opts.baudrate, NULL);

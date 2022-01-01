@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "assert.h"
+#include "opt.h"
 #include "log.h"
 #include "utils.h"
 #include "opq.h"
@@ -346,3 +347,22 @@ int cmd_parse(enum cmd_src_e cmdsrc, char *s)
 
     return err;
 }
+
+static int cmd_opt_parse(struct opt_context *ctx,
+                        const struct opt_conf *conf,
+                        char *s)
+{
+    return cmd_parse(CMD_SRC_OPT, s);
+}
+
+static const struct opt_conf cmd_opts_conf[] = {
+    {
+        .name = "cmd",
+        .shortname = 'c',
+        .parse = cmd_opt_parse,
+        .descr = ""
+    },
+};
+
+OPT_SECTION_ADD(cmd, cmd_opts_conf, ARRAY_LEN(cmd_opts_conf), NULL);
+

@@ -14,15 +14,27 @@
 #include "assert.h"
 #include "cmd.h"
 #include "main.h"
-#include "opts.h"
+#include "opt.h"
 #include "port.h"
 #include "utils.h"
 #include "opq.h"
 #include "vt_defs.h"
 #include "shell.h"
 
-struct shell_opts_s shell_opts = {
-    .canonical = false,
+struct shell_opts_s {
+    int cooked;
+    int sticky;
+    const char *prompt;
+    const char *cmd_prompt;
+    struct shell_keybind_s {
+        unsigned char cmd_enter;
+        unsigned char cmd_exit;
+        unsigned char detach;
+    } keybind;
+};
+
+static struct shell_opts_s shell_opts = {
+    .cooked = false,
     .keybind = {
         .cmd_enter = VT_CTRL_KEY('B'),
         .cmd_exit = VT_CTRL_KEY('B'),
@@ -33,7 +45,7 @@ struct shell_opts_s shell_opts = {
     .cmd_prompt = "[CMD] ",
 };
 
-static struct {
+static struct shell_s {
     bool init;
     char *name;
     char history[256];
@@ -42,7 +54,7 @@ static struct {
     struct shell_mode_data_s {
         struct readline_state rlstate;
         const char *prompt;
-    } mode_data[__NUM_MODES];
+    } cmd_mode_data, cooked_mode_data; //[__NUM_MODES];
 
     uv_tty_t stdin_tty;
     char stdin_rd_buf[32];
@@ -50,6 +62,8 @@ static struct {
     uv_tty_t stdout_tty;
     uv_tty_t stderr_tty;
     int prev_c;
+
+    bool cmd_mode_active;
 } _shell = { 
     .prev_c = -1
 };
@@ -101,8 +115,8 @@ static char **_complete_m_cmd(const char *text, int start, int end)
     return rl_completion_matches(text, _complete_generator);
 }
 
-/// completer called when in canonical mode
-static char **_complete_m_canon(const char *text, int start, int end)
+/// completer called when in cooked mode
+static char **_complete_m_cooked(const char *text, int start, int end)
 {
     // this must be set or readline will abort application
     rl_attempted_completion_over = 1;
@@ -110,65 +124,50 @@ static char **_complete_m_canon(const char *text, int start, int end)
     return NULL;
 }
 
-static void shell_set_mode(enum shell_mode_e new_m)
+static void shell_set_cmd_mode(bool enable)
 {
     // TODO set/unset some rl_callback?
-    enum shell_mode_e prev_m = _shell.mode;
-    struct shell_mode_data_s *mdp = NULL;
+    struct shell_mode_data_s *old_md = NULL;
+    struct shell_mode_data_s *new_md = NULL;
 
-    switch (prev_m) {
-        case SHELL_M_NONE:
-            break;
-        case SHELL_M_RAW:
-            break;
+    if (enable) {
+        new_md = &_shell.cmd_mode_data;
 
-        case SHELL_M_CANON:
-        case SHELL_M_CMD:
-            mdp = &_shell.mode_data[prev_m];
-            rl_save_state(&mdp->rlstate);
-            break;
-        default:
-            assert(0);
-            break;
+        if (shell_opts.cooked) {
+            old_md = &_shell.cooked_mode_data;
+        }
+    }
+    // disable
+    else {
+        old_md = &_shell.cmd_mode_data;
+
+        if (shell_opts.cooked) {
+            new_md = &_shell.cooked_mode_data;
+        }
     }
 
-    mdp = NULL;
-    switch (new_m) {
-        case SHELL_M_RAW:
-            rl_replace_line("", 0);
-            rl_redisplay();
-            break;
-        case SHELL_M_CANON:
-        case SHELL_M_CMD:
-            mdp = &_shell.mode_data[new_m];
-            rl_restore_state(&mdp->rlstate);
-            // clear. needed?
-            rl_replace_line("", 0);
-            rl_redisplay();
-
-            //rl_reset_line_state();
-            rl_set_prompt(mdp->prompt);
-            rl_redisplay();
-            break;
-        default:
-            assert(0);
-            break;
+    if (old_md) {
+        /** save current mode data **/
+        rl_save_state(&old_md->rlstate);
     }
 
-    _shell.mode = new_m;
+    /* enable either command mode or "normal" cooked mode (unless raw) */
+    if (new_md) {
+        rl_restore_state(&new_md->rlstate);
+        // clear. needed?
+        rl_replace_line("", 0);
+        rl_redisplay();
+
+        //rl_reset_line_state();
+        rl_set_prompt(new_md->prompt);
+        rl_redisplay();
+    }
+    /* ie restore to raw mode */
+    else {
+        rl_replace_line("", 0);
+        rl_redisplay();
+    }
 }
-
-
-static void shell_set_mode_default(void) 
-{
-    int mode;
-    if (shell_opts.canonical)
-        mode = SHELL_M_CANON;
-    else
-        mode = SHELL_M_RAW;
-    shell_set_mode(mode);
-}
-
 
 /** as unbuffered stdin and single threaded - use single small static buffer */
 static void _uvcb_stdin_stalloc(uv_handle_t *handle, size_t size, uv_buf_t *buf)
@@ -264,7 +263,6 @@ static void shell_update_c(int prev_c, int c)
 {
     // need to catch ctrl keys before libreadline
 
-    //LOG_DBG("c %d", c);
     /* capture input before readline as it will make it's own iterpretation. also
      * not possible to bind the escape */
     // TODO forward some ctrl:s
@@ -282,39 +280,27 @@ static void shell_update_c(int prev_c, int c)
             break;
     }
 
-     switch (_shell.mode) {
+    if (_shell.cmd_mode_active && c == shell_opts.keybind.cmd_exit) {
+        LOG_DBG("cmd mode exit key=%d", c);
+        shell_set_cmd_mode(false);
+        _shell.cmd_mode_active = false;
+        return;
+    }
 
-         case SHELL_M_CMD:
-            if (c == shell_opts.keybind.cmd_exit) {
-                LOG_DBG("cmd mode exit key=%d", c);
-                shell_set_mode_default();
-            }
-            else
-                _rl_putc(c);
-            break;
+    if (!_shell.cmd_mode_active && c == shell_opts.keybind.cmd_enter) {
+        LOG_DBG("cmd mode enter key=%d", c);
+        shell_set_cmd_mode(true);
+        _shell.cmd_mode_active = true;
+        return;
+    }
 
-        case SHELL_M_CANON:
-            if (c == shell_opts.keybind.cmd_enter) {
-                LOG_DBG("cmd mode enter key=%d", c);
-                shell_set_mode(SHELL_M_CMD);
-            }
-            else
-                _rl_putc(c);
-            break;
-
-        case SHELL_M_RAW:
-            if (c == shell_opts.keybind.cmd_enter) {
-                LOG_DBG("cmd mode enter key=%d", c);
-                shell_set_mode(SHELL_M_CMD);
-            }
-            else
-                //port_putc(c);
-                opq_push_value(&opq_rt, OP_PORT_PUTC, c);
-            break;
-
-        default:
-            assert(0);
-            break;
+    if (_shell.cmd_mode_active || shell_opts.cooked) {
+        // forward to cmd or cooked prompt
+        _rl_putc(c);
+    }
+    else {
+        // in raw mode
+        opq_push_value(&opq_rt, OP_PORT_PUTC, c);
     }
 }
 
@@ -374,18 +360,24 @@ struct shell_rls_s {
 
 struct shell_rls_s *shell_rls_save(void)
 {
-    if (!shell_opts.sticky) 
+    if (!shell_opts.sticky)
         return NULL;
 
-    int mode = _shell.mode;
-    // no need in raw mode
-    if (mode == SHELL_M_RAW)
+    struct readline_state *rlstate = NULL;
+    if (_shell.cmd_mode_active) {
+        rlstate = &_shell.cmd_mode_data.rlstate;
+    }
+    else if (shell_opts.cooked) {
+        rlstate = &_shell.cooked_mode_data.rlstate;
+    }
+    else {
+        // no need in raw mode
         return NULL;
+    }
 
     if (RL_ISSTATE(RL_STATE_DONE))
         return NULL;
 
-    struct readline_state *rlstate = &_shell.mode_data[mode].rlstate;
     rl_save_state(rlstate);
     rl_set_prompt("");
     rl_replace_line("", 0);
@@ -430,10 +422,7 @@ void shell_printf(int fd, const char *fmt, ...)
  */ 
 static void shell_init_modes(void)
 {
-    struct shell_mode_data_s *mdp;
-
     //  TODO rl_init_history();
-    
     // always initalize readline even if raw. need it for command mode
     int err = rl_initialize();
     assert_z(err, "rl_initialize");
@@ -446,34 +435,31 @@ static void shell_init_modes(void)
     // Allow conditional parsing of the ~/.inputrc file. 
     rl_readline_name = "spcom";
 
-    for (int i = 0; i < ARRAY_LEN(_shell.mode_data); i++) {
-        mdp = &_shell.mode_data[i];
-        //rl_attempted_completion_function = _complete_cmd;
-        rl_save_state(&mdp->rlstate);
+    {
+        struct shell_mode_data_s *md = &_shell.cooked_mode_data;
+        rl_save_state(&md->rlstate);
+        assert(!md->rlstate.catchsigs);
+        assert(!md->rlstate.catchsigwinch);
+        md->prompt = shell_opts.prompt;
+        //md->rlstate.prompt = _shell.prompt;
+        md->rlstate.attemptfunc = _complete_m_cooked;
+    }
+    {
+        struct shell_mode_data_s *md = &_shell.cmd_mode_data;
+        rl_save_state(&md->rlstate);
+        assert(!md->rlstate.catchsigs);
+        assert(!md->rlstate.catchsigwinch);
 
-        assert(!mdp->rlstate.catchsigs);
-        assert(!mdp->rlstate.catchsigwinch);
+        md->prompt = shell_opts.cmd_prompt;
+        //md->rlstate.prompt = shell_opts.cmd_prompt;
+        md->rlstate.attemptfunc = _complete_m_cmd;
     }
 
-    // TODO use rlstate.prompt (not const, need buf anyways)
-    mdp = &_shell.mode_data[SHELL_M_RAW];
-    mdp->prompt = "";
-    //mdp->rlstate.prompt = "";
-    //mdp->rlstate.attemptfunc = NULL;
+    if (shell_opts.cooked) {
+        rl_on_new_line();
+    }
 
-    mdp = &_shell.mode_data[SHELL_M_CANON];
-    mdp->prompt = shell_opts.prompt;
-    //mdp->rlstate.prompt = _shell.prompt;
-    mdp->rlstate.attemptfunc = _complete_m_canon;
-
-    mdp = &_shell.mode_data[SHELL_M_CMD];
-    mdp->prompt = shell_opts.cmd_prompt;
-    //mdp->rlstate.prompt = shell_opts.cmd_prompt;
-    mdp->rlstate.attemptfunc = _complete_m_cmd;
-
-
-    rl_on_new_line();
-    shell_set_mode_default();
+    shell_set_cmd_mode(false);
 }
 
 int shell_init(void)
@@ -530,3 +516,26 @@ int shell_init(void)
     return 0;
 }
 
+
+static const struct opt_conf shell_opts_conf[] = {
+    {
+        .name = "sticky",
+        .dest = &shell_opts.sticky,
+        .parse = opt_ap_flag_true,
+        .descr = "sticky promt that hold input even if new data received."
+    },
+    {
+        .name = "cooked",
+        .shortname = 'C',
+        .alias = "canonical",
+        .dest = &shell_opts.cooked,
+        .parse = opt_ap_flag_true,
+        .descr = "cooked (or canonical) mode - input from stdin are stored "
+            "and can be edited in local line buffer before sent over serial "
+            "port." " This opposed to default raw (or non-canonical) mode "
+            "where all input from stdin is directly sent over serial port, "
+            "(including most control keys such as ctrl-A)"
+    },
+};
+
+OPT_SECTION_ADD(port, shell_opts_conf, ARRAY_LEN(shell_opts_conf), NULL);

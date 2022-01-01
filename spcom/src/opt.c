@@ -12,7 +12,9 @@
 
 #include "opt.h"
 #include "btree.h"
+#include "btable.h"
 #include "opt_argviter.h"
+#include "opt_shortstr.h"
 
 struct opt_short_map {
     char shortname;
@@ -21,12 +23,14 @@ struct opt_short_map {
 
 struct opt_context {
     unsigned int num_opts;
-    struct opt_short_map *short_map;
     const struct opt_section_entry *entries;
     size_t nentries;
     // binary search tree for long options also provides duplicate check
     struct btree btree;
     struct btree_node *btree_nodes;
+
+    struct btable *btable;
+    size_t nnodes;
     struct {
         unsigned int last;
         const struct opt_conf *conf[8]; // lazy no malloc 
@@ -132,24 +136,8 @@ OPT_SECTION_ADD(dummy, NULL, 0, NULL)
 extern const struct opt_section_entry __start_options;
 extern const struct opt_section_entry __stop_options;
 
-static const struct opt_conf *opt_lookup_short(struct opt_context *ctx,
-                                               char shortname)
-{
-    for (int i = 0; i < ctx->num_opts; i++) {
-
-        struct opt_short_map *sm = &ctx->short_map[i];
-        if (sm->shortname == '\0')
-            break;
-
-        if (sm->shortname == shortname)
-            return sm->conf;
-    }
-
-    return NULL;
-}
-
-static const struct opt_conf *opt_lookup_long(struct opt_context *ctx,
-                                              const char *name)
+static const struct opt_conf *opt_lookup(struct opt_context *ctx,
+                                         const char *name)
 {
      struct btree_node *node = btree_find(&ctx->btree, name);
      if (!node)
@@ -188,6 +176,56 @@ static int opt_add_positional(struct opt_context *ctx, const struct opt_conf *co
     return -ENOMEM;
 }
 
+static int opt_add_conf_nodes(struct opt_context *ctx, 
+                               const struct opt_conf *conf,
+            struct btree_node **pp_node)
+
+{
+    struct btree_node *node = *pp_node;
+    unsigned int conf_id = (unsigned int)(node - ctx->btree_nodes);
+
+    const char *svals[] = {
+        conf->name,
+        opt_shortstr(conf->shortname),
+        conf->alias
+    };
+
+    for (int i = 0; i < ARRAY_LEN(svals); i++) {
+        if (!svals[i])
+            continue;
+
+        node->sval = svals[i];
+        node->data = conf;
+        node->id = conf_id;
+
+        int err = btree_add_node(&ctx->btree, node);
+        if (err) {
+            if (err == -EEXIST)
+                opt_conf_error(NULL, conf, "duplicate option names");
+            return err;
+        }
+        node++;
+    }
+
+    *pp_node = node;
+    return 0;
+}
+#if 0
+static inline bool is_valid_long_opt(const char *s)
+{
+    if (!s)
+        return true; // valid - no long option
+
+    if (!s[0])
+        return false;
+
+    if (!s[1])
+        return false
+
+    return true;
+}
+#endif
+
 static int opt_section_read(struct opt_context *ctx)
 {
     int err;
@@ -203,28 +241,53 @@ static int opt_section_read(struct opt_context *ctx)
     const struct opt_section_entry *entries = &__start_options;
 
     size_t num_opts = 0;
+    size_t nnodes = 0;
     for (int i = 0; i < nentries; i++) {
         const struct opt_section_entry *entry = &entries[i];
         assert(entry);
         assert(entry->name);
         OPT_DBG("nconf=%zu from src: %s\n", entry->nconf, entry->name);
         num_opts += entry->nconf;
+
+
+        for (int i = 0; i < entry->nconf; i++) {
+            const struct opt_conf *conf = &entry->conf[i];
+            if (!conf->parse)
+                return opt_conf_error(entry, conf, "no parse callback");
+
+            if (conf->positional)
+                continue;
+#if 0
+            if (!is_valid_long_opt(conf->name))
+                return opt_conf_error(entry, conf, "invalid name");
+
+            if (!is_valid_long_opt(conf->alias))
+                return opt_conf_error(entry, conf, "invalid alias");
+#endif
+            if (!conf->shortname && !conf->name)
+                return opt_conf_error(entry, conf, "no long or short name");
+
+            if (conf->name)
+                nnodes++;
+
+            if (conf->shortname)
+                nnodes++;
+
+            if (conf->alias)
+                nnodes++;
+        }
     }
 
     OPT_DBG("num_opts=%zu\n", num_opts);
     ctx->num_opts = num_opts;
 
-    size_t size;
-    size = (num_opts + 1) * sizeof(struct opt_short_map);
-    ctx->short_map = malloc(size);
-    assert(ctx->short_map);
-    struct opt_short_map *smap = ctx->short_map;
+    ctx->btable = btable_create(nnodes + 1);
+    assert(ctx->btable);
 
-    size = (num_opts + 1) * sizeof(struct btree_node);
+    size_t size = (nnodes + 1) * sizeof(struct btree_node);
     ctx->btree_nodes = malloc(size);
     assert(ctx->btree_nodes);
     struct btree_node *node = ctx->btree_nodes;
-
 
     for (int i = 0; i < nentries; i++) {
         const struct opt_section_entry *entry = &entries[i];
@@ -232,45 +295,21 @@ static int opt_section_read(struct opt_context *ctx)
         for (int i = 0; i < entry->nconf; i++) {
             const struct opt_conf *conf = &entry->conf[i];
 
-            if (!conf->parse) {
-                return opt_conf_error(entry, conf, "no parse callback");
-            }
-
             if (conf->positional) {
                 err = opt_add_positional(ctx, conf);
                 assert(!err);
                 continue;
             }
 
-            if (!conf->shortname && !conf->name) {
-                return opt_conf_error(entry, conf, "no long or short name");
-            }
-
-            if (conf->shortname) {
-                smap->shortname = conf->shortname;
-                smap->conf = conf;
-                smap++;
-            }
-
-            if (conf->name) {
-                node->sval = conf->name;
-                node->data = conf;
-                err = btree_add_node(&ctx->btree, node);
-                if (err == -EEXIST) {
-                    opt_conf_error(entry, conf, "duplicate names");
-                    return err;
-                }
-                assert(!err); // never!?
-                node++;
-            }
+            err = opt_add_conf_nodes(ctx, conf, &node);
+            if (err)
+                return err;
         }
     }
-    // nul terminate
-    smap->shortname = '\0';
-    smap->conf = NULL;
 
     ctx->entries = entries;
     ctx->nentries = nentries;
+    ctx->nnodes = nnodes;
 
     return 0;
 }
@@ -315,12 +354,11 @@ int opt_parse_args(struct opt_context *ctx, int argc, char *argv[])
                 sval = itr.out.name;
                 break;
             case 1:
-                conf = opt_lookup_short(ctx, itr.out.name[0]);
-                break;
             case 2:
-                conf = opt_lookup_long(ctx, itr.out.name);
+                conf = opt_lookup(ctx, itr.out.name);
                 break;
             default:
+                assert(0);
                 return -1;
         }
 
@@ -367,12 +405,19 @@ struct opt_context *opt_init(void)
     return ctx;
 }
 
-
-static int help_traverse_cb(const struct btree_node *node)
+static int opt_help_cb(const struct btree_node *node, void *arg)
 {
     const struct opt_conf *conf = node->data;
     assert(conf);
+    struct btable *btable = arg;
 
+    // ignore duplicate due alias or short option name
+    if (btable_get(btable, node->id))
+        return 0;
+  
+    btable_set(btable, node->id);
+
+    // TODO pretty print
     if (conf->metavar)
         printf("[%s]\n", conf->metavar);
 
@@ -384,6 +429,8 @@ static int help_traverse_cb(const struct btree_node *node)
 
 int opt_show_help(struct opt_context *ctx, const char *s)
 {
-    printf("TODO short options only missing here.\n");
-    return btree_traverse(&ctx->btree, NULL, s, help_traverse_cb);
+    struct btable *btable = ctx->btable;
+    btable_reset(btable, 0);
+
+    return btree_traverse(&ctx->btree, NULL, s, opt_help_cb, btable);
 }

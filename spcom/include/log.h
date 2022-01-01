@@ -15,14 +15,6 @@ enum log_tag_e {
     LOG_TAG_DBG = 4
 };
 
-
-struct log_opts_s {
-    const char *file;
-    int level;
-};
-
-extern struct log_opts_s log_opts;
-
 __attribute__((format(printf, 3, 4)))
 void log_printf(int tag, const char *where, const char *fmt, ...);
 

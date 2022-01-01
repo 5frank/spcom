@@ -77,15 +77,6 @@ static int parse_flowcontrol(struct opt_context *ctx,
     return str_to_flowcontrol(sval, &port_opts.flowcontrol);
 }
 
-static int post_check(struct opt_context *ctx,
-                                 const struct opt_section_entry *entry)
-{
-    if (!port_opts.name)
-        return opt_error(ctx, NULL, "no serial port device");
-
-    return 0;
-}
-
 static const struct opt_conf port_opts_conf[] = {
     {
         .positional = 1,
@@ -145,5 +136,5 @@ static const struct opt_conf port_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(port, port_opts_conf, ARRAY_LEN(port_opts_conf), post_check);
+OPT_SECTION_ADD(port, port_opts_conf, ARRAY_LEN(port_opts_conf), NULL);
 

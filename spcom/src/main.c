@@ -21,9 +21,14 @@
 #include "cmd.h"
 
 #include "port.h"
+#include "port_info.h"
 
 struct {
     int timeout;
+    int verbose;
+    int show_help;
+    int show_version;
+    int show_list;
 } main_opts = {
     .timeout = 0,
 };
@@ -262,23 +267,61 @@ int main_show_help(struct opt_context *ctx,
      exit(err ? EXIT_FAILURE : 0);
 }
 
+static int main_opt_post_parse(struct opt_context *ctx,
+                          const struct opt_section_entry *entry)
+{
+    if (main_opts.show_version) {
+        version_print(main_opts.verbose);
+        exit(0);
+    }
+
+    if (main_opts.show_list) {
+        port_info_print_list(main_opts.verbose);
+        exit(0);
+    }
+    return 0;
+}
+
 static const struct opt_conf main_opts_conf[] = {
     {
         .name = "exit-after-seconds",
-        .descr = "exit after N seconds",
         .dest = &main_opts.timeout,
         .parse = opt_ap_int,
+        .descr = "exit after N seconds",
+    },
+    {
+        .name = "version",
+        .dest = &main_opts.show_version,
+        .parse = opt_ap_flag_true,
+        .descr = "show version and exit",
+    },
+    {
+        .name = "ls",
+        .shortname = 'l',
+        .dest = &main_opts.show_list,
+        .parse = opt_ap_flag_true,
+        .descr = "list serial port devices. "
+            "Combine with verbose option for more detailes",
+    },
+    {
+        .name = "verbose",
+        .shortname = 'v',
+        .dest = &main_opts.verbose,
+        .parse = opt_ap_flag_count,
+        .descr = "verbose output",
     },
     {
         .name = "help",
         .shortname = 'h',
-        .descr = "show help and exit",
         .flags = OPT_F_NO_VAL,
         .parse = main_show_help,
+        //.dest = &main_opts.show_help,
+        //.parse = opt_ap_flag_true,
+        .descr = "show help and exit",
     },
 };
 
-OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), NULL);
+OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), main_opt_post_parse);
 
 int main(int argc, char *argv[])
 {

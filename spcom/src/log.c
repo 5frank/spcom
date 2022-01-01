@@ -5,16 +5,20 @@
 #include <stdarg.h>
 #include <uv.h>
 #include <libserialport.h>
-#include "log.h"
+#include "opt.h"
 #include "shell.h"
 #include "assert.h"
+#include "log.h"
 
-
-struct log_opts_s log_opts = {
+struct log_opts_s {
+    const char *file;
+    int level;
+} log_opts = {
     .level = 3
 };
 
 static const char *_errnonamestr(int n);
+
 static FILE *logfp = NULL;
 
 static char *_truncate(char *buf, size_t size) 
@@ -286,6 +290,21 @@ void log_cleanup(void)
     fclose(logfp);
     logfp = NULL;
 }
+
+
+static const struct opt_conf log_opts_conf[] = {
+    {
+        .name = "loglevel",
+        .dest = &log_opts.level,
+        .parse = opt_ap_int,
+    },
+    {
+        .name = "logfile",
+        .parse = opt_ap_str,
+    },
+};
+
+OPT_SECTION_ADD(log, log_opts_conf, ARRAY_LEN(log_opts_conf), NULL);
 
 static const char *_errnonamestr(int n)
 {

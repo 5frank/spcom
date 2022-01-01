@@ -42,6 +42,17 @@ int opt_ap_int(struct opt_context *ctx,
     return 0;
 }
 
+int opt_ap_str(struct opt_context *ctx,
+               const struct opt_conf *conf,
+               char *s)
+{
+    assert(!s);
+    assert(conf->dest);
+    char *dest = conf->dest;
+    dest = s;
+    return 0;
+}
+
 int opt_ap_flag_true(struct opt_context *ctx,
                const struct opt_conf *conf,
                char *s)

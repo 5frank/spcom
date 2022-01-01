@@ -94,16 +94,26 @@ int opt_ap_int(struct opt_context *ctx,
                const struct opt_conf *conf,
                char *s);
 
-/// set conf->dest to true
+int opt_ap_str(struct opt_context *ctx,
+               const struct opt_conf *conf,
+               char *s);
+/** set conf->dest to true.
+ * implies no arg value and assumes conf->dest points to a int
+ */
 int opt_ap_flag_true(struct opt_context *ctx,
                const struct opt_conf *conf,
                char *s);
 
-/// set conf->dest to false
+/** set conf->dest to false.
+ * implies no arg value and assumes conf->dest points to a int
+ */
 int opt_ap_flag_false(struct opt_context *ctx,
                const struct opt_conf *conf,
                char *s);
 
+/** set conf->dest += 1 .
+ * implies no arg value and assumes conf->dest points to a int
+ */
 int opt_ap_flag_count(struct opt_context *ctx,
                const struct opt_conf *conf,
                char *s);

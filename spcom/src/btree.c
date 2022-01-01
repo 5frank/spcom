@@ -65,11 +65,11 @@ static int _traverse(struct btree *bt, const struct btree_node *node)
     if (cberr)
         return cberr;
 
-    const char *s = bt->_tmp.searchstr;
-    size_t slen = bt->_tmp.searchlen;
+    const char *s = bt->travdata.searchstr;
+    size_t slen = bt->travdata.searchlen;
  
     if (!s || !strncmp(node->sval, s, slen)) {
-        cberr = bt->_tmp.cb(node);
+        cberr = bt->travdata.cb(node, bt->travdata.cb_arg);
         if (cberr)
             return cberr;
     }
@@ -91,7 +91,8 @@ static int _traverse(struct btree *bt, const struct btree_node *node)
 int btree_traverse(struct btree *bt, 
                    const struct btree_node *node, 
                    const char *search, 
-                   btree_traverse_cb *cb)
+                   btree_traverse_cb *cb,
+                   void *cb_arg)
 {
     if (!bt)
         return -EINVAL;
@@ -106,15 +107,16 @@ int btree_traverse(struct btree *bt,
         node = bt->root;
 
     if (search) {
-        bt->_tmp.searchstr = search;
-        bt->_tmp.searchlen = strlen(search);
+        bt->travdata.searchstr = search;
+        bt->travdata.searchlen = strlen(search);
     }
     else {
-        bt->_tmp.searchstr = NULL;
-        bt->_tmp.searchlen = 0;
+        bt->travdata.searchstr = NULL;
+        bt->travdata.searchlen = 0;
     }
-    bt->_tmp.cb = cb;
-    bt->_tmp.count = 0;
+    bt->travdata.cb = cb;
+    bt->travdata.cb_arg = cb_arg;
+    bt->travdata.count = 0;
 
     int cberr = _traverse(bt, node);
     // callback error is not a traverse error, return success

@@ -3,19 +3,6 @@
 
 #include <stdbool.h>
 
-struct shell_opts_s {
-    bool canonical;
-    bool sticky;
-    const char *prompt;
-    const char *cmd_prompt;
-    struct shell_keybind_s {
-        unsigned char cmd_enter;
-        unsigned char cmd_exit;
-        unsigned char detach;
-    } keybind;
-};
-
-extern struct shell_opts_s shell_opts;
 
 //enum shell_promt_e { SHELL_PROMT_DEFAULT = 0, SHELL_PROMT_CMD_MODE = 1 };
 /** note that stdin is always in "raw" mode (when isatty(stdin)), 
