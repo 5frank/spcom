@@ -13,6 +13,7 @@
 #include <stdlib.h> // EXIT_FAILURE
 #include <errno.h>
 #include "main.h"
+#include "log.h"
 
 #ifndef STRINGIFY
 #define STRINGIFY(X) ___STRINGIFY_VIA(X)

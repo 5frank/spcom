@@ -6,13 +6,18 @@ set(SOURCES
     src/main.c
     src/charmap.c
     src/cmd.c
+    src/btree.c
     src/eol.c
     src/log.c
     src/opts.c
+    src/opt.c
+    src/opt_argviter.c
+    src/opt_ap.c
     src/outfmt.c
     src/port.c
     src/port_info.c
     src/port_wait.c
+    src/port_opts.c
     src/shell.c
     src/str.c
     src/str_split_quoted.c

@@ -9,7 +9,7 @@
 #include <unistd.h> // access
 
 #include "assert.h"
-#include "opts.h"
+#include "opt.h"
 #include "utils.h"
 #include "eol.h"
 #include "log.h"

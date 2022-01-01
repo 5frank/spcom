@@ -227,7 +227,6 @@ static struct cmd_s _cmds[] = {
         .name = "flow",
         .callback = _cmd_flow
     },
-
     {
         .opcode = OP_SLEEP,
         .name = "sleep",

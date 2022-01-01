@@ -400,11 +400,11 @@ int opts_parse(int argc, char *argv[])
 
             // ---- log opts --------------
             case OPT_LOGFILE:
-                log_opts.file= strdup(optarg);
-                assert(log_opts.file);
+                //log_opts.file= strdup(optarg);
+                //assert(log_opts.file);
                 break;
             case OPT_LOGLEVEL:
-                err = str_dectoi(optarg, &log_opts.level, NULL);
+                //err = str_dectoi(optarg, &log_opts.level, NULL);
                 break;
 
             // ---- shell opts --------------

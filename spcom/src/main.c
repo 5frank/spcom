@@ -15,12 +15,18 @@
 #endif
 
 #include "assert.h"
-#include "opts.h"
+#include "opt.h"
 #include "shell.h"
 #include "utils.h"
 #include "cmd.h"
 
 #include "port.h"
+
+struct {
+    int timeout;
+} main_opts = {
+    .timeout = 0,
+};
 
 struct main_s {
     int exit_status;
@@ -35,7 +41,7 @@ static struct main_s g_main = { 0 };
 
 static void _uvcb_on_timeout(uv_timer_t* handle)
 {
-    LOG_ERR("timeout after %d sec", opts.timeout);
+    LOG_ERR("timeout after %d sec", main_opts.timeout);
     // 62 = ETIME = "Timer expired" on gnu/linux
     main_exit(62);
 }
@@ -194,13 +200,13 @@ int main_init(void)
     }
 
 
-    if (opts.timeout > 0) {
+    if (main_opts.timeout > 0) {
         err = uv_timer_init(loop, &m->t_timeout);
         assert_uv_z(err, "uv_timer_init");
-        uint64_t ms = (uint64_t) opts.timeout * 1000;
+        uint64_t ms = (uint64_t) main_opts.timeout * 1000;
         err = uv_timer_start(&m->t_timeout, _uvcb_on_timeout, ms, 0);
         assert_uv_z(err, "uv_timer_start");
-        LOG_DBG("timeout set to %d sec", opts.timeout);
+        LOG_DBG("timeout set to %d sec", main_opts.timeout);
     }
 
     err = port_init();
@@ -224,7 +230,7 @@ void main_cleanup(void)
         return;
     }
 
-    if (opts.timeout > 0) {
+    if (main_opts.timeout > 0) {
         err = uv_timer_stop(&m->t_timeout);
         if (err)
             LOG_UV_ERR(err, "uv_timer_stop");
@@ -247,11 +253,39 @@ void main_cleanup(void)
     m->cleanup_done = true;
 }
 
+int main_show_help(struct opt_context *ctx,
+               const struct opt_conf *conf,
+               char *s)
+{
+     int err = opt_show_help(ctx, NULL);
+
+     exit(err ? EXIT_FAILURE : 0);
+}
+
+static const struct opt_conf main_opts_conf[] = {
+    {
+        .name = "exit-after-seconds",
+        .descr = "exit after N seconds",
+        .dest = &main_opts.timeout,
+        .parse = opt_ap_int,
+    },
+    {
+        .name = "help",
+        .shortname = 'h',
+        .descr = "show help and exit",
+        .flags = OPT_F_NO_VAL,
+        .parse = main_show_help,
+    },
+};
+
+OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), NULL);
+
 int main(int argc, char *argv[])
 {
     int err = 0;
 
-    err = opts_parse(argc, argv);
+    struct opt_context *optctx = opt_init();
+    err = opt_parse_args(optctx, argc, argv);
     if (err)
         return err;
 
