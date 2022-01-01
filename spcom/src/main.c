@@ -258,18 +258,16 @@ void main_cleanup(void)
     m->cleanup_done = true;
 }
 
-int main_show_help(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s)
+int main_show_help(const struct opt_conf *conf, char *s)
 {
-     int err = opt_show_help(ctx, NULL);
-
-     exit(err ? EXIT_FAILURE : 0);
 }
 
-static int main_opt_post_parse(struct opt_context *ctx,
-                          const struct opt_section_entry *entry)
+static int main_opt_post_parse(const struct opt_section_entry *entry)
 {
+    if (main_opts.show_help) {
+        int err = opt_show_help(NULL);
+        exit(err ? EXIT_FAILURE : 0);
+    }
     if (main_opts.show_version) {
         version_print(main_opts.verbose);
         exit(0);
@@ -284,10 +282,10 @@ static int main_opt_post_parse(struct opt_context *ctx,
 
 static const struct opt_conf main_opts_conf[] = {
     {
-        .name = "exit-after-seconds",
+        .name = "timeout",
         .dest = &main_opts.timeout,
         .parse = opt_ap_int,
-        .descr = "exit after N seconds",
+        .descr = "application timeout in seconds. useful for batch jobs."
     },
     {
         .name = "version",
@@ -313,10 +311,8 @@ static const struct opt_conf main_opts_conf[] = {
     {
         .name = "help",
         .shortname = 'h',
-        .flags = OPT_F_NO_VAL,
-        .parse = main_show_help,
-        //.dest = &main_opts.show_help,
-        //.parse = opt_ap_flag_true,
+        .dest = &main_opts.show_help,
+        .parse = opt_ap_flag_true,
         .descr = "show help and exit",
     },
 };
@@ -327,8 +323,7 @@ int main(int argc, char *argv[])
 {
     int err = 0;
 
-    struct opt_context *optctx = opt_init();
-    err = opt_parse_args(optctx, argc, argv);
+    err = opt_parse_args(argc, argv);
     if (err)
         return err;
 

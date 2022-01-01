@@ -16,19 +16,20 @@
 #include "opt_argviter.h"
 #include "opt_shortstr.h"
 
-struct opt_short_map {
-    char shortname;
-    const struct opt_conf *conf;
-};
+#ifndef IS_ALIGNED
+#define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
+#endif
+
+#define OPT_DBG(...) printf(__VA_ARGS__)
 
 struct opt_context {
+    bool initialized;
     unsigned int num_opts;
     const struct opt_section_entry *entries;
     size_t nentries;
-    // binary search tree for long options also provides duplicate check
+    // binary search tree for options also provides duplicate check
     struct btree btree;
     struct btree_node *btree_nodes;
-
     struct btable *btable;
     size_t nnodes;
     struct {
@@ -37,12 +38,7 @@ struct opt_context {
     } positionals;
 };
 
-#ifndef IS_ALIGNED
-#define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
-#endif
-
-#define OPT_DBG(...) printf(__VA_ARGS__)
-
+static struct opt_context g_ctx = { 0 };
 
 
 static bool opt_conf_has_val(const struct opt_conf *conf)
@@ -66,6 +62,7 @@ static bool opt_conf_has_val(const struct opt_conf *conf)
 
     return true;
 }
+
 static int opt_conf_error(const struct opt_section_entry *entry,
                           const struct opt_conf *conf,
                           const char *msg)
@@ -116,7 +113,7 @@ static int opt_arg_error(const struct opt_conf *conf,
     return -EINVAL;
 }
 
-int opt_error(struct opt_context *ctx, const struct opt_conf *conf, const char *msg)
+int opt_error(const struct opt_conf *conf, const char *msg) 
 {
    return opt_arg_error(conf, NULL, msg); // TODO
 }
@@ -226,7 +223,7 @@ static inline bool is_valid_long_opt(const char *s)
 }
 #endif
 
-static int opt_section_read(struct opt_context *ctx)
+static int opt_init(struct opt_context *ctx)
 {
     int err;
 #if 1
@@ -318,16 +315,24 @@ static int opt_conf_parse(struct opt_context *ctx,
                     const struct opt_conf *conf,
                     char *sval)
 {
-    printf("parsing %s:%c: sval='%s'\n", conf->name, conf->shortname, sval);
+    OPT_DBG("parsing %s:%c: sval='%s'\n", conf->name, conf->shortname, sval);
     assert(conf->parse);
-    return conf->parse(ctx, conf, sval);
+    return conf->parse(conf, sval);
 
     return 0;
 }
 
-int opt_parse_args(struct opt_context *ctx, int argc, char *argv[])
+int opt_parse_args(int argc, char *argv[]) 
 {
+
     int err;
+    struct opt_context *ctx = &g_ctx;
+    if (!ctx->initialized) {
+        err = opt_init(ctx);
+        if (err) 
+            return err;
+        ctx->initialized = true;
+    }
 
     struct opt_argviter_ctx itr = { };
     int flags = 0;
@@ -344,7 +349,7 @@ int opt_parse_args(struct opt_context *ctx, int argc, char *argv[])
 
         const char *arg = opt_argviter_getargv(&itr);
 
-        printf("looking up: %s\n", itr.out.name);
+        OPT_DBG("looking up: %s\n", itr.out.name);
         const struct opt_conf *conf = NULL;
         char *sval = NULL;
 
@@ -384,26 +389,13 @@ int opt_parse_args(struct opt_context *ctx, int argc, char *argv[])
         const struct opt_section_entry *entry = &ctx->entries[i];
         if (!entry->post_parse)
             continue;
-        err = entry->post_parse(ctx, entry);
+        err = entry->post_parse(entry);
         if (err)
             return err;
     }
     return 0;
 }
 
-/// this could also be dynamicly allocated but no point with that!?
-static struct opt_context g_ctx = { 0 };
-
-struct opt_context *opt_init(void)
-{
-    int err;
-    struct opt_context *ctx = &g_ctx;
-    err = opt_section_read(ctx);
-    if (err)
-        return NULL;
-
-    return ctx;
-}
 
 static int opt_help_cb(const struct btree_node *node, void *arg)
 {
@@ -414,7 +406,7 @@ static int opt_help_cb(const struct btree_node *node, void *arg)
     // ignore duplicate due alias or short option name
     if (btable_get(btable, node->id))
         return 0;
-  
+
     btable_set(btable, node->id);
 
     // TODO pretty print
@@ -427,10 +419,12 @@ static int opt_help_cb(const struct btree_node *node, void *arg)
     return 0;
 }
 
-int opt_show_help(struct opt_context *ctx, const char *s)
+int opt_show_help(const char *s)
 {
+    struct opt_context *ctx = &g_ctx;
     struct btable *btable = ctx->btable;
     btable_reset(btable, 0);
 
     return btree_traverse(&ctx->btree, NULL, s, opt_help_cb, btable);
 }
+

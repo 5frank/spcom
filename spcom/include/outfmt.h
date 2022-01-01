@@ -3,14 +3,6 @@
 
 #include <stdbool.h>
 
-struct outfmt_opts_s {
-    const char* hexfmt; // TODO
-    bool color;
-    struct {
-        const char *hexesc;
-    } colors;
-    bool timestamp;
-};
 
 
 /** 

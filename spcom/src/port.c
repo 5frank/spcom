@@ -39,22 +39,8 @@ enum port_state_e {
     /// TXRX ready
     PORT_STATE_READY
 };
+extern struct port_opts_s port_opts;
 
-struct port_opts_s port_opts = {
-    /* assume negative values invalid. -1 used to check if options provided and 
-     should be set or untouched. */
-    .baudrate = -1,
-    .databits = -1,
-    .stopbits = -1,
-    .parity = -1,
-    .rts = -1,
-    .cts = -1,
-    .dtr = -1,
-    .dsr = -1,
-    //.xonxoff = -1,
-    .flowcontrol = -1,
-    .signal = -1
-};
 
 static struct port_s {
     struct sp_port *port;

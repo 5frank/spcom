@@ -102,9 +102,9 @@ static struct option _options[] = {
     { "stay", required_argument, 0, OPT_STAY },
     //{ "wait-timeout", required_argument, 0, OPT_WAIT_TIMEOUT },
     { "verbose", no_argument, 0, OPT_VERBOSE },
-    { "color", no_argument, 0, OPT_COLOR },
     // application timeout in seconds. useful for batch jobs. 
     { "timeout", required_argument, 0, OPT_TIMEOUT },
+    { "color", no_argument, 0, OPT_COLOR },
     { "timestamp", no_argument, 0, OPT_TIMESTAMP },
     // TODO if canonical set in config file, how to disable with cli arg? optional arg?
     { "canonical", required_argument, 0, OPT_CANONICAL },

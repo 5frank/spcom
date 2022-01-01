@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "opt.h"
 #include "vt_defs.h"
 #include "log.h"
 #include "eol.h"
@@ -28,7 +29,14 @@ static struct outfmt_s
     .hexlut = HEX_CHR_LUT_UPPER
 };
 
-struct outfmt_opts_s outfmt_opts = {
+static struct outfmt_opts_s {
+    const char* hexfmt; // TODO
+    bool color;
+    struct {
+        const char *hexesc;
+    } colors;
+    int timestamp;
+} outfmt_opts = {
     .color = true,
     .colors = {
         .hexesc = VT_COLOR_RED
@@ -205,3 +213,19 @@ void outfmt_write(const void *data, size_t size)
 void out_drain_reset(void)
 {}
 
+static const struct opt_conf outfmt_opts_conf[] = {
+    {
+        .name = "timestamp",
+        .dest = &outfmt_opts.timestamp,
+        .parse = opt_ap_flag_true,
+        .descr = "prepend timestamp on every line",
+    },
+    {
+        .name = "color",
+        .dest = &outfmt_opts.color,
+        .parse = opt_ap_flag_true,
+        .descr = "enable color output",
+    },
+};
+
+OPT_SECTION_ADD(port, outfmt_opts_conf, ARRAY_LEN(outfmt_opts_conf), NULL);

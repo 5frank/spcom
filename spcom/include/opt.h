@@ -32,13 +32,11 @@
 #define OPT_F_NO_ISNORMAL  (1 << 4)
 #endif
 
-struct opt_context;
 
 struct opt_conf;
 
 typedef const char **(opt_complete_fn)(const char *s);
-typedef int (opt_parse_fn)(struct opt_context *ctx,
-                         const struct opt_conf *conf,
+typedef int (opt_parse_fn)(const struct opt_conf *conf,
                          char *sval);
 
 struct opt_conf {
@@ -57,8 +55,8 @@ struct opt_conf {
 
 struct opt_section_entry;
 
-typedef int (*opt_post_parse_fn)(struct opt_context *ctx,
-                                 const struct opt_section_entry *entry);
+typedef int (*opt_post_parse_fn)(const struct opt_section_entry *entry);
+
 struct opt_section_entry {
     const char *name;
     const struct opt_conf *conf;
@@ -76,46 +74,32 @@ struct opt_section_entry {
         .post_parse = POST_PARSE_CB                                            \
     };
 
-struct opt_context *opt_init(void);
 
 /** set error message. always return non-zero i.e. can be used in return
  * statements.
  */
-int opt_error(struct opt_context *ctx,
-              const struct opt_conf *conf,
-              const char *msg);
+int opt_error(const struct opt_conf *conf, const char *msg);
 
-int opt_parse_args(struct opt_context *ctx, int argc, char *argv[]);
+int opt_parse_args(int argc, char *argv[]);
 
+int opt_show_help(const char *s);
 
-int opt_show_help(struct opt_context *ctx, const char *s);
+int opt_ap_int(const struct opt_conf *conf, char *s);
 
-int opt_ap_int(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s);
-
-int opt_ap_str(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s);
+int opt_ap_str(const struct opt_conf *conf, char *s);
 /** set conf->dest to true.
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_true(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s);
+int opt_ap_flag_true(const struct opt_conf *conf, char *s);
 
 /** set conf->dest to false.
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_false(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s);
+int opt_ap_flag_false(const struct opt_conf *conf, char *s);
 
 /** set conf->dest += 1 .
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_count(struct opt_context *ctx,
-               const struct opt_conf *conf,
-               char *s);
+int opt_ap_flag_count(const struct opt_conf *conf, char *s);
 #endif
 

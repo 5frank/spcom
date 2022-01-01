@@ -1,4 +1,3 @@
-
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -6,9 +5,15 @@
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
-#include "eol.h"
 #include "str.h"
+#include "opt.h"
 #include "utils.h"
+#include "eol.h"
+
+enum eol_type_e {
+    EOL_TX = 1 << 0,
+    EOL_RX = 1 << 1
+};
 
 static struct eol_rx_s {
     struct eol_seq hist;
@@ -19,6 +24,9 @@ static struct eol_tx_s {
     struct eol_seq seq;
 } g_eol_tx = { 0 };
 
+static struct eol_opts_s {
+    unsigned int have_flags;
+} eol_opts;
 
 static void eol_seq_msk_putc(struct eol_seq *es, char c)
 {
@@ -118,7 +126,7 @@ static int eol_set_tx(const void *data, size_t len)
     return 0;
 }
 
-int eol_set(int type, const void *data, size_t len)
+static int eol_set(int type, const void *data, size_t len)
 {
     int err = 0;
     if (!type || !data || !len)
@@ -192,7 +200,7 @@ static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
     return 0;
 }
 
-int eol_parse_opts(int type, const char *s)
+static int eol_parse_opts(int type, const char *s)
 {
     int err = 0;
     char *sdup = strdup(s);
@@ -244,3 +252,65 @@ int eol_init(void)
 {
     return 0;
 }
+
+static int eol_opt_post_parse( const struct opt_section_entry *entry)
+{
+    int err;
+    if (!(eol_opts.have_flags & EOL_TX)) {
+        err = eol_set(EOL_TX, "\n", 1);
+        assert(!err);
+    }
+
+    if (!(eol_opts.have_flags & EOL_RX)) {
+        err = eol_set(EOL_RX, "\n", 1);
+        assert(!err);
+        err = eol_set(EOL_RX, "\r", 1);
+        assert(!err);
+    }
+
+    return 0;
+}
+
+static int parse_eol( const struct opt_conf *conf,
+               char *s)
+{
+    unsigned int flags = EOL_TX | EOL_RX;
+    eol_opts.have_flags |= flags;
+    return eol_parse_opts(flags, s);
+}
+
+static int parse_eol_tx( const struct opt_conf *conf,
+               char *s)
+{
+    unsigned int flags = EOL_TX;
+    eol_opts.have_flags |= flags;
+    return eol_parse_opts(flags, s);
+}
+
+static int parse_eol_rx( const struct opt_conf *conf,
+               char *s)
+{
+    unsigned int flags = EOL_RX;
+    eol_opts.have_flags |= flags;
+    return eol_parse_opts(flags, s);
+}
+
+static const struct opt_conf eol_opts_conf[] = {
+    {
+        .name = "eol",
+        .parse = parse_eol,
+        .descr = "end of line crlf", // TODO
+    },
+    {
+        .name = "eol-tx",
+        .parse = parse_eol_tx,
+        .descr = "end of line crlf", // TODO
+    },
+    {
+        .name = "eol-rx",
+        .parse = parse_eol_rx,
+        .descr = "end of line crlf", // TODO
+    },
+};
+
+OPT_SECTION_ADD(main, eol_opts_conf, ARRAY_LEN(eol_opts_conf), eol_opt_post_parse);

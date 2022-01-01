@@ -1,38 +1,31 @@
 #include "opt.h"
 #include "str.h"
+#include "port.h"
 
-struct port_opts_s {
-    /* i.e. device path on unix */
-    const char *name; 
-    int baudrate;
-    int databits;
-    int stopbits;
-    int parity;
-    int rts;
-    int cts;
-    int dtr;
-    int dsr;
-    int flowcontrol;
-    int signal;
-    int chardelay;
-    int wait;
-    int stay;
+
+struct port_opts_s port_opts = {
+    /* assume negative values invalid. -1 used to check if options provided and 
+     should be set or untouched. */
+    .baudrate = -1,
+    .databits = -1,
+    .stopbits = -1,
+    .parity = -1,
+    .rts = -1,
+    .cts = -1,
+    .dtr = -1,
+    .dsr = -1,
+    //.xonxoff = -1,
+    .flowcontrol = -1,
+    .signal = -1
 };
 
-static struct port_opts_s port_opts;
-//extern const struct port_opts_s *g_port_opts = &port_opts;
-
-static int parse_devname(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_devname(const struct opt_conf *conf, char *sval)
 {
     port_opts.name = sval;
     return 0;
 }
 
-static int parse_baud_dps(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_baud_dps(const struct opt_conf *conf, char *sval)
 {
     return str_to_baud_dps(sval,
                            &port_opts.baudrate,
@@ -41,38 +34,28 @@ static int parse_baud_dps(struct opt_context *ctx,
                            &port_opts.stopbits);
 }
 
-static int parse_baud(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_baud(const struct opt_conf *conf, char *sval)
 {
     return str_to_baud(sval, &port_opts.baudrate, NULL);
 }
 
 
-static int parse_databits(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_databits(const struct opt_conf *conf, char *sval)
 {
     return str_to_databits(sval, &port_opts.databits, NULL);
 }
 
-static int parse_stopbits(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_stopbits(const struct opt_conf *conf, char *sval)
 {
     return str_to_stopbits(sval, &port_opts.stopbits, NULL);
 }
 
-static int parse_parity(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_parity(const struct opt_conf *conf, char *sval)
 {
     return str_to_parity(sval, &port_opts.parity, NULL);
 }
 
-static int parse_flowcontrol(struct opt_context *ctx,
-                         const struct opt_conf *conf,
-                         char *sval)
+static int parse_flowcontrol(const struct opt_conf *conf, char *sval)
 {
     return str_to_flowcontrol(sval, &port_opts.flowcontrol);
 }

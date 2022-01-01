@@ -348,9 +348,7 @@ int cmd_parse(enum cmd_src_e cmdsrc, char *s)
     return err;
 }
 
-static int cmd_opt_parse(struct opt_context *ctx,
-                        const struct opt_conf *conf,
-                        char *s)
+static int cmd_opt_parse(const struct opt_conf *conf, char *s)
 {
     return cmd_parse(CMD_SRC_OPT, s);
 }
