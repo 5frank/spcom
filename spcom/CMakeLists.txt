@@ -4,6 +4,7 @@ project (spcom)
 
 set(SOURCES
     src/main.c
+    src/main_opts.c
     src/charmap.c
     src/cmd.c
     src/btree.c
@@ -21,6 +22,7 @@ set(SOURCES
     src/shell.c
     src/str.c
     src/str_split_quoted.c
+    src/timeout.c
     src/opq.c
     src/version.c
 )
@@ -39,6 +41,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb -g3 -Os -std=gnu99 -Wall")
 # saving the path size.
 string(LENGTH "${CMAKE_SOURCE_DIR}/" SOURCE_PATH_SIZE)
 add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
+#TODO configurable target
+add_definitions("-DDEBUG=1")
 
 
 add_executable(spcom ${SOURCES})

@@ -1,38 +1,18 @@
-
-
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <uv.h>
 #include <stdbool.h>
-#ifdef _WIN32
-#include <io.h>
-#define isatty(FD) _isatty(FD)
-#define fileno(F) _fileno(F)
-// #define STDOUT_FILENO ?
-#else
-#include <unistd.h>
-#endif
 
 #include "assert.h"
 #include "opt.h"
 #include "shell.h"
 #include "utils.h"
 #include "cmd.h"
-
+#include "timeout.h"
 #include "port.h"
-#include "port_info.h"
-
-struct {
-    int timeout;
-    int verbose;
-    int show_help;
-    int show_version;
-    int show_list;
-} main_opts = {
-    .timeout = 0,
-};
+#include "main.h"
 
 struct main_s {
     int exit_status;
@@ -40,17 +20,9 @@ struct main_s {
     bool have_shell;
     uv_signal_t ev_sigint;
     uv_signal_t ev_sigterm;
-    uv_timer_t t_timeout;
 };
 
 static struct main_s g_main = { 0 };
-
-static void _uvcb_on_timeout(uv_timer_t* handle)
-{
-    LOG_ERR("timeout after %d sec", main_opts.timeout);
-    // 62 = ETIME = "Timer expired" on gnu/linux
-    main_exit(62);
-}
 
 void main_cleanup(void);
 static void on_uv_close(uv_handle_t* handle)
@@ -63,14 +35,14 @@ static void on_uv_walk(uv_handle_t* handle, void* arg)
 {
     uv_close(handle, on_uv_close);
 }
-#if USE_BACKTRACE
+#if 0
 #include <execinfo.h>
 static void print_backtrace(void) 
 {
   void *stackptrs[10];
   // get entries from stack
   size_t size = backtrace(stackptrs, 10);
-  fprintf(stderr, "backtrace:\n");
+  fprintf(stderr, "Backtrace:\n");
   backtrace_symbols_fd(stackptrs, size, STDERR_FILENO);
 }
 #else
@@ -205,15 +177,8 @@ int main_init(void)
         m->have_shell = true;
     }
 
-
-    if (main_opts.timeout > 0) {
-        err = uv_timer_init(loop, &m->t_timeout);
-        assert_uv_z(err, "uv_timer_init");
-        uint64_t ms = (uint64_t) main_opts.timeout * 1000;
-        err = uv_timer_start(&m->t_timeout, _uvcb_on_timeout, ms, 0);
-        assert_uv_z(err, "uv_timer_start");
-        LOG_DBG("timeout set to %d sec", main_opts.timeout);
-    }
+    err = timeout_init(main_exit);
+    assert(!err);
 
     err = port_init();
     if (err) {
@@ -225,7 +190,6 @@ int main_init(void)
 
 void main_cleanup(void)
 {
-
     int err = 0;
     struct main_s *m = &g_main;
     uv_loop_t *loop = uv_default_loop();
@@ -236,11 +200,7 @@ void main_cleanup(void)
         return;
     }
 
-    if (main_opts.timeout > 0) {
-        err = uv_timer_stop(&m->t_timeout);
-        if (err)
-            LOG_UV_ERR(err, "uv_timer_stop");
-    }
+    timeout_stop();
 
     if (m->have_shell) {
         shell_cleanup();
@@ -258,99 +218,6 @@ void main_cleanup(void)
     log_cleanup(); // last before exit
     m->cleanup_done = true;
 }
-
-static int main_opt_post_parse(const struct opt_section_entry *entry)
-{
-    if (main_opts.show_help) {
-        int err = opt_show_help(NULL);
-        exit(err ? EXIT_FAILURE : 0);
-    }
-    if (main_opts.show_version) {
-        version_print(main_opts.verbose);
-        exit(0);
-    }
-
-    if (main_opts.show_list) {
-        port_info_print_list(main_opts.verbose);
-        exit(0);
-    }
-    return 0;
-}
-
-static int parse_autocomplete(const struct opt_conf *conf, char *s)
-{
-    assert(s);
-
-    char *name = s;
-    char *start = NULL;
-
-    char *sp = strchr(s, ',');
-    if (sp) {
-        *sp = '\0';
-        sp++;
-        start = (sp[0] != '\0') ? sp : NULL;
-    }
-
-    const char **list = opt_autocomplete(name, start);
-    if (!list)
-        goto done;
-
-    while(1) {
-        const char *word = *list++;
-        if (!word)
-            break;
-
-        fputs(word, stdout);
-        fputc(' ', stdout);
-    }
-done:
-    exit(0);
-    return 0;
-}
-
-static const struct opt_conf main_opts_conf[] = {
-    {
-        .name = "timeout",
-        .dest = &main_opts.timeout,
-        .parse = opt_ap_int,
-        .descr = "application timeout in seconds. useful for batch jobs."
-    },
-    {
-        .name = "version",
-        .dest = &main_opts.show_version,
-        .parse = opt_ap_flag_true,
-        .descr = "show version and exit",
-    },
-    {
-        .name = "ls",
-        .shortname = 'l',
-        .dest = &main_opts.show_list,
-        .parse = opt_ap_flag_true,
-        .descr = "list serial port devices. "
-            "Combine with verbose option for more detailes",
-    },
-    {
-        .name = "verbose",
-        .shortname = 'v',
-        .dest = &main_opts.verbose,
-        .parse = opt_ap_flag_count,
-        .descr = "verbose output",
-    },
-    {
-        .name = "help",
-        .shortname = 'h',
-        .dest = &main_opts.show_help,
-        .parse = opt_ap_flag_true,
-        .descr = "show help and exit",
-    },
-    {
-        .name = "autocomplete",
-        .parse = parse_autocomplete,
-        .descr = "Genereate autocomplete list",
-    },
-};
-
-OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), main_opt_post_parse);
 
 int main(int argc, char *argv[])
 {

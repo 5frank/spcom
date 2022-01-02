@@ -61,6 +61,12 @@ static int parse_flowcontrol(const struct opt_conf *conf, char *sval)
     return str_to_flowcontrol(sval, &port_opts.flowcontrol);
 }
 
+static int port_opts_post_parse(const struct opt_section_entry *entry)
+{
+    // TODO set defaults?
+    return 0;
+}
+
 static const struct opt_conf port_opts_conf[] = {
     {
         .positional = 1,
@@ -121,5 +127,8 @@ static const struct opt_conf port_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(port, port_opts_conf, ARRAY_LEN(port_opts_conf), NULL);
+OPT_SECTION_ADD(port,
+                port_opts_conf,
+                ARRAY_LEN(port_opts_conf),
+                port_opts_post_parse);
 

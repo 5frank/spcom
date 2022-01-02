@@ -64,7 +64,7 @@ static struct shell_s {
     int prev_c;
 
     bool cmd_mode_active;
-} _shell = { 
+} shell = { 
     .prev_c = -1
 };
 
@@ -131,18 +131,18 @@ static void shell_set_cmd_mode(bool enable)
     struct shell_mode_data_s *new_md = NULL;
 
     if (enable) {
-        new_md = &_shell.cmd_mode_data;
+        new_md = &shell.cmd_mode_data;
 
         if (shell_opts.cooked) {
-            old_md = &_shell.cooked_mode_data;
+            old_md = &shell.cooked_mode_data;
         }
     }
     // disable
     else {
-        old_md = &_shell.cmd_mode_data;
+        old_md = &shell.cmd_mode_data;
 
         if (shell_opts.cooked) {
-            new_md = &_shell.cooked_mode_data;
+            new_md = &shell.cooked_mode_data;
         }
     }
 
@@ -172,8 +172,8 @@ static void shell_set_cmd_mode(bool enable)
 /** as unbuffered stdin and single threaded - use single small static buffer */
 static void _uvcb_stdin_stalloc(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 {
-    buf->base = _shell.stdin_rd_buf;
-    buf->len  = sizeof(_shell.stdin_rd_buf);
+    buf->base = shell.stdin_rd_buf;
+    buf->len  = sizeof(shell.stdin_rd_buf);
 }
 
 static void _uvcb_stdin_read(uv_stream_t *tty_in, ssize_t nread,
@@ -200,7 +200,7 @@ static void _rlcb_on_newline(char *line)
         LOG_ERR("null string - uncaught ctrl key not handled by readline?");
         return; // TODO do what?
     }
-    switch (_shell.mode) {
+    switch (shell.mode) {
         case SHELL_M_RAW:
             LOG_ERR("readline callback in raw mode");
             break;
@@ -280,21 +280,21 @@ static void shell_update_c(int prev_c, int c)
             break;
     }
 
-    if (_shell.cmd_mode_active && c == shell_opts.keybind.cmd_exit) {
+    if (shell.cmd_mode_active && c == shell_opts.keybind.cmd_exit) {
         LOG_DBG("cmd mode exit key=%d", c);
         shell_set_cmd_mode(false);
-        _shell.cmd_mode_active = false;
+        shell.cmd_mode_active = false;
         return;
     }
 
-    if (!_shell.cmd_mode_active && c == shell_opts.keybind.cmd_enter) {
+    if (!shell.cmd_mode_active && c == shell_opts.keybind.cmd_enter) {
         LOG_DBG("cmd mode enter key=%d", c);
         shell_set_cmd_mode(true);
-        _shell.cmd_mode_active = true;
+        shell.cmd_mode_active = true;
         return;
     }
 
-    if (_shell.cmd_mode_active || shell_opts.cooked) {
+    if (shell.cmd_mode_active || shell_opts.cooked) {
         // forward to cmd or cooked prompt
         _rl_putc(c);
     }
@@ -311,7 +311,7 @@ int shell_update(const void *user_input, size_t size)
     if (!size)
         return 0;
     // TODO prev_c shared between modes --> bug?
-    int prev_c = _shell.prev_c;
+    int prev_c = shell.prev_c;
     const char *p = user_input;
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
@@ -319,18 +319,18 @@ int shell_update(const void *user_input, size_t size)
         prev_c = c;
     }
 
-    _shell.prev_c = prev_c;
+    shell.prev_c = prev_c;
     return 0;
 }
 
 void shell_cleanup(void)
 {
-    if (!_shell.init)
+    if (!shell.init)
         return;
 
     int err = 0;
-    // if (_shell.history[0] != '\0')
-    //write_history(_shell.history);
+    // if (shell.history[0] != '\0')
+    //write_history(shell.history);
 
 #if 0
     // this returns EBADF if tty(s) already closed
@@ -339,7 +339,7 @@ void shell_cleanup(void)
         LOG_UV_ERR(err, "tty mode reset");
 
 #else
-    uv_tty_t *p_tty = &_shell.stdin_tty;
+    uv_tty_t *p_tty = &shell.stdin_tty;
     if (uv_is_active((uv_handle_t *)p_tty)) {
         err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
         if (err)
@@ -350,7 +350,7 @@ void shell_cleanup(void)
 
     rl_message("");
     rl_callback_handler_remove();
-    _shell.init = false;
+    shell.init = false;
 }
 
 
@@ -364,11 +364,11 @@ struct shell_rls_s *shell_rls_save(void)
         return NULL;
 
     struct readline_state *rlstate = NULL;
-    if (_shell.cmd_mode_active) {
-        rlstate = &_shell.cmd_mode_data.rlstate;
+    if (shell.cmd_mode_active) {
+        rlstate = &shell.cmd_mode_data.rlstate;
     }
     else if (shell_opts.cooked) {
-        rlstate = &_shell.cooked_mode_data.rlstate;
+        rlstate = &shell.cooked_mode_data.rlstate;
     }
     else {
         // no need in raw mode
@@ -436,16 +436,16 @@ static void shell_init_modes(void)
     rl_readline_name = "spcom";
 
     {
-        struct shell_mode_data_s *md = &_shell.cooked_mode_data;
+        struct shell_mode_data_s *md = &shell.cooked_mode_data;
         rl_save_state(&md->rlstate);
         assert(!md->rlstate.catchsigs);
         assert(!md->rlstate.catchsigwinch);
         md->prompt = shell_opts.prompt;
-        //md->rlstate.prompt = _shell.prompt;
+        //md->rlstate.prompt = shell.prompt;
         md->rlstate.attemptfunc = _complete_m_cooked;
     }
     {
-        struct shell_mode_data_s *md = &_shell.cmd_mode_data;
+        struct shell_mode_data_s *md = &shell.cmd_mode_data;
         rl_save_state(&md->rlstate);
         assert(!md->rlstate.catchsigs);
         assert(!md->rlstate.catchsigwinch);
@@ -475,8 +475,8 @@ int shell_init(void)
     //rl_attempted_completion_function = _complete_cmd;
     // TODO
     // rl_attempted_completion_function = shell_completion;
-    /*_shell.promts[0] = opts.promt;
-     *_shell.promts[1] = opts.cmd_promt;
+    /*shell.promts[0] = opts.promt;
+     *shell.promts[1] = opts.cmd_promt;
      *shell_set_active_promt(0);*/
     //rl_forced_update_display();
 
@@ -490,7 +490,7 @@ int shell_init(void)
     // fd = STDERR_FILENO;
     
     uv_loop_t *loop = uv_default_loop();
-    uv_tty_t *p_tty = &_shell.stdin_tty;
+    uv_tty_t *p_tty = &shell.stdin_tty;
 
     err = uv_tty_init(loop, p_tty, STDIN_FILENO, 0);
     assert_uv_z(err, "uv_tty_init");
@@ -512,10 +512,19 @@ int shell_init(void)
     // fallback to SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING);?
 #endif
 
-    _shell.init = true;
+    shell.init = true;
     return 0;
 }
 
+
+static int shell_opts_post_parse(const struct opt_section_entry *entry)
+{
+
+    if (shell_opts.sticky)
+        shell_opts.cooked = true;
+
+    return 0;
+}
 
 static const struct opt_conf shell_opts_conf[] = {
     {
@@ -523,6 +532,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .dest = &shell_opts.sticky,
         .parse = opt_ap_flag_true,
         .descr = "sticky promt that hold input even if new data received."
+            "This option will implicitly set cooked (canonical) mode"
     },
     {
         .name = "cooked",
@@ -538,4 +548,7 @@ static const struct opt_conf shell_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(port, shell_opts_conf, ARRAY_LEN(shell_opts_conf), NULL);
+OPT_SECTION_ADD(shell,
+                shell_opts_conf,
+                ARRAY_LEN(shell_opts_conf),
+                shell_opts_post_parse);

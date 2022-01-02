@@ -1,9 +1,6 @@
-
 #include <uv.h>
 #include <libserialport.h>
-
 #include <readline/readline.h>
-
 
 int version_print(int verbose)
 {

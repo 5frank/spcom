@@ -24,7 +24,7 @@ static struct outfmt_s
     // hex char lookup table
     const char *hexlut;
     int prev_c;
-} _outfmt = {
+} outfmt = {
     .prev_c = -1,
     .hexlut = HEX_CHR_LUT_UPPER
 };
@@ -47,16 +47,16 @@ static struct outfmt_opts_s {
  * premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for
  * every write to stdout. also fputc is slow... 
- * must ensure a flush after tmpbuf operation(s).
+ * must ensure a flush after strbuf operation(s).
  */ 
-static struct tmpbuf_s {
-    char data[64];
+static struct strbuf_s {
+    char data[128];
     size_t len;
-} _tmpbuf;
+} _strbuf;
 
-static void tmpbuf_flush(void)
+static void strbuf_flush(void)
 {
-    struct tmpbuf_s *buf = &_tmpbuf;
+    struct strbuf_s *buf = &_strbuf;
 
     if (!buf->len)
         return;
@@ -77,28 +77,28 @@ static void tmpbuf_flush(void)
     buf->len = 0;
 }
 
-static inline void tmpbuf_putc(char c)
+static inline void strbuf_putc(char c)
 {
-    struct tmpbuf_s *buf = &_tmpbuf;
+    struct strbuf_s *buf = &_strbuf;
     size_t remains = sizeof(buf->data) - buf->len;
     if (remains < 1) 
-        tmpbuf_flush();
+        strbuf_flush();
 
     buf->data[buf->len] = c;
     buf->len++;
 }
 
-static void tmpbuf_write(const char *src, size_t size)
+static void strbuf_write(const char *src, size_t size)
 {
     for (size_t i = 0; i < size; i++) {
-        tmpbuf_putc(*src++);
+        strbuf_putc(*src++);
     }
 }
 
-static void tmpbuf_puts(const char *s)
+static void strbuf_puts(const char *s)
 {
     while (*s) {
-        tmpbuf_putc(*s++);
+        strbuf_putc(*s++);
     }
 }
 
@@ -109,7 +109,7 @@ static void print_hexesc(char c)
     char buf[5];
     char *p = buf;
     // hex escape format, have color...
-    const char *lut = _outfmt.hexlut;
+    const char *lut = outfmt.hexlut;
     unsigned char b = c;
 
 #if 1
@@ -127,12 +127,12 @@ static void print_hexesc(char c)
 #endif
     const char *color = outfmt_opts.colors.hexesc;
     if (color)
-        tmpbuf_puts(color);
+        strbuf_puts(color);
 
-    tmpbuf_puts(buf);
+    strbuf_puts(buf);
 
     if (color) 
-        tmpbuf_puts(VT_COLOR_OFF);
+        strbuf_puts(VT_COLOR_OFF);
 }
 /* or use ts from moreutils? `apt install moreutils`
  * 
@@ -160,10 +160,10 @@ static void print_timestamp(void)
     static char buf[32];
 
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.", &tm);
-    tmpbuf_puts(buf);
+    strbuf_puts(buf);
 
     sprintf(buf, "%09luZ:", now.tv_nsec);
-    tmpbuf_puts(buf);
+    strbuf_puts(buf);
 }
 
 /**
@@ -175,13 +175,13 @@ void outfmt_write(const void *data, size_t size)
     if (!size)
         return;
     const char *p = data;
-    int prev_c = _outfmt.prev_c;
+    int prev_c = outfmt.prev_c;
 
     bool is_first_c = prev_c < 0;
     if (is_first_c) 
         print_timestamp();
 
-    bool had_eol = _outfmt.had_eol;
+    bool had_eol = outfmt.had_eol;
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
@@ -193,10 +193,10 @@ void outfmt_write(const void *data, size_t size)
 
         if (had_eol) {
             // TODO optionaly print escaped CR 
-            tmpbuf_putc('\n');
+            strbuf_putc('\n');
         }
         else if (isprint(c)) {
-            tmpbuf_putc(c);
+            strbuf_putc(c);
         }
         else if (1) { // TODO outfmt.opts.escape map..
             print_hexesc(c);
@@ -204,10 +204,10 @@ void outfmt_write(const void *data, size_t size)
 
         prev_c = c;
     }
-    tmpbuf_flush();
+    strbuf_flush();
 
-    _outfmt.had_eol = had_eol;
-    _outfmt.prev_c = prev_c;
+    outfmt.had_eol = had_eol;
+    outfmt.prev_c = prev_c;
 }
 
 void out_drain_reset(void)
@@ -228,4 +228,4 @@ static const struct opt_conf outfmt_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(port, outfmt_opts_conf, ARRAY_LEN(outfmt_opts_conf), NULL);
+OPT_SECTION_ADD(outfmt, outfmt_opts_conf, ARRAY_LEN(outfmt_opts_conf), NULL);

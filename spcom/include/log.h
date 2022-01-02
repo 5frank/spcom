@@ -1,6 +1,9 @@
 #ifndef __LOG_INCLUDE_H__
 #define __LOG_INCLUDE_H__
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
 /// see magic trick in CMakeList.txt 
 #ifdef SOURCE_PATH_SIZE
 #define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
@@ -33,9 +36,9 @@ void log_printf(int tag, const char *where, const char *fmt, ...);
 #define LOG_DBG(FMT, ...) \
     __LOG(LOG_TAG_DBG, FMT, ##__VA_ARGS__)
 
-
 const char *log_wherestr(const char *file, unsigned int line, const char *func);
-#define LOG_WHERESTR() log_wherestr(__FILENAME__, __LINE__, __func__)
+#define LOG_WHERESTR() \
+    ((DEBUG) ? log_wherestr(__FILENAME__, __LINE__, __func__) : NULL)
 
 
 const char *log_errnostr(int eno);
