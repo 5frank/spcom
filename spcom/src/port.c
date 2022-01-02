@@ -66,7 +66,8 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events);
 
 static int port_exists(void)
 {
-    // wont fly on windows but uv_fs_pool_t doesent either (I think) so need something else anyway
+    // wont fly on windows but uv_fs_pool_t doesent either (I think) so need
+    // something else anyway
     // TODO use "abspath"
     return (access(port_opts.name, F_OK) == 0);
 }
@@ -480,7 +481,8 @@ static int port_open(void)
 
     // saftey check
     uv_handle_type htype = uv_guess_handle(fd);
-    LOG_DBG("uv_handle_type='%s'=%d", log_uv_handle_type_to_str(htype), (int) htype);
+    LOG_DBG("uv_handle_type='%s'=%d",
+            log_uv_handle_type_to_str(htype), (int) htype);
 
     err = uv_prepare_init(loop, &_port.prepare_handle);
     if (err)
@@ -488,7 +490,6 @@ static int port_open(void)
 
     err = uv_prepare_start(&_port.prepare_handle, _on_prepare);
     (void) err; // cant fail according to doc
-
 
     // use uv_poll_t as custom read write from libserialport
     err = uv_poll_init(loop, &_port.poll_handle, fd);
@@ -615,7 +616,8 @@ int port_write_line(const char *line)
 int port_init(void)
 {
     int err;
-
+    if (!port_opts.name)
+        return opt_error(NULL, "no serial port device");
     // allocate some resources
     err = sp_new_config(&_port.org_config);
     assert_sp_z(err, "sp_new_config");

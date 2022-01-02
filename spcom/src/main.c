@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <uv.h>
 #include <stdbool.h>
 #ifdef _WIN32
@@ -258,10 +259,6 @@ void main_cleanup(void)
     m->cleanup_done = true;
 }
 
-int main_show_help(const struct opt_conf *conf, char *s)
-{
-}
-
 static int main_opt_post_parse(const struct opt_section_entry *entry)
 {
     if (main_opts.show_help) {
@@ -277,6 +274,37 @@ static int main_opt_post_parse(const struct opt_section_entry *entry)
         port_info_print_list(main_opts.verbose);
         exit(0);
     }
+    return 0;
+}
+
+static int parse_autocomplete(const struct opt_conf *conf, char *s)
+{
+    assert(s);
+
+    char *name = s;
+    char *start = NULL;
+
+    char *sp = strchr(s, ',');
+    if (sp) {
+        *sp = '\0';
+        sp++;
+        start = (sp[0] != '\0') ? sp : NULL;
+    }
+
+    const char **list = opt_autocomplete(name, start);
+    if (!list)
+        goto done;
+
+    while(1) {
+        const char *word = *list++;
+        if (!word)
+            break;
+
+        fputs(word, stdout);
+        fputc(' ', stdout);
+    }
+done:
+    exit(0);
     return 0;
 }
 
@@ -314,6 +342,11 @@ static const struct opt_conf main_opts_conf[] = {
         .dest = &main_opts.show_help,
         .parse = opt_ap_flag_true,
         .descr = "show help and exit",
+    },
+    {
+        .name = "autocomplete",
+        .parse = parse_autocomplete,
+        .descr = "Genereate autocomplete list",
     },
 };
 

@@ -36,8 +36,7 @@
 struct opt_conf;
 
 typedef const char **(opt_complete_fn)(const char *s);
-typedef int (opt_parse_fn)(const struct opt_conf *conf,
-                         char *sval);
+typedef int (opt_parse_fn)(const struct opt_conf *conf, char *sval);
 
 struct opt_conf {
     const char *name;
@@ -74,6 +73,11 @@ struct opt_section_entry {
         .post_parse = POST_PARSE_CB                                            \
     };
 
+/**
+ * @param startstr only match words starting with startstr. can be NULL.
+ * @return NULL or NULL terminated list of autocomplete strings.
+ */
+const char **opt_autocomplete(const char *name, const char *startstr);
 
 /** set error message. always return non-zero i.e. can be used in return
  * statements.

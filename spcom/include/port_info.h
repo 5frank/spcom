@@ -7,11 +7,10 @@
  */
 int port_info_print_osconfig(const char *name);
 
-
 int port_info_print(const char *name, int verbose);
 
 int port_info_print_list(int verbose);
 
-const char** port_info_match(const char *s);
+const char** port_info_complete(const char *s);
 
 #endif

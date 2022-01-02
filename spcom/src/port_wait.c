@@ -226,5 +226,6 @@ int port_wait_init(const char *name)
     assert(pw->basename);
 
     pw->have_init = true;
+
     return 0;
 }

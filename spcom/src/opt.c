@@ -20,7 +20,7 @@
 #define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
 #endif
 
-#define OPT_DBG(...) printf(__VA_ARGS__)
+#define OPT_DBG(...) if (0) { printf(__VA_ARGS__); } else
 
 struct opt_context {
     bool initialized;
@@ -164,7 +164,11 @@ static const struct opt_conf *opt_lookup_next_positional(struct opt_context *ctx
 static int opt_add_positional(struct opt_context *ctx, const struct opt_conf *conf)
 {
     for (int i = 0; i < ARRAY_LEN(ctx->positionals.conf); i++) {
-        if (!ctx->positionals.conf[i]) {
+        const struct opt_conf *pconf = ctx->positionals.conf[i];
+        if (pconf) {
+            assert(pconf->positional != conf->positional);
+        }
+        else {
             ctx->positionals.conf[i] = conf;
             return 0;
         }
@@ -422,9 +426,24 @@ static int opt_help_cb(const struct btree_node *node, void *arg)
 int opt_show_help(const char *s)
 {
     struct opt_context *ctx = &g_ctx;
+    assert(ctx->initialized);
     struct btable *btable = ctx->btable;
     btable_reset(btable, 0);
 
     return btree_traverse(&ctx->btree, NULL, s, opt_help_cb, btable);
 }
 
+const char **opt_autocomplete(const char *name, const char *startstr)
+{
+    struct opt_context *ctx = &g_ctx;
+    assert(ctx->initialized);
+
+    const struct opt_conf *conf = opt_lookup(ctx, name);
+    if (!conf)
+        return NULL;
+
+    if (!conf->complete)
+        return NULL;
+
+    return conf->complete(startstr);
+}

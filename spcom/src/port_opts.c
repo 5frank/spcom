@@ -1,6 +1,7 @@
 #include "opt.h"
 #include "str.h"
 #include "port.h"
+#include "port_info.h"
 
 
 struct port_opts_s port_opts = {
@@ -70,9 +71,10 @@ static const struct opt_conf port_opts_conf[] = {
         .parse = parse_baud_dps,
     },
     {
-        .name = "device",
-        .alias = "port",
+        .name = "port",
+        .alias = "device",
         .parse = parse_devname,
+        .complete = port_info_complete,
     },
     {
         .name = "baudrate",

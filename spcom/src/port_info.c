@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <dirent.h>
 
 #include <libserialport.h>
 
@@ -14,12 +15,24 @@
 #define PINDENT(N, FMT, ...) printf("%*c" FMT "\n", N, ' ', ##__VA_ARGS__)
 #define PTOPIC(FMT, ...) printf(FMT "\n", ##__VA_ARGS__)
 
-static const char *_devnames[64];
+struct port_info_s {
+    char *devname;
+    char *phyinfo;
+};
+
 static const char *_matchlist[32];
 
 static int _qsort_strcmp(const void* a, const void* b)
 {
-  return strcmp(*(const char**)a, *(const char**)b);
+    return strcmp(*(const char**)a, *(const char**)b);
+}
+
+static int _qsort_port_info_s(const void* a, const void* b)
+{
+    const struct port_info_s *ainfo = a;
+    const struct port_info_s *binfo = b;
+
+    return strcmp(ainfo->devname, binfo->devname);
 }
 
 const char *_parity_tostr(enum sp_parity parity)
@@ -110,6 +123,85 @@ cleanup:
     return err;
 }
 
+#if __linux__
+static int port_info_add_phyinfo(struct port_info_s *infos, size_t len)
+{
+#define BASE_PATH "/dev/serial/by-path/"
+#define FNAME_LEN_MAX (sizeof("pci-0000:00:14.0-usb-0:4:1.3") + 16)
+
+    int err = 0;
+    char buf[sizeof(BASE_PATH) +  FNAME_LEN_MAX] = BASE_PATH;
+
+    DIR *dp = opendir(BASE_PATH);
+    if (!dp) {
+        LOG_ERR("failed to open %s", BASE_PATH);
+        return -1;
+    }
+
+    while (1) {
+        struct dirent *de = readdir(dp);
+        if (!de)
+            break;
+
+        if (!de->d_name)
+            break;
+
+        if (de->d_name[0] == '.')
+            continue;
+
+        size_t slen = strlen(de->d_name);
+        if (slen >= (FNAME_LEN_MAX - 1)) {
+            fprintf(stderr, "%zu path length", slen);
+            continue;
+        }
+
+        strcpy(buf + sizeof(BASE_PATH) - 1, de->d_name);
+        char *abspath = buf;
+
+        char *devpath = realpath(abspath, NULL);
+
+        // find where this info belongs
+        bool found = false;
+        for (int i = 0; i < len; i++) {
+            struct port_info_s *info = &infos[i];
+
+            assert(info->devname);
+            if (strcmp(info->devname, devpath))
+                continue;
+
+            if (info->phyinfo) {
+                LOG_WRN("%s duplicate phyinfo %s", devpath, de->d_name);
+                continue;
+            }
+
+            info->phyinfo = strdup(de->d_name);
+            assert(info->phyinfo);
+            found = true;
+            break;
+        }
+
+        if (!found) {
+            LOG_WRN("%s in %s not listed by libsp", devpath, BASE_PATH);
+        }
+
+        free(devpath);
+    }
+
+    (void)closedir(dp);
+
+#undef BASE_PATH
+#undef FNAME_LEN_MAX
+
+    return err;
+}
+#else
+
+static int port_info_add_phyinfo(struct port_info_s *infos, size_t len)
+{
+    return 0;
+}
+#endif
+
 int port_info_print(const char *name, int verbose)
 {
     // TODO use shell printf
@@ -122,7 +214,7 @@ int port_info_print(const char *name, int verbose)
     }
 
     enum sp_transport transport = sp_get_port_transport(port);
-    const char *descr= sp_get_port_description(port);
+    const char *descr = sp_get_port_description(port);
     const char *type;
     switch (transport) {
         case SP_TRANSPORT_NATIVE:
@@ -178,10 +270,21 @@ cleanup:
     return err;
 }
 
+static size_t _sp_portlist_len(struct sp_port **portlist)
+{
+    size_t i = 0;
+    while (1) {
+        if (!portlist[i])
+            break;
+        i++;
+    }
+    return i;
+}
 
 int port_info_print_list(int verbose)
 {
     struct sp_port **portlist = NULL;
+    struct port_info_s *infos = NULL;
 
     int err = sp_list_ports(&portlist);
     if (err) {
@@ -189,49 +292,61 @@ int port_info_print_list(int verbose)
         goto cleanup;
     }
 
-    int n = 0;
-    for (n = 0; ARRAY_LEN(_devnames); n++) {
-        struct sp_port *port = portlist[n];
-        if (!port)
-            break;
-        _devnames[n] = sp_get_port_name(port);
+    size_t list_len = _sp_portlist_len(portlist);
+    if (!list_len)
+        goto cleanup;
+
+    infos = malloc(list_len * sizeof(struct port_info_s));
+    assert(infos);
+
+    for (int i = 0; i < list_len; i++) {
+        struct sp_port *port = portlist[i];
+        assert(port); // should match list_len
+        infos[i].devname = sp_get_port_name(port);
+        infos[i].phyinfo = NULL;
     }
 
-    if (n >= ARRAY_LEN(_devnames)) {
-        LOG_DBG("port list truncated to %d", (int)ARRAY_LEN(_devnames));
+    qsort(infos, list_len, sizeof(infos[0]), _qsort_port_info_s);
+
+    bool show_phyinfo = verbose > 1;
+
+    if (show_phyinfo) {
+        err = port_info_add_phyinfo(infos, list_len);
+        if (err)
+            goto cleanup;
     }
+    // `infos` still holds refrence to `portlist`
+    for (int i = 0; i < list_len; i++) {
 
-    qsort(_devnames, n, sizeof(_devnames[0]), _qsort_strcmp);
+        struct port_info_s *info = &infos[i];
 
-    // `_devnames` still holds refrence to `portlist`
-    for (int i = 0; i < n; i++) {
-        // autocomplete format
-        if (verbose < 0) {
-            printf("%s ", _devnames[i]);
+        err = port_info_print(info->devname, verbose);
+        if (err)
             continue;
+
+        if (show_phyinfo && info->phyinfo) {
+            PINDENT(2, "Phyinfo: %s", info->phyinfo);
         }
 
-        err = port_info_print(_devnames[i], verbose);
-        if (err)
-            continue;
-
-        if (verbose < 2) 
-            continue;
-
-        PINDENT(2, "OS Settings:");
-        err = port_info_print_osconfig(_devnames[i]);
-        if (err)
-            continue;
+        if (verbose > 2) {
+            PINDENT(2, "OS Settings:");
+            err = port_info_print_osconfig(info->devname);
+            if (err)
+                continue;
+        }
     }
 
 cleanup:
     if (portlist)
         sp_free_port_list(portlist);
 
+    if (infos)
+        free(infos);
+
     return err;
 }
 
-const char** port_info_match(const char *s)
+const char** port_info_complete(const char *s)
 {
     _matchlist[0] = NULL;
     struct sp_port **portlist = NULL;

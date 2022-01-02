@@ -5,7 +5,7 @@
 
 struct port_opts_s {
     /* i.e. device path on unix */
-    const char *name; 
+    const char *name;
     int baudrate;
     int databits;
     int stopbits;
