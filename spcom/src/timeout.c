@@ -57,6 +57,7 @@ void timeout_stop(void)
 static const struct opt_conf timeout_opts_conf[] = {
     {
         .name = "timeout",
+        //.alias = "exit-after",
         .dest = &opt_timeout_sec,
         .parse = opt_ap_int,
         .descr = "application timeout in seconds. useful for batch jobs."

@@ -29,22 +29,6 @@ enum char_repr_id {
     CHAR_REPR_STRLIT_BASE,
 };
 
-struct charmap_opts {
-    int use_ascii_name;
-    int use_hexfmt;
-    char hexfmt[8];
-};
-struct charmap_opts charmap_opts = {0};
-
-struct char_map {
-#if 0
-    struct char_map_item {
-        char s[ESC_STR_MAX_LEN + 1];
-    } map[UCHAR_MAX + 1];
-#endif
-    uint16_t map[UCHAR_MAX + 1];
-};
-
 // clang-format off
 static const char *ascii_cntrl_names[] = {
    //0,     1,     2,     3,     4,     5,     6,     7
@@ -54,6 +38,18 @@ static const char *ascii_cntrl_names[] = {
     "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US",
 };
 // clang-format on
+
+static struct charmap_opts {
+    int use_ascii_name;
+    int use_hexfmt;
+    char hexfmt[8];
+} charmap_opts = {0};
+
+static struct char_map {
+    uint16_t map[UCHAR_MAX + 1];
+};
+
+static struct char_map g_cmap = { 0};
 
 static const char *cntrl_valtostr(int val)
 {
@@ -119,8 +115,7 @@ static void hex_mk_table(void)
 
 struct strlits {
     unsigned int count;
-    // TODO use small buf instead. same space required on 64 bit system
-    const char *strs[UCHAR_MAX + 1];
+    const char *strs[16];
 };
 
 static struct strlits *gp_strlits = NULL;
@@ -178,20 +173,6 @@ static int _strlit_add(const char *str, int *id)
     *id = i + CHAR_REPR_STRLIT_BASE;
     return 0;
 }
-#if 0
-static void _strlit_cleanup(void)
-{
-    if (!gp_strlits)
-        return;
-
-    struct strlits *sl = gp_strlits;
-    for (int i = 0; i < sl->count; i++) {
-        free(sl->strs[i]);
-    }
-    free(sl);
-    gp_strlits = NULL;
-}
-#endif
 
 static inline int bufputc(char *dst, char c)
 {
@@ -212,8 +193,9 @@ static int bufputs(char *dst, const char *src)
     return 0;
 }
 
-int charmap_get(const struct char_map *cm, char c, char *buf, int *remapped)
+int charmap_remap(char c, char *buf, int *remapped)
 {
+    struct char_map *cm = &g_cmap;
     unsigned char i = c;
 
     const char *s;
@@ -228,7 +210,7 @@ int charmap_get(const struct char_map *cm, char c, char *buf, int *remapped)
         return bufputs(buf, g_hextbl[i]);
 
     if (x == CHAR_REPR_IGNORE)
-        return 0;
+        return -1;
 
     if (x == CHAR_REPR_CNTRLNAME) {
         s = cntrl_valtostr(c);
@@ -289,19 +271,14 @@ int mk_hexformater(const char *fmt)
 }
 #endif
 
-
-
-
-
 // clang-format off
 static const struct str_kvi cclass_id_strmap[] = {
     { "cntrl",    CHAR_CLASS_CNTRL },
     { "ctrl",     CHAR_CLASS_CNTRL },
     { "nonprint", CHAR_CLASS_NONPRINT },
-    { "!isprint", CHAR_CLASS_NONPRINT },
+    { "nprint",   CHAR_CLASS_NONPRINT },
 };
 // clang-format on
-
 
 static int str_to_cclass_id(const char *s, int *id)
 {
@@ -351,7 +328,7 @@ static int is_in_cclass(int c, int cclassid)
     }
 }
 
-int charmap_set_class_repr(struct char_map *cm, int x, int creprid)
+static int charmap_set_class_repr(struct char_map *cm, int x, int creprid)
 {
     assert(x >= 0);
     if (x <= UCHAR_MAX) {
@@ -466,14 +443,13 @@ static int charmap_set(struct char_map *cm, const char *skey, const char *sval)
 
 int charmap_parse_opts(int type, const char *s)
 {
-    struct char_map cmap;
-    struct char_map *cm = &cmap;
+    struct char_map *cm = &g_cmap;
 
     int err = 0;
     char *sdup = strdup(s);
     assert(sdup);
 
-    int numkv = 256;
+    int numkv = 32;
     struct str_kv *kvls = malloc(sizeof(struct str_kv) * numkv);
     assert(kvls);
 

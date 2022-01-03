@@ -178,14 +178,12 @@ void outfmt_write(const void *data, size_t size)
     int prev_c = outfmt.prev_c;
 
     bool is_first_c = prev_c < 0;
-    if (is_first_c) 
-        print_timestamp();
-
     bool had_eol = outfmt.had_eol;
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
-        if (had_eol) {
+        // timestamp on first char received _after_ eol
+        if (is_first_c || had_eol) {
             print_timestamp();
         }
 
@@ -219,6 +217,12 @@ static const struct opt_conf outfmt_opts_conf[] = {
         .dest = &outfmt_opts.timestamp,
         .parse = opt_ap_flag_true,
         .descr = "prepend timestamp on every line",
+    },
+    {
+        .name = "color",
+        .dest = &outfmt_opts.color,
+        .parse = opt_ap_flag_true,
+        .descr = "enable color output",
     },
     {
         .name = "color",
