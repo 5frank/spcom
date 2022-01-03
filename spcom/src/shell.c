@@ -18,6 +18,7 @@
 #include "port.h"
 #include "utils.h"
 #include "opq.h"
+#include "keybind.h"
 #include "vt_defs.h"
 #include "shell.h"
 
@@ -46,11 +47,10 @@ static struct shell_opts_s shell_opts = {
 };
 
 static struct shell_s {
-    bool init;
+    bool initialized;
     char *name;
-    char history[256];
+    //char history[256];
 
-    enum shell_mode_e mode;
     struct shell_mode_data_s {
         struct readline_state rlstate;
         const char *prompt;
@@ -115,7 +115,7 @@ static char **_complete_m_cmd(const char *text, int start, int end)
     return rl_completion_matches(text, _complete_generator);
 }
 
-/// completer called when in cooked mode
+/// completer called in cooked "normal" mode
 static char **_complete_m_cooked(const char *text, int start, int end)
 {
     // this must be set or readline will abort application
@@ -180,57 +180,41 @@ static void _uvcb_stdin_read(uv_stream_t *tty_in, ssize_t nread,
                          const uv_buf_t *buf)
 {
     if (nread < 0) {
-        printf("error \n"); // TODO
+        LOG_ERR("stdin read %zi", nread); // TODO exit application?
         // uv_close((uv_handle_t*) tty_in, NULL);
-    } else if (nread == 0) {
-        return; // not an error
-        // nread might be 0, which does not indicate an error or EOF. This is equivalent
-        // to EAGAIN or EWOULDBLOCK under read(2)
+        return;
     }
+    else if (nread == 0) {
+        /* not an error.  nread might be 0, which does not indicate an error or
+         * EOF. This is equivalent to EAGAIN or EWOULDBLOCK under read(2). this
+         * callback will run again automagicaly */
+        return;
+    }
+
     shell_update(buf->base, nread);
 }
 
 static void _rlcb_on_newline(char *line)
 {
-    // TODO sen eol or ignore empty line 
-    
-    // ctrl-C and other control keys trigger this if we do not catch
-    // them before readline
+    /* ctrl-C and other control keys trigger this if we do not catch
+     * them before readline */
     if (!line) {
         LOG_ERR("null string - uncaught ctrl key not handled by readline?");
         return; // TODO do what?
     }
-    switch (shell.mode) {
-        case SHELL_M_RAW:
-            LOG_ERR("readline callback in raw mode");
-            break;
 
-        case SHELL_M_CANON: 
-#if 0
-            {
-            // TODO move this to port or other module
-            int n = strlen(line);
-            port_write(line, n);
-            // TODO where eol config
-            char eol[] = "\n";
-            port_write(eol, sizeof(eol));
-            }
-#else
+    if (shell.cmd_mode_active) {
+        cmd_parse(CMD_SRC_SHELL, line);
+        free(line);
+    }
+    else if (shell_opts.cooked) {
             opq_push_heapdata(&opq_rt, line, strlen(line));
             opq_push_value(&opq_rt, OP_PORT_PUT_EOL, 1);
             LOG_DBG("'%s'", line);
             // no free!
-#endif
-            break;
-
-        case SHELL_M_CMD:
-            cmd_parse(CMD_SRC_SHELL, line);
-            free(line);
-            break;
-
-        default:
-            assert(0);
-            break;
+    }
+    else {
+        LOG_ERR("readline callback in raw mode");
     }
 }
 
@@ -258,7 +242,25 @@ static inline void _rl_putc(int c)
     rl_redisplay(); //needed?
 }
 
+static void shell_tog_cmd_mode(void)
+{
+    bool active = !shell.cmd_mode_active;
+    LOG_DBG("cmd mode %s", active ? "on" : "off");
+    shell_set_cmd_mode(active);
+    shell.cmd_mode_active = active;
+}
 
+static void shell_input_putc(int c)
+{
+    if (shell.cmd_mode_active || shell_opts.cooked) {
+        // forward to cmd or cooked prompt
+        _rl_putc(c);
+    }
+    else {
+        // in raw mode
+        opq_push_value(&opq_rt, OP_PORT_PUTC, c);
+    }
+}
 static void shell_update_c(int prev_c, int c)
 {
     // need to catch ctrl keys before libreadline
@@ -269,6 +271,35 @@ static void shell_update_c(int prev_c, int c)
     /** UP: 91 65
      * DOWN: 91, 66
      */ 
+#if 1
+    char cfwd[2];
+    int action = keybind_eval(c, cfwd);
+    switch (action) {
+        case K_ACTION_NONE:
+            break;
+
+        case K_ACTION_FWD1:
+            shell_input_putc(cfwd[0]);
+            break;
+
+        case K_ACTION_FWD2:
+            shell_input_putc(cfwd[0]);
+            shell_input_putc(cfwd[1]);
+            break;
+
+        case K_ACTION_EXIT:
+            main_exit(EXIT_SUCCESS);
+            break;
+
+        case K_ACTION_TOG_CMD_MODE: 
+            shell_tog_cmd_mode();
+            break;
+
+        default:
+            LOG_ERR("unkown action %d", action);
+            break;
+    }
+#else
     switch (c) {
         case VT_CTRL_KEY('D'):
         case VT_CTRL_KEY('C'):
@@ -302,6 +333,7 @@ static void shell_update_c(int prev_c, int c)
         // in raw mode
         opq_push_value(&opq_rt, OP_PORT_PUTC, c);
     }
+#endif
 }
 
 int shell_update(const void *user_input, size_t size)
@@ -325,7 +357,7 @@ int shell_update(const void *user_input, size_t size)
 
 void shell_cleanup(void)
 {
-    if (!shell.init)
+    if (!shell.initialized)
         return;
 
     int err = 0;
@@ -350,7 +382,7 @@ void shell_cleanup(void)
 
     rl_message("");
     rl_callback_handler_remove();
-    shell.init = false;
+    shell.initialized = false;
 }
 
 
@@ -512,7 +544,7 @@ int shell_init(void)
     // fallback to SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING);?
 #endif
 
-    shell.init = true;
+    shell.initialized = true;
     return 0;
 }
 
@@ -528,13 +560,6 @@ static int shell_opts_post_parse(const struct opt_section_entry *entry)
 
 static const struct opt_conf shell_opts_conf[] = {
     {
-        .name = "sticky",
-        .dest = &shell_opts.sticky,
-        .parse = opt_ap_flag_true,
-        .descr = "sticky promt that hold input even if new data received."
-            "This option will implicitly set cooked (canonical) mode"
-    },
-    {
         .name = "cooked",
         .shortname = 'C',
         .alias = "canonical",
@@ -546,6 +571,22 @@ static const struct opt_conf shell_opts_conf[] = {
             "where all input from stdin is directly sent over serial port, "
             "(including most control keys such as ctrl-A)"
     },
+    {
+        .name = "sticky",
+        .dest = &shell_opts.sticky,
+        .parse = opt_ap_flag_true,
+        .descr = "sticky promt that hold input even if new data received."
+            "This option will implicitly set cooked (canonical) mode"
+    },
+#if 0 // TODO
+    {
+        .name = "echo",
+        .alias = "lecho",
+        .dest = &shell_opts.echo,
+        .parse = opt_ap_flag_true,
+        .descr = "local echo input characters on stdout"
+    },
+#endif
 };
 
 OPT_SECTION_ADD(shell,

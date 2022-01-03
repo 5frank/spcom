@@ -431,47 +431,6 @@ const char **str_match_flowcontrol(const char *s)
 {
     return _MATCH(s, flowcontrol_map);
 }
-/**
- * parse string in format like "C-c" (Control + C) to VT100 compatible value.
- * also accept "ESC"
- */ 
-int str_parse_bindkey(const char *s, int *vtkey)
-{
-    int vtkey_tmp = 0;
-    switch (*s) {
-        case 'C':
-            s++;
-            if (*s != '-')
-                return STR_EINVAL;
-
-            s++;
-            if (!islower(*s))
-                return STR_EINVAL;
-
-            vtkey_tmp = VT_CTRL_KEY(*s);
-
-            s++;
-            if (*s != '\0')
-                return STR_ENONUL;
-        break;
-#if 0
-        case 'e':
-        case 'E':
-            if (strcasecmp("esc", s)) {
-                return STR_EINVAL;
-            }
-            vtkey_tmp = VT_ESC_KEY;
-        break;
-#endif
-        default:
-            return STR_EINVAL;
-            break;
-    }
-
-    *vtkey = vtkey_tmp;
-    return 0;
-}
-
 
 static int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc)
 {

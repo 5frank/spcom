@@ -10,6 +10,14 @@
 #include "utils.h"
 #include "eol.h"
 
+#define CR '\r'
+#define LF '\n'
+enum eol_e {
+    EOL_LF,
+    EOL_CR,
+    EOL_CRLF,
+};
+
 enum eol_type_e {
     EOL_TX = 1 << 0,
     EOL_RX = 1 << 1
@@ -147,7 +155,6 @@ static int eol_set(int type, const void *data, size_t len)
     return 0;
 }
 
-
 static const struct str_kv eol_aliases[] = {
     { "CRLF",   "\r\n" },
     { "LFCR",   "\n\r" },
@@ -271,24 +278,21 @@ static int eol_opt_post_parse( const struct opt_section_entry *entry)
     return 0;
 }
 
-static int parse_eol( const struct opt_conf *conf,
-               char *s)
+static int parse_eol(const struct opt_conf *conf, char *s)
 {
     unsigned int flags = EOL_TX | EOL_RX;
     eol_opts.have_flags |= flags;
     return eol_parse_opts(flags, s);
 }
 
-static int parse_eol_tx( const struct opt_conf *conf,
-               char *s)
+static int parse_eol_tx(const struct opt_conf *conf, char *s)
 {
     unsigned int flags = EOL_TX;
     eol_opts.have_flags |= flags;
     return eol_parse_opts(flags, s);
 }
 
-static int parse_eol_rx( const struct opt_conf *conf,
-               char *s)
+static int parse_eol_rx(const struct opt_conf *conf, char *s)
 {
     unsigned int flags = EOL_RX;
     eol_opts.have_flags |= flags;

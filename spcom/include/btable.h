@@ -7,8 +7,8 @@
 #include <string.h>
 
 #define BTABLE_WORD_NBITS (sizeof(unsigned int) * 8)
-#define BTABLE_WORD_OFFSET(INDEX) (INDEX / BTABLE_WORD_NBITS)
-#define BTABLE_BITPOS(INDEX) (INDEX & (BTABLE_WORD_NBITS - 1))
+#define BTABLE_WORD_OFFSET(INDEX) ((INDEX) / BTABLE_WORD_NBITS)
+#define BTABLE_BITPOS(INDEX) ((INDEX) & (BTABLE_WORD_NBITS - 1))
 #define BTABLE_MASK(INDEX) (1 << BTABLE_BITPOS(INDEX))
 
 struct btable {

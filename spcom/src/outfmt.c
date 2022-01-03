@@ -224,12 +224,6 @@ static const struct opt_conf outfmt_opts_conf[] = {
         .parse = opt_ap_flag_true,
         .descr = "enable color output",
     },
-    {
-        .name = "color",
-        .dest = &outfmt_opts.color,
-        .parse = opt_ap_flag_true,
-        .descr = "enable color output",
-    },
 };
 
 OPT_SECTION_ADD(outfmt, outfmt_opts_conf, ARRAY_LEN(outfmt_opts_conf), NULL);
