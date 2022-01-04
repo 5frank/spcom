@@ -265,7 +265,7 @@ static void _on_writable(uv_poll_t* handle)
             break;
 
         case OP_PORT_PUT_EOL: {
-            const struct eol_seq *es = eol_tx_get();
+            const struct eol_seq *es = eol_tx;
             done = update_write(es->seq, es->len);
             }
             break;

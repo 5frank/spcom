@@ -166,6 +166,15 @@ static void print_timestamp(void)
     strbuf_puts(buf);
 }
 
+static void outfmt_putc(int c)
+{
+    if (isprint(c)) {
+        strbuf_putc(c);
+    }
+    else if (1) { // TODO outfmt.opts.escape map..
+        print_hexesc(c);
+    }
+}
 /**
  * handle seq crlf:
  * -always replace with \n on stdout
@@ -179,6 +188,7 @@ void outfmt_write(const void *data, size_t size)
 
     bool is_first_c = prev_c < 0;
     bool had_eol = outfmt.had_eol;
+    char cfwd[2];
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
@@ -187,6 +197,35 @@ void outfmt_write(const void *data, size_t size)
             print_timestamp();
         }
 
+        int ec = eol_eval(eol_rx, c, cfwd);
+        switch (ec) {
+
+            case EOL_C_NONE:
+                outfmt_putc(c);
+                break;
+
+            case EOL_C_CONSUMED:
+                break;
+
+            case EOL_C_FOUND:
+                outfmt_putc('\n');
+                break;
+
+            case EOL_C_FWD1:
+                outfmt_putc(cfwd[0]);
+                break;
+
+            case EOL_C_FWD2:
+                outfmt_putc(cfwd[0]);
+                outfmt_putc(cfwd[1]);
+                break;
+
+            default:
+                LOG_ERR("never!");
+                outfmt_putc(c);
+                break;
+        }
+#if 0
         had_eol = eol_rx_check(c);
 
         if (had_eol) {
@@ -199,7 +238,7 @@ void outfmt_write(const void *data, size_t size)
         else if (1) { // TODO outfmt.opts.escape map..
             print_hexesc(c);
         }
-
+#endif
         prev_c = c;
     }
     strbuf_flush();

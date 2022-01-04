@@ -22,6 +22,8 @@
 
 #define OPT_DBG(...) if (0) { printf(__VA_ARGS__); } else
 
+#define OPT_MAX_COUNT 256
+
 struct opt_context {
     bool initialized;
     unsigned int num_opts;
@@ -30,7 +32,7 @@ struct opt_context {
     // binary search tree for options also provides duplicate check
     struct btree btree;
     struct btree_node *btree_nodes;
-    struct btable *btable;
+    btable_t btable[BTABLE_NBITS_TO_NWORDS(OPT_MAX_COUNT)];
     size_t nnodes;
     struct {
         unsigned int last;
@@ -279,11 +281,13 @@ static int opt_init(struct opt_context *ctx)
         }
     }
 
+    if (ctx->num_opts >= OPT_MAX_COUNT) {
+        return opt_conf_error(NULL, NULL, "number of options exceed max");
+    }
+
+
     OPT_DBG("num_opts=%zu\n", num_opts);
     ctx->num_opts = num_opts;
-
-    ctx->btable = btable_create(nnodes + 1);
-    assert(ctx->btable);
 
     size_t size = (nnodes + 1) * sizeof(struct btree_node);
     ctx->btree_nodes = malloc(size);
@@ -403,9 +407,17 @@ int opt_parse_args(int argc, char *argv[])
 
 static int opt_help_cb(const struct btree_node *node, void *arg)
 {
+
     const struct opt_conf *conf = node->data;
     assert(conf);
-    struct btable *btable = arg;
+    
+    btable_t *btable = arg;
+#if 0
+    struct opt_context *ctx = &g_ctx;
+    btable_t *btable = &ctx->btable;
+    assert(btable == (btable_t *) arg);
+#endif
+    assert(node->id < OPT_MAX_COUNT);
 
     // ignore duplicate due alias or short option name
     if (btable_get(btable, node->id))
@@ -427,10 +439,9 @@ int opt_show_help(const char *s)
 {
     struct opt_context *ctx = &g_ctx;
     assert(ctx->initialized);
-    struct btable *btable = ctx->btable;
-    btable_reset(btable, 0);
+    memset(&ctx->btable, 0, sizeof(ctx->btable));
 
-    return btree_traverse(&ctx->btree, NULL, s, opt_help_cb, btable);
+    return btree_traverse(&ctx->btree, NULL, s, opt_help_cb, &ctx->btable);
 }
 
 const char **opt_autocomplete(const char *name, const char *startstr)

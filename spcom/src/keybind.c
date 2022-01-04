@@ -8,51 +8,20 @@
 #include "vt_defs.h"
 #include "log.h"
 #include "opt.h"
+#include "btable.h"
 #include "keybind.h"
 
-#define BITS256_WORD_NBITS (sizeof(unsigned int) * 8)
-#define BITS256_WORD_OFFSET(INDEX) ((INDEX) / BITS256_WORD_NBITS)
-#define BITS256_BITPOS(INDEX) ((INDEX) & (BITS256_WORD_NBITS - 1))
-#define BITS256_MASK(INDEX) (1 << BITS256_BITPOS(INDEX))
-
-struct bits256 {
-    unsigned int bits[(UINT8_MAX / BITS256_WORD_NBITS) + 1];
-};
-
-static inline void bits256_reset(struct bits256 *table, int bitval)
-{
-    memset(table->bits, bitval ? 0xff : 0, sizeof(table->bits));
-}
-
-static inline void bits256_set(struct bits256 *table, uint8_t index)
-{
-    unsigned int offs = BITS256_WORD_OFFSET(index);
-    table->bits[offs] |= BITS256_MASK(index);
-}
-
-static inline void bits256_clr(struct bits256 *table, uint8_t index)
-{
-    unsigned int offs = BITS256_WORD_OFFSET(index);
-    table->bits[offs] &= ~(BITS256_MASK(index));
-}
-
-static inline int bits256_get(const struct bits256 *table, uint8_t index)
-{
-    unsigned int offs = BITS256_WORD_OFFSET(index);
-    return !!(table->bits[offs] & BITS256_MASK(index));
-}
-
 struct keybind_data {
-    // have key sequence if both int ckey_tbl and seq_tbl
-    struct bits256 ckey_tbl;
-    struct bits256 seq_tbl;
+    // have key sequence if both in ckey_tbl and seq_tbl
+    btable_t ckey_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
+    btable_t seq_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
     uint32_t seq_map[16];
     uint16_t map[16];
     uint8_t seq0; // leader ctrl key
 };
 
-
 static struct keybind_data keybind_data;
+
 static int kb_error(int err, const char *msg)
 {
     fprintf(stderr, msg);
@@ -61,12 +30,12 @@ static int kb_error(int err, const char *msg)
 
 static inline bool kb_is_mapped(struct keybind_data *kbd, uint8_t key)
 {
-    return bits256_get(&kbd->ckey_tbl, key);
+    return btable_get(kbd->ckey_tbl, key);
 }
 
 static inline bool kb_is_seq_mapped(struct keybind_data *kbd, uint8_t key)
 {
-    return bits256_get(&kbd->seq_tbl, key);
+    return btable_get(kbd->seq_tbl, key);
 }
 
 #define KB_UNPACK_KEY(VAL)    ((VAL) & 0xFF)
@@ -76,10 +45,11 @@ static inline bool kb_is_seq_mapped(struct keybind_data *kbd, uint8_t key)
     | (((uint16_t)(ACTION) & 0xFF) <<  8)   \
 )
 
+/// add single key binding action
 static int kb_add_action(struct keybind_data *kbd, uint8_t key, uint8_t action)
 {
     assert(key);
-    if (bits256_get(&kbd->seq_tbl, key))
+    if (btable_get(kbd->seq_tbl, key))
         return kb_error(EEXIST, "conflicting key");
 
     for (int i = 0; i < ARRAY_LEN(kbd->map); i++) {
@@ -87,13 +57,14 @@ static int kb_add_action(struct keybind_data *kbd, uint8_t key, uint8_t action)
         // empty slot
         if (!map_val) {
             kbd->map[i] = KB_PACK(key, action);
-            bits256_set(&kbd->ckey_tbl, key);
+            btable_set(kbd->ckey_tbl, key);
             return 0;
         }
     }
 
     return kb_error(ENOMEM, "max limit key bindings");
 }
+
 /// get single key binding action
 static uint8_t kb_get_action(struct keybind_data *kbd, uint8_t key)
 {
@@ -118,6 +89,7 @@ static uint8_t kb_get_action(struct keybind_data *kbd, uint8_t key)
 #define KB_SEQ_UNPACK_ID(VAL) ((VAL) & 0xFFFF)
 #define KB_SEQ_UNPACK_ACTION(VAL) (((VAL) >> 16) & 0xFF)
 
+/// set key sequence action
 static int kb_seq_add_action(struct keybind_data *kbd,
                              uint8_t ctlkey,
                              uint8_t followk,
@@ -126,7 +98,7 @@ static int kb_seq_add_action(struct keybind_data *kbd,
     assert(ctlkey);
     assert(followk);
 
-    if (bits256_get(&kbd->ckey_tbl, ctlkey))
+    if (btable_get(kbd->ckey_tbl, ctlkey))
         return kb_error(EEXIST, "conflicting ctlkey");
 
     for (int i = 0; i < ARRAY_LEN(kbd->seq_map); i++) {
@@ -134,8 +106,8 @@ static int kb_seq_add_action(struct keybind_data *kbd,
         // empty slot
         if (!map_val) {
             kbd->seq_map[i] = KB_SEQ_PACK(ctlkey, followk, action);
-            bits256_set(&kbd->ckey_tbl, ctlkey);
-            bits256_set(&kbd->seq_tbl, ctlkey);
+            btable_set(kbd->ckey_tbl, ctlkey);
+            btable_set(kbd->seq_tbl, ctlkey);
             return 0;
         }
     }
@@ -170,8 +142,9 @@ int keybind_eval(char c, char *cfwd)
     uint8_t key = c;
 
     struct keybind_data *kbd = &keybind_data;
+    // had previosly first key of a sequence 
     if (kbd->seq0) {
-        // forward ckey on double press
+        // forward ctrl key on double press
         if (key == kbd->seq0) {
             kbd->seq0 = 0;
             cfwd[0] = key;
@@ -205,8 +178,8 @@ int keybind_eval(char c, char *cfwd)
                 cfwd[0] = key;
                 return K_ACTION_FWD1;
             }
-            LOG_DBG("key:0x%02X --> action:%d", key, action);
 
+            LOG_DBG("key:0x%02X --> action:%d", key, action);
             return action;
         }
     }

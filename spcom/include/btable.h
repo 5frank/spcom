@@ -1,66 +1,80 @@
-/** bit "field" table of any width */
+/** bit "field" table of any width.
+ * can be allocated static or dynamic
+ * */
 #ifndef BTABLE_INCLUDE_H_
 #define BTABLE_INCLUDE_H_
 
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
 
-#define BTABLE_WORD_NBITS (sizeof(unsigned int) * 8)
+typedef unsigned int btable_t;
+/** number of bits per word */
+#define BTABLE_WORD_NBITS (sizeof(btable_t) * 8)
+/** data word offset */
 #define BTABLE_WORD_OFFSET(INDEX) ((INDEX) / BTABLE_WORD_NBITS)
+
+/** bit position in word! */
 #define BTABLE_BITPOS(INDEX) ((INDEX) & (BTABLE_WORD_NBITS - 1))
+
+/** word mask. assume offset applied */
 #define BTABLE_MASK(INDEX) (1 << BTABLE_BITPOS(INDEX))
 
-struct btable {
-    // all data typed unsigned int to avoid pad bytes 
-    unsigned int nwords;
-    unsigned int data[];
-};
+/** number of bits to number of data words (of type btable_t).
+ * round up to closest to ensure at least NBITS will fit.
+ *
+ * example usage for static allocation:
+ *   static btable_t my_btable[BTABLE_NBITS_TO_NWORDS(123)];
+ * */
+#define BTABLE_NBITS_TO_NWORDS(NBITS)  \
+    (((NBITS) + BTABLE_WORD_NBITS - 1) / BTABLE_WORD_NBITS)
 
-static inline struct btable *btable_create(size_t nbits)
+/** @param NBITS - number of bits
+ */
+#define BTABLE_NBITS_TO_SIZE(NBITS) \
+    (BTABLE_NBITS_TO_NWORDS(NBITS) * sizeof(btable_t))
+
+/** note might be more then nbits (number of bits) used as argument to
+ * initalization macros above if nbits was not a power of two */
+#define BTABLE_SIZE_TO_MAX_NBITS(SIZE) \
+    (((SIZE) / sizeof(btable_t)) * BTABLE_WORD_NBITS)
+
+
+static inline btable_t *btable_create(size_t nbits)
 {
-    unsigned int nwords = (nbits / BTABLE_WORD_NBITS) + 1;
-    size_t size = sizeof(struct btable) + nwords * sizeof(unsigned int);
-    struct btable * bt = malloc(size);
-    if (!bt)
-        return NULL;
-
-    bt->nwords = nwords;
-
-    return bt;
+    return malloc(BTABLE_NBITS_TO_SIZE(nbits));
 }
 
-static inline void btable_free(struct btable *table)
+static inline void btable_free(btable_t *table)
 {
     free(table);
 }
 
-static inline void btable_reset(struct btable *table, int bitval)
+/** reset all bits to 1 or 0 */
+static inline void btable_reset(btable_t *table, int bitval, size_t nbits)
 {
-    size_t size = table->nwords * sizeof(unsigned int);
-    memset(table->data, bitval ? 0xff : 0, size);
+    size_t size = BTABLE_NBITS_TO_SIZE(nbits);
+    memset(table, bitval ? 0xff : 0, size);
 }
 
-static inline void btable_set(struct btable *table, unsigned int index)
+/** clear bit at index. assumes index in range */
+static inline void btable_set(btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    assert(offs < table->nwords);
-    table->data[offs] |= BTABLE_MASK(index);
+    table[offs] |= BTABLE_MASK(index);
 }
 
-static inline void btable_clr(struct btable *table, unsigned int index)
+/** clear bit at index. assumes index in range */
+static inline void btable_clr(btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    assert(offs < table->nwords);
-    table->data[offs] &= ~(BTABLE_MASK(index));
+    table[offs] &= ~(BTABLE_MASK(index));
 }
 
-static inline int btable_get(const struct btable *table, unsigned int index)
+/** get bit value at index. assumes index in range */
+static inline int btable_get(const btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    assert(offs < table->nwords);
-    return !!(table->data[offs] & BTABLE_MASK(index));
+    return !!(table[offs] & BTABLE_MASK(index));
 }
 
 #endif
-

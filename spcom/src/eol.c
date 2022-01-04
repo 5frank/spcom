@@ -10,150 +10,109 @@
 #include "utils.h"
 #include "eol.h"
 
-#define CR '\r'
-#define LF '\n'
-enum eol_e {
-    EOL_LF,
-    EOL_CR,
-    EOL_CRLF,
-};
-
 enum eol_type_e {
     EOL_TX = 1 << 0,
     EOL_RX = 1 << 1
 };
 
-static struct eol_rx_s {
-    struct eol_seq hist;
-    struct eol_seq seqs[4];
-} g_eol_rx = { 0 };
-
-static struct eol_tx_s {
-    struct eol_seq seq;
-} g_eol_tx = { 0 };
-
-static struct eol_opts_s {
-    unsigned int have_flags;
-} eol_opts;
-
-static void eol_seq_msk_putc(struct eol_seq *es, char c)
+static int eol_eval_sz1(struct eol_seq *es, char c, char *cfwd)
 {
-    uint8_t b = c;
-    es->seqmsk <<= 8;
-    es->seqmsk |= b;
-
-    es->cmpmsk <<= 8;
-    es->cmpmsk |= 0xFF;
-}
-
-static int eol_seq_putc(struct eol_seq *es, char c)
-{
-    uint8_t b = c;
-
-    if (es->len >= sizeof(es->seq))
-        return ENOMEM;
-
-    es->seq[es->len] = b;
-    es->len++;
-
-    eol_seq_msk_putc(es, c);
-
-    return 0;
-}
-
-static int eol_seq_set(struct eol_seq *es, const void *data, size_t len)
-{
-    const char *s = data;
-    for (int i = 0; i < len; i++) {
-        int err = eol_seq_putc(es, s[i]);
-        if (err)
-            return err;
+    if (es->seq[0] == c) {
+        return EOL_C_FOUND;
     }
 
-    return 0;
+    return EOL_C_NONE;
 }
 
-int eol_rx_check(char c)
+int eol_eval_sz2(struct eol_seq *es, char c, char *cfwd)
 {
-    struct eol_seq *hist = &g_eol_rx.hist;
-
-    eol_seq_msk_putc(hist, c);
-
-    for (int i = 0; i < ARRAY_LEN(g_eol_rx.seqs); i++) {
-        struct eol_seq *es = &g_eol_rx.seqs[i];
-        if (es->cmpmsk == 0) {
-            return false; // i.e. false. done. assume last N uninitialized
-        }
-        if (hist->cmpmsk < es->cmpmsk) {
-            continue; // to short
+    // most common case
+    if (es->index == 0) {
+        if (es->seq[0] == c) {
+            es->index = 1;
+            return EOL_C_CONSUMED;
         }
 
-        if ((es->cmpmsk & hist->seqmsk) == es->seqmsk) 
-            return es->len;
+        // forward as not part of EOL sequence
+        return EOL_C_NONE;
     }
-    return false;
+    // else if es->index == 1
+
+    if (es->seq[1] == c) {
+        es->index = 0; // reset
+        return EOL_C_FOUND;
+    }
+
+    // if not complete match - check if c matches first char in seq
+    if (es->seq[0] == c) {
+        es->index = 0; // reset
+        cfwd[0] = es->seq[1];
+        return EOL_C_FWD1;
+    }
+
+    // forward as not part of EOL sequence
+    return EOL_C_NONE;
 }
 
-void eol_rx_check_reset(void) 
+static int eol_eval_lfnocr(struct eol_seq *es, char c, char *cfwd)
 {
-    struct eol_seq *hist = &g_eol_rx.hist;
-    memset(hist, 0, sizeof(*hist));
+    (void)es;
+    if (c == '\r')
+       return EOL_C_CONSUMED;
+
+    if (c == '\n')
+        return EOL_C_FOUND;
+
+    return EOL_C_NONE;
 }
 
-static int eol_add_rx(const void *data, size_t len)
+static struct eol_seq eol_seq_tx = {
+    .handler = eol_eval_sz1, // should never be used
+    .seq = { '\n' },
+    .len = 1,
+};
+
+struct eol_seq *eol_tx = &eol_seq_tx;
+
+static struct eol_seq eol_seq_rx = {
+    .handler = eol_eval_lfnocr
+};
+
+struct eol_seq *eol_rx = &eol_seq_rx;
+#if 0
+void example(void)
 {
-    struct eol_seq *es = NULL;
-    for (int i = 0; i < ARRAY_LEN(g_eol_rx.seqs); i++) {
-        struct eol_seq *tmp = &g_eol_rx.seqs[i];
-        if (tmp->cmpmsk == 0) {
-            es = tmp;
+    char cfwd[2];
+    int ec = eol_eval(es, c, cfwd);
+    switch (ec) {
+        case EOL_C_NONE:
+            strbuf_putc(c);
             break;
-        }
+
+        case EOL_C_CONSUMED:
+            break;
+
+        case EOL_C_FOUND:
+            strbuf_putc('\n');
+            break;
+
+        case EOL_C_FWD1:
+            strbuf_putc(cfwd[0]);
+            break;
+
+        case EOL_C_FWD2:
+            strbuf_putc(cfwd[0]);
+            strbuf_putc(cfwd[1]);
+            break;
+
+        default:
+            LOG_ERR("never!");
+            strbuf_putc(c);
+            break;
     }
-
-    if (!es)
-        return -ENOMEM;
-
-    int err = eol_seq_set(es, data, len);
-    if (err)
-        return err;
-
-    return 0;
 }
+#endif
 
-static int eol_set_tx(const void *data, size_t len)
-{
-    struct eol_seq *es = &g_eol_tx.seq;
-    if (es->len)
-        return -1; // already set
-
-    int err = eol_seq_set(es, data, len);
-    if (err) 
-        return err;
-
-    return 0;
-}
-
-static int eol_set(int type, const void *data, size_t len)
-{
-    int err = 0;
-    if (!type || !data || !len)
-        return EINVAL;
-
-    if (type & EOL_TX) {
-        err = eol_set_tx(data, len);
-        if (err)
-            return err;
-    }
-
-    if (type & EOL_RX) {
-        err = eol_add_rx(data, len);
-        if (err)
-            return err;
-    }
-
-    return 0;
-}
 
 static const struct str_kv eol_aliases[] = {
     { "CRLF",   "\r\n" },
@@ -238,10 +197,11 @@ static int eol_parse_opts(int type, const char *s)
         err = (nbytes <= 0) ? EINVAL : 0;
         if (err)
             goto done;
-
+#if 0 // TODO
         err = eol_set(type, bytes, nbytes);
         if (err)
             goto done;
+#endif
     }
 
 done:
@@ -250,53 +210,40 @@ done:
     return err;
 }
 
-const struct eol_seq *eol_tx_get(void)
+static int eol_opt_post_parse(const struct opt_section_entry *entry)
 {
-    return &g_eol_tx.seq;
-}
-
-int eol_init(void)
-{
-    return 0;
-}
-
-static int eol_opt_post_parse( const struct opt_section_entry *entry)
-{
-    int err;
-    if (!(eol_opts.have_flags & EOL_TX)) {
-        err = eol_set(EOL_TX, "\n", 1);
-        assert(!err);
-    }
-
-    if (!(eol_opts.have_flags & EOL_RX)) {
-        err = eol_set(EOL_RX, "\n", 1);
-        assert(!err);
-        err = eol_set(EOL_RX, "\r", 1);
-        assert(!err);
-    }
 
     return 0;
 }
 
 static int parse_eol(const struct opt_conf *conf, char *s)
 {
+#if 0
     unsigned int flags = EOL_TX | EOL_RX;
     eol_opts.have_flags |= flags;
     return eol_parse_opts(flags, s);
+#endif
+    return -1;
 }
 
 static int parse_eol_tx(const struct opt_conf *conf, char *s)
 {
+#if 0
     unsigned int flags = EOL_TX;
     eol_opts.have_flags |= flags;
     return eol_parse_opts(flags, s);
+#endif
+    return -1;
 }
 
 static int parse_eol_rx(const struct opt_conf *conf, char *s)
 {
+#if 0
     unsigned int flags = EOL_RX;
     eol_opts.have_flags |= flags;
     return eol_parse_opts(flags, s);
+#endif
+    return -1;
 }
 
 static const struct opt_conf eol_opts_conf[] = {
