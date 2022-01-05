@@ -65,24 +65,49 @@ static bool opt_conf_has_val(const struct opt_conf *conf)
     return true;
 }
 
+#define SSPRINTF(SP, REMAINS, ...) do { \
+    int _rc = snprintf(SP, REMAINS, __VA_ARGS__); \
+    assert(_rc > 0); \
+    assert(_rc < REMAINS); \
+    REMAINS -= _rc; \
+    SP += _rc; \
+} while(0)
+
+static char *opt_conf_str(const struct opt_section_entry *entry,
+                           const struct opt_conf *conf)
+{
+    static char buf[128];
+    size_t remains = sizeof(buf);
+    char *sp = buf;
+    sp[0] = '\0';
+
+    const char *delim = "";
+    if (conf->shortname) {
+        SSPRINTF(sp, remains, "-%c", conf->shortname);
+        delim = ", ";
+    }
+
+    if (conf->name) {
+         SSPRINTF(sp, remains, "%s--%s", delim, conf->name);
+    }
+
+    // can not have alias only
+    if (conf->alias) {
+        SSPRINTF(sp, remains, ", --%s", conf->alias);
+    }
+
+    if (entry && entry->name) {
+        SSPRINTF(sp, remains, " (section: %s)", entry->name);
+    }
+
+    return buf;
+}
 static int opt_conf_error(const struct opt_section_entry *entry,
                           const struct opt_conf *conf,
                           const char *msg)
 {
-
-    fprintf(stderr, "error: opt_conf %s. ", msg);
-    fprintf(stderr, "name: ");
-    if (conf->name)
-        fprintf(stderr, "\"%s\"", conf->name);
-
-    if (conf->shortname)
-        fprintf(stderr, "'%c'", conf->shortname);
-
-    if (entry && entry->name) {
-        fprintf(stderr, " in  %s", entry->name);
-    }
-
-    fprintf(stderr, "\n");
+    msg = msg ? msg : "";
+    fprintf(stderr, "error: opt_conf %s - %s\n", opt_conf_str(entry, conf), msg);
 
     return -EBADF;
 }
@@ -93,17 +118,7 @@ static int opt_arg_error(const struct opt_conf *conf,
 {
     fprintf(stderr, "error: ");
     if (conf) {
-        //fprintf(stderr, "name: ");
-        if (conf->name)
-            fprintf(stderr, "--%s", conf->name);
-
-        if (conf->name && conf->shortname)
-            fprintf(stderr, ",");
-
-        if (conf->shortname)
-            fprintf(stderr, "-%c", conf->shortname);
-
-        fprintf(stderr, " ");
+        fprintf(stderr, "%s ", opt_conf_str(NULL, conf));
     }
 
     fprintf(stderr, "%s", msg);
@@ -288,9 +303,7 @@ static int opt_init(struct opt_context *ctx)
 
     OPT_DBG("num_opts=%zu\n", num_opts);
     ctx->num_opts = num_opts;
-
-    size_t size = (nnodes + 1) * sizeof(struct btree_node);
-    ctx->btree_nodes = malloc(size);
+    ctx->btree_nodes = calloc(nnodes, sizeof(struct btree_node));
     assert(ctx->btree_nodes);
     struct btree_node *node = ctx->btree_nodes;
 
@@ -325,7 +338,13 @@ static int opt_conf_parse(struct opt_context *ctx,
 {
     OPT_DBG("parsing %s:%c: sval='%s'\n", conf->name, conf->shortname, sval);
     assert(conf->parse);
-    return conf->parse(conf, sval);
+    int err = conf->parse(conf, sval);
+    if (err) {
+        fprintf(stderr, "error: %s - parse failure %d\n", 
+                opt_conf_str(NULL, conf), err);
+
+        return err;
+    }
 
     return 0;
 }
@@ -425,12 +444,15 @@ static int opt_help_cb(const struct btree_node *node, void *arg)
 
     btable_set(btable, node->id);
 
+    printf("  %s", opt_conf_str(NULL, conf));
     // TODO pretty print
     if (conf->metavar)
-        printf("[%s]\n", conf->metavar);
+        printf(" [%s]", conf->metavar);
 
     if (conf->descr)
-        printf("%s\n", conf->descr);
+        printf("  %s", conf->descr);
+
+    printf("\n");
 
     return 0;
 }

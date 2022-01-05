@@ -23,7 +23,7 @@ struct port_wait_s {
     uv_fs_event_t fsevent_handle;
 };
 
-static struct port_wait_s _port_wait;
+static struct port_wait_s port_wait;
 
 static void _on_rw_access_timeout(uv_timer_t* handle)
 {
@@ -38,7 +38,7 @@ static void _on_rw_access_timeout(uv_timer_t* handle)
  */
 static void _start_rw_timeout(unsigned int ms)
 {
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
     int err = uv_timer_start(&pw->rw_timer, _on_rw_access_timeout, ms, 0);
     assert_uv_z(err, "uv_timer_start");
 }
@@ -52,7 +52,7 @@ static void _start_rw_timeout(unsigned int ms)
  */
 void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int events, int status)
 {
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
     // filename is NULL sometimes. excpected?
     if (!filename)
         return;
@@ -95,7 +95,7 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
 // after device close, need to wait on it to be removed
 static int _wait_no_such_path(int timeout_sec)
 {
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
 
     const int ms_inter = 10;
     struct timespec ts = {
@@ -136,7 +136,7 @@ void port_wait_start(port_wait_cb *cb)
 {
     assert(cb);
 
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
     LOG_DBG("Watching directory '%s'", pw->dirname);
     pw->cb = cb;
     int err = uv_fs_event_start(&pw->fsevent_handle,
@@ -152,7 +152,7 @@ void port_wait_start(port_wait_cb *cb)
 void port_wait_stop(void)
 {
     int err;
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
 
     if (uv_is_active((uv_handle_t *) &pw->fsevent_handle)) {
         err = uv_fs_event_stop(&pw->fsevent_handle);
@@ -169,7 +169,7 @@ void port_wait_stop(void)
 
 void port_wait_cleanup(void)
 {
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
 
     if (!pw->have_init)
         return;
@@ -197,7 +197,7 @@ void port_wait_cleanup(void)
 int port_wait_init(const char *name)
 {
     int err;
-    struct port_wait_s *pw = &_port_wait;
+    struct port_wait_s *pw = &port_wait;
     uv_loop_t *loop = uv_default_loop();
 
     err = uv_fs_event_init(loop, &pw->fsevent_handle);

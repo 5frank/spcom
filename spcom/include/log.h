@@ -12,10 +12,10 @@
 #endif
 
 enum log_tag_e {
-    LOG_TAG_ERR = 1,
-    LOG_TAG_WRN = 2,
-    LOG_TAG_INF = 3,
-    LOG_TAG_DBG = 4
+    LOG_LEVEL_ERR = 1,
+    LOG_LEVEL_WRN = 2,
+    LOG_LEVEL_INF = 3,
+    LOG_LEVEL_DBG = 4
 };
 
 __attribute__((format(printf, 3, 4)))
@@ -25,16 +25,16 @@ void log_printf(int tag, const char *where, const char *fmt, ...);
     log_printf(TAG, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
 
 #define LOG_ERR(FMT, ...)  \
-    __LOG(LOG_TAG_ERR, FMT, ##__VA_ARGS__)
+    __LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
 
 #define LOG_WRN(FMT, ...) \
-    __LOG(LOG_TAG_WRN, FMT, ##__VA_ARGS__)
+    __LOG(LOG_LEVEL_WRN, FMT, ##__VA_ARGS__)
 
 #define LOG_INF(FMT, ...) \
-    __LOG(LOG_TAG_INF, FMT, ##__VA_ARGS__)
+    __LOG(LOG_LEVEL_INF, FMT, ##__VA_ARGS__)
 
 #define LOG_DBG(FMT, ...) \
-    __LOG(LOG_TAG_DBG, FMT, ##__VA_ARGS__)
+    __LOG(LOG_LEVEL_DBG, FMT, ##__VA_ARGS__)
 
 const char *log_wherestr(const char *file, unsigned int line, const char *func);
 #define LOG_WHERESTR() \

@@ -38,13 +38,13 @@ static inline bool kb_is_seq_mapped(struct keybind_data *kbd, uint8_t key)
     return btable_get(kbd->seq_tbl, key);
 }
 
+
 #define KB_UNPACK_KEY(VAL)    ((VAL) & 0xFF)
 #define KB_UNPACK_ACTION(VAL) (((VAL) >> 8) & 0xFF)
 #define KB_PACK(KEY, ACTION) (0             \
     | (((uint16_t)(KEY)    & 0xFF))         \
     | (((uint16_t)(ACTION) & 0xFF) <<  8)   \
 )
-
 /// add single key binding action
 static int kb_add_action(struct keybind_data *kbd, uint8_t key, uint8_t action)
 {
@@ -80,6 +80,9 @@ static uint8_t kb_get_action(struct keybind_data *kbd, uint8_t key)
     return 0;
 }
 
+#undef KB_UNPACK_KEY
+#undef KB_UNPACK_ACTION
+#undef KB_PACK
 
 #define KB_SEQ_PACK(CTLK, FOLLOWK, ACTION) (0 \
     | (((uint32_t)(CTLK)    & 0xFF) <<  0)    \
@@ -137,6 +140,10 @@ static uint8_t kb_seq_get_action(struct keybind_data *kbd,
     return 0;
 }
 
+#undef KB_SEQ_PACK
+#undef KB_SEQ_UNPACK_ID
+#undef KB_SEQ_UNPACK_ACTION
+
 int keybind_eval(char c, char *cfwd)
 {
     uint8_t key = c;
@@ -191,7 +198,7 @@ int keybind_eval(char c, char *cfwd)
 /**
  * parse string in format like "C-c" (Control + C) to VT100 compatible value.
  * also accept "ESC"
- */ 
+ */
 static int _parse_vtkey(const char *s, uint8_t *vtkey)
 {
     uint8_t vtkey_tmp = 0;
@@ -236,7 +243,6 @@ static int parse_bind(const struct opt_conf *conf, char *s)
 
 static int keybind_post_parse(const struct opt_section_entry *entry)
 {
-
     int err;
 
     struct keybind_data *kbd = &keybind_data;
@@ -251,6 +257,7 @@ static int keybind_post_parse(const struct opt_section_entry *entry)
 
     err = kb_seq_add_action(kbd, VT_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
     assert(!err);
+
     return 0;
 }
 

@@ -75,7 +75,6 @@ struct opq_item *opq_alloc_tail(struct opq *q)
 
 int opq_push_value(struct opq *q, int op_code, int val)
 {
-    
     struct opq_item *itm = opq_alloc_tail(q);
     assert(itm);
     itm->op_code = op_code;
@@ -110,8 +109,9 @@ static int opq_pop(struct opq *q, struct opq_item *itm)
 }
 #endif
 
-/// peek at head of queue without updating index. 
-/// assume passed to free_head later 
+/**
+ * peek at head of queue without updating index.
+ * assume passed to free_head later */
 struct opq_item *opq_peek_head(struct opq *q)
 {
     if (opq_isempty(q)) {
@@ -129,7 +129,8 @@ void opq_free_head(struct opq *q, struct opq_item *itm)
 
     if (itm->buf.data) {
         if (!itm->buf.size) {
-            LOG_DBG("data ptr but no size (op_code=%d, index=%u)", itm->op_code, q->rdidx);
+            LOG_DBG("data ptr but no size (op_code=%d, index=%u)",
+                    itm->op_code, q->rdidx);
         }
         free(itm->buf.data);
         itm->buf.size = 0;
@@ -145,7 +146,6 @@ void opq_free_head(struct opq *q, struct opq_item *itm)
 
 void opq_free_all(struct opq *q)
 {
-
     while(!opq_isempty(q)) {
         struct opq_item *itm = opq_peek_head(q);
         // cast away const

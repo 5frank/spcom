@@ -296,7 +296,7 @@ int port_info_print_list(int verbose)
     if (!list_len)
         goto cleanup;
 
-    infos = malloc(list_len * sizeof(struct port_info_s));
+    infos = calloc(list_len, sizeof(struct port_info_s));
     assert(infos);
 
     for (int i = 0; i < list_len; i++) {

@@ -56,11 +56,21 @@ int eol_eval_sz2(struct eol_seq *es, char c, char *cfwd)
 
 static int eol_eval_lfnocr(struct eol_seq *es, char c, char *cfwd)
 {
-    (void)es;
     if (c == '\r')
-       return EOL_C_CONSUMED;
+        return EOL_C_CONSUMED;
 
     if (c == '\n')
+        return EOL_C_FOUND;
+
+    return EOL_C_NONE;
+}
+
+static int eol_eval_or(struct eol_seq *es, char c, char *cfwd)
+{
+    char a = es->seq[0];
+    char b = es->seq[1];
+
+    if (c == a || c == b)
         return EOL_C_FOUND;
 
     return EOL_C_NONE;
@@ -75,44 +85,38 @@ static struct eol_seq eol_seq_tx = {
 struct eol_seq *eol_tx = &eol_seq_tx;
 
 static struct eol_seq eol_seq_rx = {
-    .handler = eol_eval_lfnocr
+    .handler = eol_eval_lfnocr,
 };
 
 struct eol_seq *eol_rx = &eol_seq_rx;
-#if 0
-void example(void)
+
+static int eol_set(struct eol_seq *es, const uint8_t *bytes, size_t len)
 {
-    char cfwd[2];
-    int ec = eol_eval(es, c, cfwd);
-    switch (ec) {
-        case EOL_C_NONE:
-            strbuf_putc(c);
-            break;
+    if (len >= ARRAY_LEN(es->seq))
+        return E2BIG;
 
-        case EOL_C_CONSUMED:
+    switch (len) {
+        case 0:
+            return ENOMSG;
             break;
-
-        case EOL_C_FOUND:
-            strbuf_putc('\n');
+        case 1:
+            es->handler = eol_eval_sz1;
+            es->seq[0] = bytes[0];
             break;
-
-        case EOL_C_FWD1:
-            strbuf_putc(cfwd[0]);
+        case 2:
+            es->handler = eol_eval_sz2;
+            es->seq[0] = bytes[0];
+            es->seq[1] = bytes[1];
             break;
-
-        case EOL_C_FWD2:
-            strbuf_putc(cfwd[0]);
-            strbuf_putc(cfwd[1]);
-            break;
-
         default:
-            LOG_ERR("never!");
-            strbuf_putc(c);
+            return -1;
             break;
     }
-}
-#endif
 
+    es->len = len;
+    es->index = 0;
+    return 0;
+}
 
 static const struct str_kv eol_aliases[] = {
     { "CRLF",   "\r\n" },
@@ -121,17 +125,21 @@ static const struct str_kv eol_aliases[] = {
     { "LF",     "\n" },
 };
 
-static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
+static int parse_modify_str_seq(struct eol_seq *es, char *s)
 {
     int err = 0;
-    char *toks[4]; // TODO ARRAY_LEN
+
+    uint8_t bytes[4];
+    const int len_max = ARRAY_LEN(bytes);
+    int len = 0;
+
+    // add margin for trailing commas
+    char *toks[ARRAY_LEN(bytes) + 2];
     int ntoks = ARRAY_LEN(toks);
     err = str_split(s, ",", toks, &ntoks);
     if (err)
         return err;
 
-    const int bcountmax = *n;
-    *n = 0;
 
     for (int i = 0; i < ntoks; i++) {
         char *tok = toks[i];
@@ -143,107 +151,72 @@ static int eol_sseq_to_bytes(char *s, uint8_t *bytes, int *n)
             if (err)
                 return err;
 
-            if (*n >= bcountmax)
+            if (len >= len_max)
                 return E2BIG;
 
-            bytes[*n] = b;
-            *n += 1;
+            bytes[len] = b;
+            len += 1;
             continue;
         }
         size_t nitems = ARRAY_LEN(eol_aliases);
         const struct str_kv *ea = str_kv_lookup(tok, eol_aliases, nitems);
         if (ea) {
             int slen = strlen(ea->val);
-            if ((*n + slen) >= bcountmax)
+            if ((len + slen) >= len_max)
                 return E2BIG;
 
-            memcpy(&bytes[*n], ea->val, slen);
-            *n += slen;
+            memcpy(&bytes[len], ea->val, slen);
+            len += slen;
             continue;
         }
     }
 
+    return eol_set(es, bytes, len);
+
     return 0;
 }
 
-static int eol_parse_opts(int type, const char *s)
+static int parse_str_seq(int flags, const char *s)
 {
     int err = 0;
+    struct eol_seq tmp;
+
     char *sdup = strdup(s);
     assert(sdup);
-    char *sp = sdup;
 
-    char *toks[4]; // TODO ARRAY_LEN
-    int ntoks = ARRAY_LEN(toks);
-    err = str_split(sp, "|", toks, &ntoks);
+    err = parse_modify_str_seq(&tmp, sdup);
     if (err)
         goto done;
 
-    err = ((type != EOL_RX) && (ntoks != 1)) ? EINVAL : 0;
-    if (err)
-        goto done;
+    if (flags & EOL_TX)
+        eol_seq_tx = tmp;
 
-    err = (ntoks <= 0) ? EINVAL : 0;
-    if (err)
-        goto done;
-
-    uint8_t bytes[4];
-    for (int i = 0; i < ntoks; i++) {
-        int nbytes = ARRAY_LEN(bytes);
-        err = eol_sseq_to_bytes(toks[i], bytes, &nbytes);
-        if (err)
-            goto done;
-
-        err = (nbytes <= 0) ? EINVAL : 0;
-        if (err)
-            goto done;
-#if 0 // TODO
-        err = eol_set(type, bytes, nbytes);
-        if (err)
-            goto done;
-#endif
-    }
+    if (flags & EOL_RX)
+        eol_seq_rx = tmp;
 
 done:
     free(sdup);
-
     return err;
 }
 
 static int eol_opt_post_parse(const struct opt_section_entry *entry)
 {
-
     return 0;
 }
 
 static int parse_eol(const struct opt_conf *conf, char *s)
 {
-#if 0
-    unsigned int flags = EOL_TX | EOL_RX;
-    eol_opts.have_flags |= flags;
-    return eol_parse_opts(flags, s);
-#endif
-    return -1;
+    return parse_str_seq(EOL_TX | EOL_RX, s);
 }
 
 static int parse_eol_tx(const struct opt_conf *conf, char *s)
 {
-#if 0
-    unsigned int flags = EOL_TX;
-    eol_opts.have_flags |= flags;
-    return eol_parse_opts(flags, s);
-#endif
-    return -1;
+    return parse_str_seq(EOL_TX, s);
 }
 
 static int parse_eol_rx(const struct opt_conf *conf, char *s)
 {
-#if 0
-    unsigned int flags = EOL_RX;
-    eol_opts.have_flags |= flags;
-    return eol_parse_opts(flags, s);
-#endif
-    return -1;
+    return parse_str_seq(EOL_RX, s);
 }
 
 static const struct opt_conf eol_opts_conf[] = {

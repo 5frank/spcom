@@ -41,7 +41,7 @@ typedef unsigned int btable_t;
 
 static inline btable_t *btable_create(size_t nbits)
 {
-    return malloc(BTABLE_NBITS_TO_SIZE(nbits));
+    return calloc(BTABLE_NBITS_TO_NWORDS(nbits), sizeof(btable_t));
 }
 
 static inline void btable_free(btable_t *table)

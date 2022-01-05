@@ -28,6 +28,9 @@ extern struct eol_seq *eol_tx;
 
 static inline int eol_eval(struct eol_seq *es, char c, char *cfwd)
 {
+    if (!es->handler)
+        return EOL_C_NONE;
+
     return es->handler(es, c, cfwd);
 }
 

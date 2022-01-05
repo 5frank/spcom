@@ -166,7 +166,7 @@ static void print_timestamp(void)
     strbuf_puts(buf);
 }
 
-static void outfmt_putc(int c)
+static void strbuf_esc_putc(int c)
 {
     if (isprint(c)) {
         strbuf_putc(c);
@@ -201,28 +201,28 @@ void outfmt_write(const void *data, size_t size)
         switch (ec) {
 
             case EOL_C_NONE:
-                outfmt_putc(c);
+                strbuf_esc_putc(c);
                 break;
 
             case EOL_C_CONSUMED:
                 break;
 
             case EOL_C_FOUND:
-                outfmt_putc('\n');
+                strbuf_putc('\n');
                 break;
 
             case EOL_C_FWD1:
-                outfmt_putc(cfwd[0]);
+                strbuf_esc_putc(cfwd[0]);
                 break;
 
             case EOL_C_FWD2:
-                outfmt_putc(cfwd[0]);
-                outfmt_putc(cfwd[1]);
+                strbuf_esc_putc(cfwd[0]);
+                strbuf_esc_putc(cfwd[1]);
                 break;
 
             default:
                 LOG_ERR("never!");
-                outfmt_putc(c);
+                strbuf_esc_putc(c);
                 break;
         }
 #if 0

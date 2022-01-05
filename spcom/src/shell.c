@@ -575,7 +575,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .name = "sticky",
         .dest = &shell_opts.sticky,
         .parse = opt_ap_flag_true,
-        .descr = "sticky promt that hold input even if new data received."
+        .descr = "sticky promt that keep input characters on same line."
             "This option will implicitly set cooked (canonical) mode"
     },
 #if 0 // TODO
