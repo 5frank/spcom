@@ -21,6 +21,9 @@ set(SOURCES
     src/port_wait.c
     src/port_opts.c
     src/shell.c
+    src/shell_mode_cmd.c
+    src/shell_mode_cooked.c
+    src/shell_mode_raw.c
     src/str.c
     src/str_split_quoted.c
     src/keybind.c

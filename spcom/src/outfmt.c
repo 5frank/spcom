@@ -61,11 +61,11 @@ static void strbuf_flush(void)
     if (!buf->len)
         return;
 
-    struct shell_rls_s *rls = shell_rls_save();
+    const void *lock = shell_output_lock();
 
     size_t rc = fwrite(buf->data, buf->len, 1, stdout);
 
-    shell_rls_restore(rls);
+    shell_output_unlock(lock);
 
     if (rc == 0) {
         // TODO log error. retry?

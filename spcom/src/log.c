@@ -172,7 +172,8 @@ void log_printf(int level, const char *where, const char *fmt, ...)
     if (!logfp)
         logfp = stderr;
 
-    struct shell_rls_s *rls = shell_rls_save();
+    const void *lock = shell_output_lock();
+
 #if 1 // behave like normal printf on log_printf(0, 0, ...)
     if (level) {
         fputs(log_tagstr(level), logfp);
@@ -197,7 +198,7 @@ void log_printf(int level, const char *where, const char *fmt, ...)
 
     fputc('\n', logfp);
 
-    shell_rls_restore(rls);
+    shell_output_unlock(lock);
 }
 
 static void _sp_log_handler(const char *fmt, ...)
@@ -206,7 +207,7 @@ static void _sp_log_handler(const char *fmt, ...)
     if (!logfp)
         return;
 
-    struct shell_rls_s *rls = shell_rls_save();
+    const void *lock = shell_output_lock();
 
     fputs("DBG:SP:", logfp);
     va_start(args, fmt);
@@ -214,7 +215,7 @@ static void _sp_log_handler(const char *fmt, ...)
     va_end(args);
     (void) rc;
 
-    shell_rls_restore(rls);
+    shell_output_unlock(lock);
 }
 
 void log_set_debug(int verbose) 

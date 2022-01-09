@@ -137,9 +137,9 @@ static uint8_t kb_seq_get_action(const struct keybind_map *kbm,
 
 int keybind_eval(struct keybind_state *st, char c)
 {
+    const struct keybind_map *kbm = &keybind_map;
     uint8_t key = c;
 
-    const struct keybind_map *kbm = &keybind_map;
     if (st->_seq0) {
         // had previosly first key of a sequence
 

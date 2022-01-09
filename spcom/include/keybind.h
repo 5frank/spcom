@@ -10,9 +10,9 @@ enum k_action_e {
     K_ACTION_TOG_CMD_MODE,
 };
 
-struct keybind_map;
 struct keybind_state {
     uint8_t _seq0;
+    char cache[1];
 };
 
 /*
