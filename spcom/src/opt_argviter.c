@@ -160,7 +160,7 @@ static inline int parse_long_value(struct opt_argviter_ctx *p)
     }
     // else had `--foo=123`
     assert(p->val);
-    assert(p->val[0] != '\0');
+    // note `--foo=""` is accepted and is a empty string
     assert(p->val == p->sp);
 
     if (*p->sp == '-') {

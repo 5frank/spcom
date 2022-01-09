@@ -6,8 +6,8 @@
 #include "opq.h"
 #include "utils.h"
 #include "assert.h"
+
 struct opq {
-    //size_t totsize;
     struct opq_item items[64];
     unsigned int wridx;
     unsigned int rdidx;
@@ -63,8 +63,8 @@ int opq_push(struct opq *q, const void *data, size_t size)
 }
 #endif
 
-/// alloc tail
-struct opq_item *opq_alloc_tail(struct opq *q)
+/// peek on tail
+struct opq_item *opq_peek_tail(struct opq *q)
 {
     if (opq_isfull(q)) {
         return NULL;
@@ -73,17 +73,34 @@ struct opq_item *opq_alloc_tail(struct opq *q)
     return &q->items[q->wridx];
 }
 
-int opq_push_value(struct opq *q, int op_code, int val)
+int opq_enqueue_val(struct opq *q, uint16_t op_code, int val)
 {
-    struct opq_item *itm = opq_alloc_tail(q);
+    struct opq_item *itm = opq_peek_tail(q);
     assert(itm);
     itm->op_code = op_code;
-    itm->val = val;
+    itm->size = 0;
+    itm->u.si_val = val;
 
-    return opq_push_tail(q, itm);
+    return opq_enqueue_tail(q, itm);
 }
 
-int opq_push_tail(struct opq *q, struct opq_item *itm)
+int opq_enqueue_hdata(struct opq *q,
+                      uint16_t op_code,
+                      void *data,
+                      uint16_t size)
+{
+    struct opq_item *itm = opq_peek_tail(q);
+    assert(itm);
+    assert(size);
+
+    itm->op_code = op_code;
+    itm->size = size;
+    itm->u.hdata = data;
+
+    return opq_enqueue_tail(q, itm);
+}
+
+int opq_enqueue_tail(struct opq *q, struct opq_item *itm)
 {
     if (opq_isfull(q)) {
         return -1;
@@ -127,17 +144,12 @@ void opq_free_head(struct opq *q, struct opq_item *itm)
     // enusre itm is same as head
     assert(itm == &q->items[q->rdidx]);
 
-    if (itm->buf.data) {
-        if (!itm->buf.size) {
-            LOG_DBG("data ptr but no size (op_code=%d, index=%u)",
-                    itm->op_code, q->rdidx);
-        }
-        free(itm->buf.data);
-        itm->buf.size = 0;
-        itm->buf.data = NULL;
+    if (itm->size) {
+        free(itm->u.hdata);
+        itm->size = 0;
     }
-    itm->val = 0;
     itm->op_code = 0;
+    itm->u = (typeof(itm->u)) {0};
 
     // update "head"
     q->rdidx = (q->rdidx + 1) % ARRAY_LEN(q->items);
@@ -153,13 +165,3 @@ void opq_free_all(struct opq *q)
    }
 }
 
-int opq_push_heapdata(struct opq *q, void *data, size_t size)
-{
-    struct opq_item *itm = opq_alloc_tail(q);
-    assert(itm);
-    itm->op_code = OP_PORT_WRITE;
-    itm->buf.data = data;
-    itm->buf.size = size;
-
-    return opq_push_tail(q, itm);
-}

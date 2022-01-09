@@ -13,7 +13,6 @@
 #include "utils.h"
 #include "eol.h"
 #include "log.h"
-#include "outfmt.h"
 #include "cmd.h"
 #include "opq.h"
 #include "str.h"
@@ -50,10 +49,11 @@ static struct port_s {
     uv_poll_t poll_handle;
     uv_prepare_t prepare_handle;
     uv_timer_t t_sleep;
-    uint64_t ts_lastc; 
+    uint64_t ts_lastc;
     size_t offset;
     struct opq_item *current_op;
     enum port_state_e state;
+    port_rx_cb_fn *rx_cb;
 } _port = {0};
 
 
@@ -62,7 +62,20 @@ void port_close(void);
 void port_cleanup(void);
 static void _uvcb_poll_event(uv_poll_t* handle, int status, int events);
 
-
+static const char *port_state_to_str(int state)
+{
+    switch (state) {
+        default:
+        case PORT_STATE_UNKNOWN:
+            return "<unknown>";
+        case PORT_STATE_WAITING:
+            return "waiting";
+        case PORT_STATE_BUSY:
+            return "busy";
+        case PORT_STATE_READY:
+            return "ready";
+    }
+}
 
 static int port_exists(void)
 {
@@ -114,13 +127,13 @@ static void _set_event_flags(int flags)
     assert_uv_z(err, "uv_poll_start");
 }
 
-static inline void _tx_start(void) 
+static inline void _tx_start(void)
 {
     // always intereseted in read event
     _set_event_flags(UV_READABLE | UV_WRITABLE);
 }
 
-static inline void _tx_stop(void) 
+static inline void _tx_stop(void)
 {
     // always intereseted in read event but not writable
     _set_event_flags(UV_READABLE);
@@ -128,7 +141,7 @@ static inline void _tx_stop(void)
 
 static void op_done(struct opq_item *op)
 {
-    opq_free_head(&opq_rt, op); // TODO single queue
+    opq_free_head(&opq_rt, op);
     _port.offset = 0;
     _port.current_op = NULL;
 }
@@ -145,7 +158,7 @@ static bool update_write(const void *buf, size_t bufsize)
 {
     struct port_s *p = &_port;
 
-    if (!bufsize) 
+    if (!bufsize)
         return true;
 
     // TODO check nbytes = sp_output_waiting > N and drain!?
@@ -177,15 +190,15 @@ static bool update_write(const void *buf, size_t bufsize)
 
 
     bool done;
-    if (rc == size) { 
+    if (rc == size) {
         LOG_DBG("sp_nb_write %d/%zu", rc, size);
         done = true;
     }
-    else if (rc == 0) { 
+    else if (rc == 0) {
         // i.e. EAGAIN retry on next writable event
         LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
         done = false;
-    } 
+    }
     else if (rc < 0) {
         LOG_ERR("sp_nb_write size=%zu, rc=%d", size, rc);
         port_panic("write error");
@@ -206,11 +219,6 @@ static bool update_write(const void *buf, size_t bufsize)
  */
 static void _on_prepare(uv_prepare_t* handle)
 {
-#if 0 // TODO
-    if (_port.state != PORT_STATE_READY) {
-       
-    }
-#endif
     if (_port.current_op)
         return; // operation not done yet
 
@@ -223,21 +231,33 @@ static void _on_prepare(uv_prepare_t* handle)
 
     // load/start operation prior sleep timer start
     _port.current_op = op;
-
+    // OP_EXIT is the only accepted op_code when port not ready
     if (op->op_code == OP_EXIT) {
         main_exit(EXIT_SUCCESS);
+        return;
     }
-    else if (op->op_code == OP_SLEEP) {
+
+
+    if (_port.state != PORT_STATE_READY) {
+        LOG_ERR("%s not ready. state: %s",
+                port_opts.name, port_state_to_str(_port.state));
+
+        // implicilty set _port.current_op = NULL;
+        op_done(op);
+        return;
+    }
+
+    if (op->op_code == OP_SLEEP) {
         //if (_port.sleep_active) {
         //uv_timer_get_due_in
-        uint64_t ms = (uint64_t) op->val * 1000;
+        uint64_t ms = (uint64_t) op->u.si_val * 1000;
         int err = uv_timer_start(&_port.t_sleep, _on_sleep_done, ms, 0);
         LOG_DBG("sleeping %d ms", (unsigned int) ms);
         assert_uv_z(err, "uv_timer_start");
+        return;
     }
-    else {
-        _tx_start();
-    }
+
+    _tx_start(); // enable _on_writable()
 }
 
 
@@ -256,11 +276,11 @@ static void _on_writable(uv_poll_t* handle)
     switch(op->op_code) {
 
         case OP_PORT_WRITE:
-            done = update_write(op->buf.data, op->buf.size);
+            done = update_write(op->u.hdata, op->size);
             break;
 
         case OP_PORT_PUTC:
-            tmpc = op->val;
+            tmpc = op->u.si_val;
             done = update_write(&tmpc, 1);
             break;
 
@@ -271,28 +291,28 @@ static void _on_writable(uv_poll_t* handle)
             break;
 
         case OP_PORT_SET_RTS:
-            err = sp_set_rts(_port.port, op->val);
+            err = sp_set_rts(_port.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_rts");
             done = true;
             break;
 
         case OP_PORT_SET_CTS:
-            err = sp_set_cts(_port.port, op->val);
+            err = sp_set_cts(_port.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_cts");
             done = true;
             break;
 
         case OP_PORT_SET_DTR:
-            err = sp_set_dtr(_port.port, op->val);
+            err = sp_set_dtr(_port.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dtr");
             done = true;
             break;
 
         case OP_PORT_SET_DSR:
-            err = sp_set_dsr(_port.port, op->val);
+            err = sp_set_dsr(_port.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dsr");
             done = true;
@@ -332,7 +352,7 @@ static void _on_writable(uv_poll_t* handle)
 static void _on_readable(uv_poll_t* handle)
 {
     // TODO bufsize?
-    static char buf[32];
+    static char buf[255];
     int rc = sp_nonblocking_read(_port.port, buf, sizeof(buf));
     if (rc < 0) {
         LOG_ERR("sp_nonblocking_read rc=%d", rc);
@@ -344,8 +364,14 @@ static void _on_readable(uv_poll_t* handle)
         // Try again later
         return;
     }
-    LOG_DBG("read. %d bytes", rc);
-    outfmt_write(buf, rc);
+    if (rc == sizeof(buf)) {
+        // read more on next uv loop
+        LOG_DBG("read=buf_size");
+    }
+
+    size_t size = rc;
+    LOG_DBG("read. %zu bytes", size);
+    _port.rx_cb(buf, size);
 }
 
 /*
@@ -613,11 +639,13 @@ int port_write_line(const char *line)
 
 
 
-int port_init(void)
+int port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
     if (!port_opts.name)
         return opt_error(NULL, "no serial port device");
+
+    _port.rx_cb = rx_cb;
     // allocate some resources
     err = sp_new_config(&_port.org_config);
     assert_sp_z(err, "sp_new_config");

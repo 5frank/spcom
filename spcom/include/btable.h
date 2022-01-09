@@ -17,7 +17,7 @@ typedef unsigned int btable_t;
 #define BTABLE_BITPOS(INDEX) ((INDEX) & (BTABLE_WORD_NBITS - 1))
 
 /** word mask. assume offset applied */
-#define BTABLE_MASK(INDEX) (1 << BTABLE_BITPOS(INDEX))
+#define BTABLE_WORD_MASK(INDEX) (1 << BTABLE_BITPOS(INDEX))
 
 /** number of bits to number of data words (of type btable_t).
  * round up to closest to ensure at least NBITS will fit.
@@ -60,21 +60,21 @@ static inline void btable_reset(btable_t *table, int bitval, size_t nbits)
 static inline void btable_set(btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    table[offs] |= BTABLE_MASK(index);
+    table[offs] |= BTABLE_WORD_MASK(index);
 }
 
 /** clear bit at index. assumes index in range */
 static inline void btable_clr(btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    table[offs] &= ~(BTABLE_MASK(index));
+    table[offs] &= ~(BTABLE_WORD_MASK(index));
 }
 
 /** get bit value at index. assumes index in range */
 static inline int btable_get(const btable_t *table, unsigned int index)
 {
     unsigned int offs = BTABLE_WORD_OFFSET(index);
-    return !!(table[offs] & BTABLE_MASK(index));
+    return !!(table[offs] & BTABLE_WORD_MASK(index));
 }
 
 #endif

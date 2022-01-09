@@ -187,14 +187,18 @@ void outfmt_write(const void *data, size_t size)
     int prev_c = outfmt.prev_c;
 
     bool is_first_c = prev_c < 0;
+    if (is_first_c)
+        print_timestamp();
+
     bool had_eol = outfmt.had_eol;
     char cfwd[2];
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
         // timestamp on first char received _after_ eol
-        if (is_first_c || had_eol) {
+        if (had_eol) {
             print_timestamp();
+            had_eol = false;
         }
 
         int ec = eol_eval(eol_rx, c, cfwd);
@@ -208,6 +212,7 @@ void outfmt_write(const void *data, size_t size)
                 break;
 
             case EOL_C_FOUND:
+                had_eol = true;
                 strbuf_putc('\n');
                 break;
 
@@ -249,6 +254,7 @@ void outfmt_write(const void *data, size_t size)
 
 void out_drain_reset(void)
 {}
+
 
 static const struct opt_conf outfmt_opts_conf[] = {
     {

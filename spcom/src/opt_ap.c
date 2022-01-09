@@ -42,8 +42,9 @@ int opt_ap_int(const struct opt_conf *conf, char *s)
 
 int opt_ap_str(const struct opt_conf *conf, char *s)
 {
-    assert(!s);
+    assert(s);
     assert(conf->dest);
+    assert(IS_ALIGNED(conf->dest, sizeof(char *)));
     char **dest = conf->dest;
     *dest = s;
     return 0;

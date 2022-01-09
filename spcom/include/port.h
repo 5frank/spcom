@@ -20,8 +20,9 @@ struct port_opts_s {
     int wait;
     int stay;
 };
-
-int port_init(void);
+/** data only valid in callback and do not need to be freed */
+typedef void (port_rx_cb_fn)(const void *data, size_t size);
+int port_init(port_rx_cb_fn *rx_cb);
 void port_cleanup(void);
 // TODO
 int port_write(const void *data, size_t size);

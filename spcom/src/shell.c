@@ -27,34 +27,27 @@ struct shell_opts_s {
     int sticky;
     const char *prompt;
     const char *cmd_prompt;
-    struct shell_keybind_s {
-        unsigned char cmd_enter;
-        unsigned char cmd_exit;
-        unsigned char detach;
-    } keybind;
 };
 
 static struct shell_opts_s shell_opts = {
     .cooked = false,
-    .keybind = {
-        .cmd_enter = VT_CTRL_KEY('B'),
-        .cmd_exit = VT_CTRL_KEY('B'),
-        .detach = VT_CTRL_KEY('D')
-    },
     // TODO from opts
-    .prompt = "> ",
+    .prompt = "",
     .cmd_prompt = "[CMD] ",
 };
+
 
 static struct shell_s {
     bool initialized;
     char *name;
     //char history[256];
-
     struct shell_mode_data_s {
         struct readline_state rlstate;
         const char *prompt;
     } cmd_mode_data, cooked_mode_data; //[__NUM_MODES];
+
+    struct keybind_state kb_state;
+    char kb_cache[2];
 
     uv_tty_t stdin_tty;
     char stdin_rd_buf[32];
@@ -208,10 +201,15 @@ static void _rlcb_on_newline(char *line)
         free(line);
     }
     else if (shell_opts.cooked) {
-            opq_push_heapdata(&opq_rt, line, strlen(line));
-            opq_push_value(&opq_rt, OP_PORT_PUT_EOL, 1);
-            LOG_DBG("'%s'", line);
-            // no free!
+        size_t len = strlen(line);
+        if (len)
+            opq_enqueue_hdata(&opq_rt, OP_PORT_WRITE, line, len);
+       else
+            free(line);
+
+        opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
+        LOG_DBG("'%s'", line);
+        // no free!
     }
     else {
         LOG_ERR("readline callback in raw mode");
@@ -250,7 +248,7 @@ static void shell_tog_cmd_mode(void)
     shell.cmd_mode_active = active;
 }
 
-static void shell_input_putc(int c)
+static void shell_forward_c(int c)
 {
     if (shell.cmd_mode_active || shell_opts.cooked) {
         // forward to cmd or cooked prompt
@@ -258,9 +256,10 @@ static void shell_input_putc(int c)
     }
     else {
         // in raw mode
-        opq_push_value(&opq_rt, OP_PORT_PUTC, c);
+        opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
     }
 }
+
 static void shell_update_c(int prev_c, int c)
 {
     // need to catch ctrl keys before libreadline
@@ -271,27 +270,30 @@ static void shell_update_c(int prev_c, int c)
     /** UP: 91 65
      * DOWN: 91, 66
      */ 
-#if 1
-    char cfwd[2];
-    int action = keybind_eval(c, cfwd);
+
+    char *kb_cache = shell.kb_cache;
+    struct keybind_state *kb_state = &shell.kb_state;
+
+    int action = keybind_eval(kb_state, c);
     switch (action) {
-        case K_ACTION_NONE:
+        case K_ACTION_CACHE:
+            kb_cache[0] = c;
             break;
 
-        case K_ACTION_FWD1:
-            shell_input_putc(cfwd[0]);
+        case K_ACTION_PUTC:
+            shell_forward_c(c);
             break;
 
-        case K_ACTION_FWD2:
-            shell_input_putc(cfwd[0]);
-            shell_input_putc(cfwd[1]);
+        case K_ACTION_UNCACHE:
+            shell_forward_c(kb_cache[0]);
+            shell_forward_c(c);
             break;
 
         case K_ACTION_EXIT:
             main_exit(EXIT_SUCCESS);
             break;
 
-        case K_ACTION_TOG_CMD_MODE: 
+        case K_ACTION_TOG_CMD_MODE:
             shell_tog_cmd_mode();
             break;
 
@@ -299,41 +301,6 @@ static void shell_update_c(int prev_c, int c)
             LOG_ERR("unkown action %d", action);
             break;
     }
-#else
-    switch (c) {
-        case VT_CTRL_KEY('D'):
-        case VT_CTRL_KEY('C'):
-            LOG_DBG("received (CTRL-%c)", VT_CTRL_CHR(c));
-            main_exit(EXIT_SUCCESS);
-            break;
-
-        default:
-            break;
-    }
-
-    if (shell.cmd_mode_active && c == shell_opts.keybind.cmd_exit) {
-        LOG_DBG("cmd mode exit key=%d", c);
-        shell_set_cmd_mode(false);
-        shell.cmd_mode_active = false;
-        return;
-    }
-
-    if (!shell.cmd_mode_active && c == shell_opts.keybind.cmd_enter) {
-        LOG_DBG("cmd mode enter key=%d", c);
-        shell_set_cmd_mode(true);
-        shell.cmd_mode_active = true;
-        return;
-    }
-
-    if (shell.cmd_mode_active || shell_opts.cooked) {
-        // forward to cmd or cooked prompt
-        _rl_putc(c);
-    }
-    else {
-        // in raw mode
-        opq_push_value(&opq_rt, OP_PORT_PUTC, c);
-    }
-#endif
 }
 
 int shell_update(const void *user_input, size_t size)
@@ -470,6 +437,7 @@ static void shell_init_modes(void)
     {
         struct shell_mode_data_s *md = &shell.cooked_mode_data;
         rl_save_state(&md->rlstate);
+
         assert(!md->rlstate.catchsigs);
         assert(!md->rlstate.catchsigwinch);
         md->prompt = shell_opts.prompt;
@@ -482,7 +450,7 @@ static void shell_init_modes(void)
         assert(!md->rlstate.catchsigs);
         assert(!md->rlstate.catchsigwinch);
 
-        md->prompt = shell_opts.cmd_prompt;
+        //md->prompt = shell_opts.cmd_prompt;
         //md->rlstate.prompt = shell_opts.cmd_prompt;
         md->rlstate.attemptfunc = _complete_m_cmd;
     }
@@ -500,8 +468,12 @@ int shell_init(void)
 
 
     shell_init_modes();
-
-    setlinebuf(stdout);
+    if (shell_opts.cooked) {
+        setvbuf(stdout, NULL, _IOLBF, 0); // line buffering on
+    }
+    else {
+        setvbuf(stdout, NULL, _IONBF, 0); // line buffering off
+    }
     //rl_callback_handler_install(NULL, _rlcb_on_newline);
 
     //rl_attempted_completion_function = _complete_cmd;
@@ -512,15 +484,14 @@ int shell_init(void)
      *shell_set_active_promt(0);*/
     //rl_forced_update_display();
 
-    
+
     _Static_assert(STDIN_FILENO == 0, "conflicting stdin fileno w libuv");
-    
+
     assert(isatty(STDIN_FILENO)); // should already be checked
-    // TODO only tty raw if (isatty(fd)) ...
 
     // fd = STDOUT_FILENO;
     // fd = STDERR_FILENO;
-    
+
     uv_loop_t *loop = uv_default_loop();
     uv_tty_t *p_tty = &shell.stdin_tty;
 
@@ -532,7 +503,9 @@ int shell_init(void)
 
     assert(uv_is_readable((uv_stream_t *)p_tty));
 
-    err = uv_read_start((uv_stream_t *)p_tty, _uvcb_stdin_stalloc, _uvcb_stdin_read);
+    err = uv_read_start((uv_stream_t *)p_tty,
+                        _uvcb_stdin_stalloc,
+                        _uvcb_stdin_read);
     assert_uv_z(err, "uv_read_start");
 
 #if UV_VERSION_GT_OR_EQ(1, 33)

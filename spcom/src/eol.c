@@ -237,4 +237,7 @@ static const struct opt_conf eol_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(main, eol_opts_conf, ARRAY_LEN(eol_opts_conf), eol_opt_post_parse);
+OPT_SECTION_ADD(main,
+                eol_opts_conf,
+                ARRAY_LEN(eol_opts_conf),
+                eol_opt_post_parse);

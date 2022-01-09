@@ -11,6 +11,7 @@
 #include "utils.h"
 #include "cmd.h"
 #include "timeout.h"
+#include "outfmt.h"
 #include "port.h"
 #include "main.h"
 
@@ -180,7 +181,8 @@ int main_init(void)
     err = timeout_init(main_exit);
     assert(!err);
 
-    err = port_init();
+    // rx callback == outfmt_write
+    err = port_init(outfmt_write);
     if (err) {
         LOG_ERR("port_init err=%d", err);
         return err;
@@ -231,8 +233,6 @@ int main(int argc, char *argv[])
     if (err)
         return err;
 
-    // TODO read config file here and ignore options provided as cli arguments
-
     err = main_init();
     if (err) {
         LOG_ERR("main_init failed");
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
 
     uv_loop_t *loop = uv_default_loop();
     err = uv_run(loop, UV_RUN_DEFAULT);
-    //port_run();
+
     if (err) {
         LOG_UV_ERR(err, "uv_run");
     }

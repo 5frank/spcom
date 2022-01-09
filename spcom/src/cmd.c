@@ -62,11 +62,11 @@ static CMD_FUNC(_cmd_help)
 static CMD_FUNC(_cmd_flush)
 {
     // TODO parse i/o
-    return opq_push_value(ap->q, OP_PORT_FLUSH, 0);
+    return opq_enqueue_val(ap->q, OP_PORT_FLUSH, 0);
 }
 static CMD_FUNC(_cmd_drain)
 {
-    return opq_push_value(ap->q, OP_PORT_DRAIN, 0);
+    return opq_enqueue_val(ap->q, OP_PORT_DRAIN, 0);
 }
 static CMD_FUNC(_cmd_break)
 {
@@ -137,7 +137,7 @@ static CMD_FUNC(_cmd_send)
     }
 
     if (sendeol)
-        opq_push_value(ap->q, OP_PORT_PUT_EOL, 1);
+        opq_enqueue_val(ap->q, OP_PORT_PUT_EOL, 1);
 
     return 0;
 }

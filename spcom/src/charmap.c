@@ -12,8 +12,10 @@
 #include "eol.h"
 #include "str.h"
 #include "utils.h"
+#include "opt.h"
 
 #define REPR_BUF_SIZE 8
+#define CHARMAP_HEXFMT_DEFAULT "\\%02x"
 
 enum char_class_id {
     CHAR_CLASS_CNTRL = UCHAR_MAX + 1,
@@ -45,11 +47,18 @@ static struct charmap_opts {
     char hexfmt[8];
 } charmap_opts = {0};
 
-static struct char_map {
+static struct charmap_s {
     uint16_t map[UCHAR_MAX + 1];
 };
 
-static struct char_map g_cmap = { 0};
+// initalized if needed
+static struct charmap_s _charmap_tx = {0};;
+// exposed const pointer
+const struct charmap_s *charmap_tx = &_charmap_tx;
+// initalized if needed
+static struct charmap_s _charmap_rx = {0};
+// exposed const pointer
+const struct charmap_s *charmap_rx = &_charmap_rx;
 
 static const char *cntrl_valtostr(int val)
 {
@@ -79,36 +88,63 @@ static int cntrl_strtoval(const char *s, int *val)
     return -1;
 }
 
-static int hex_is_valid_fmt(const char *fmt)
+static int _verify_byte_print_fmt(const char *fmt)
 {
     if (!fmt)
         return 1;
+
+    const char *sp = fmt;
+    int len = 0;
+    int percent_count = 0;
+
+    for (; *sp != '\0'; len++) {
+        char c = *sp++;
+        if (c == '*')
+            return -EINVAL;
+
+        if (c == '%')
+            percent_count++;
+
+        /* isprint() returns
+         * ... false (zero) for: '\n', '\r', '\t'
+         * ... true (non-zero) for: ' ' */ 
+        if (!isprint(c))
+            return -EINVAL;
+    }
+    if (len < 2)
+        return -EINVAL;
+
+    size_t maxlen = sizeof(charmap_opts.hexfmt) - 1;
+    if (len >= maxlen)
+        return -EINVAL;
+
+    if (percent_count != 1)
+        return -EINVAL;
 
     char buf[REPR_BUF_SIZE];
 
     int rc = snprintf(buf, sizeof(buf), fmt, 0xAB);
     if (rc < 1)
-        return EINVAL;
+        return -EINVAL;
 
     if (rc >= sizeof(buf))
-        return ERANGE;
+        return -ERANGE;
 
-    if (!strstr(buf, "ab") && !strstr(buf, "AB"))
-        return EINVAL;
+    if (!strstr(buf, "ab") && !strstr(buf, "AB") && !strstr(buf, "171"))
+        return -EINVAL;
 
     return 0;
 }
 
 static char g_hextbl[UCHAR_MAX + 1][REPR_BUF_SIZE];
 
-static void hex_mk_table(void) 
+static void charmap_init_hextbl(const char *fmt)
 {
-    const char *fmt = charmap_opts.hexfmt;
-    const int maxlen = sizeof(g_hextbl[0]);
-    for (int i = 0; i <= UCHAR_MAX; i++) {
-        char c = i;
-        int rc = snprintf(g_hextbl[i], maxlen, fmt, c);
+    const int maxlen = REPR_BUF_SIZE;
+    for (unsigned int i = 0; i <= UCHAR_MAX; i++) {
+        int rc = snprintf(g_hextbl[i], maxlen, fmt, i);
         assert(rc > 0);
+        //printf("val=%u, rc='%d' -- '%s'\n", i, rc, g_hextbl[i]);
         assert(rc < maxlen);
     }
 }
@@ -122,7 +158,6 @@ static struct strlits *gp_strlits = NULL;
 
 static const char *_strlit_get(unsigned int x)
 {
-
     if (!gp_strlits)
         return NULL;
 
@@ -193,9 +228,8 @@ static int bufputs(char *dst, const char *src)
     return 0;
 }
 
-int charmap_remap(char c, char *buf, int *remapped)
+int charmap_remap(const struct charmap_s *cm, char c, char *buf, int *remapped)
 {
-    struct char_map *cm = &g_cmap;
     unsigned char i = c;
 
     const char *s;
@@ -276,7 +310,7 @@ static const struct str_kvi cclass_id_strmap[] = {
     { "cntrl",    CHAR_CLASS_CNTRL },
     { "ctrl",     CHAR_CLASS_CNTRL },
     { "nonprint", CHAR_CLASS_NONPRINT },
-    { "nprint",   CHAR_CLASS_NONPRINT },
+    { "!isprint", CHAR_CLASS_NONPRINT },
 };
 // clang-format on
 
@@ -328,7 +362,7 @@ static int is_in_cclass(int c, int cclassid)
     }
 }
 
-static int charmap_set_class_repr(struct char_map *cm, int x, int creprid)
+static int charmap_set_class_repr(struct charmap_s *cm, int x, int creprid)
 {
     assert(x >= 0);
     if (x <= UCHAR_MAX) {
@@ -418,9 +452,8 @@ static int charmap_parse_opts_repr(const char *sval, int *reprid)
         cr:cntrlname
         lf:cntrlname == lf:\"LF\"
         cntrl:cntrlname
-
 */
-static int charmap_set(struct char_map *cm, const char *skey, const char *sval)
+static int charmap_set(struct charmap_s *cm, const char *skey, const char *sval)
 {
     int err = 0;
 
@@ -441,10 +474,8 @@ static int charmap_set(struct char_map *cm, const char *skey, const char *sval)
     return 0;
 }
 
-int charmap_parse_opts(int type, const char *s)
+static int charmap_parse_opts(struct charmap_s *cm, const char *s)
 {
-    struct char_map *cm = &g_cmap;
-
     int err = 0;
     char *sdup = strdup(s);
     assert(sdup);
@@ -470,4 +501,59 @@ done:
 
     return err;
 }
+
+static int charmap_opt_post_parse(const struct opt_section_entry *entry)
+{
+    if (!charmap_opts.hexfmt[0]) {
+        strcpy(charmap_opts.hexfmt, CHARMAP_HEXFMT_DEFAULT);
+    }
+    charmap_init_hextbl(charmap_opts.hexfmt);
+
+    return 0;
+}
+
+static int parse_hexfmt(const struct opt_conf *conf, char *s)
+{
+    if (_verify_byte_print_fmt(s))
+        return opt_error(conf, "invalid format");
+    // assume check len in _is_valid_hexfmt()
+    strcpy(charmap_opts.hexfmt, s);
+    return 0;
+}
+
+static int parse_map_txc(const struct opt_conf *conf, char *s)
+{
+    return charmap_parse_opts(&_charmap_tx, s);
+}
+
+static int parse_map_rxc(const struct opt_conf *conf, char *s)
+{
+    return charmap_parse_opts(&_charmap_rx, s);
+}
+
+static const struct opt_conf charmap_opts_conf[] = {
+    {
+        .name = "hexformat",
+        .alias = "hexfmt",
+        .dest = &charmap_opts.hexfmt,
+        .parse = parse_hexfmt,
+        .descr = "hex printf format for byte values."
+            "Default '" CHARMAP_HEXFMT_DEFAULT "'",
+    },
+    {
+        .name = "map-txc",
+        .parse = parse_map_txc,
+        .descr = "map TX (sent) character(s)",
+    },
+    {
+        .name = "map-rxc",
+        .parse = parse_map_rxc,
+        .descr = "map RX (received) character(s)",
+    },
+};
+
+OPT_SECTION_ADD(outfmt,
+                charmap_opts_conf,
+                ARRAY_LEN(charmap_opts_conf),
+                charmap_opt_post_parse);
 

@@ -162,11 +162,11 @@ const char *log_wherestr(const char *file, unsigned int line, const char *func)
     return buf;
 }
 
-void log_printf(int tag, const char *where, const char *fmt, ...)
+void log_printf(int level, const char *where, const char *fmt, ...)
 {
     va_list args;
 
-    if (tag >= log_opts.level)
+    if (level > log_opts.level)
         return;
 
     if (!logfp)
@@ -174,8 +174,8 @@ void log_printf(int tag, const char *where, const char *fmt, ...)
 
     struct shell_rls_s *rls = shell_rls_save();
 #if 1 // behave like normal printf on log_printf(0, 0, ...)
-    if (tag) {
-        fputs(log_tagstr(tag), logfp);
+    if (level) {
+        fputs(log_tagstr(level), logfp);
         fputc(':', logfp);
     }
     if (where) {
@@ -301,6 +301,7 @@ static const struct opt_conf log_opts_conf[] = {
     },
     {
         .name = "logfile",
+        .dest = &log_opts.file,
         .parse = opt_ap_str,
     },
 };

@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // clang-format off
 enum op_code_e {
@@ -32,14 +33,14 @@ enum op_code_e {
 // clang-format on
 
 struct opq_item {
-    int op_code;
-    /// value for setters etc
-    int val;
-
-    struct op_data {
-        size_t size;
-        char *data; // freed when done
-    } buf;
+    uint16_t op_code;
+    uint16_t size; //<! non-zero if hdata below
+    /// type of data impleied byt op_code
+    union {
+        uint32_t ui_val;
+        uint32_t si_val;
+        void *hdata; // heap data freed when done
+    } u;
 };
 
 /// oo - on open
@@ -49,16 +50,24 @@ extern struct opq opq_rt;
 
 void opq_reset(struct opq *q);
 
-int opq_push_value(struct opq *q, int op_code, int val);
-int opq_push_heapdata(struct opq *q, void *data, size_t size);
+/// enqueue value
+int opq_enqueue_val(struct opq *q, uint16_t op_code, int val);
 
-/// alloc tail
-struct opq_item *opq_alloc_tail(struct opq *q);
+/// enqueue heap data. freed by consumer
+int opq_enqueue_hdata(struct opq *q,
+                      uint16_t op_code,
+                      void *data,
+                      uint16_t size);
 
-int opq_push_tail(struct opq *q, struct opq_item *itm);
+/// get tail
+struct opq_item *opq_peek_tail(struct opq *q);
 
-/// peek at head of queue without updating index. 
-/// assume passed to free_head later 
+/// assumes @param itm same as returned by opq_peek_tail()
+int opq_enqueue_tail(struct opq *q, struct opq_item *itm);
+
+
+/** peek at head of queue without updating index. 
+ * assume passed to free_head later */
 struct opq_item *opq_peek_head(struct opq *q);
 
 /// "free" item retrived with peek_head

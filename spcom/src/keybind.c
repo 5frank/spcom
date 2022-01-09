@@ -11,33 +11,23 @@
 #include "btable.h"
 #include "keybind.h"
 
-struct keybind_data {
-    // have key sequence if both in ckey_tbl and seq_tbl
+struct keybind_map {
+    // have key sequence if both in ckey_tbl and seq0_tbl
     btable_t ckey_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
-    btable_t seq_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
+    btable_t seq0_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
+    btable_t seq1_tbl[BTABLE_NBITS_TO_NWORDS(UINT8_MAX)];
     uint32_t seq_map[16];
     uint16_t map[16];
     uint8_t seq0; // leader ctrl key
 };
 
-static struct keybind_data keybind_data;
+static struct keybind_map keybind_map;
 
 static int kb_error(int err, const char *msg)
 {
     fprintf(stderr, msg);
     return err;
 }
-
-static inline bool kb_is_mapped(struct keybind_data *kbd, uint8_t key)
-{
-    return btable_get(kbd->ckey_tbl, key);
-}
-
-static inline bool kb_is_seq_mapped(struct keybind_data *kbd, uint8_t key)
-{
-    return btable_get(kbd->seq_tbl, key);
-}
-
 
 #define KB_UNPACK_KEY(VAL)    ((VAL) & 0xFF)
 #define KB_UNPACK_ACTION(VAL) (((VAL) >> 8) & 0xFF)
@@ -46,18 +36,18 @@ static inline bool kb_is_seq_mapped(struct keybind_data *kbd, uint8_t key)
     | (((uint16_t)(ACTION) & 0xFF) <<  8)   \
 )
 /// add single key binding action
-static int kb_add_action(struct keybind_data *kbd, uint8_t key, uint8_t action)
+static int kb_add_action(struct keybind_map *kbm, uint8_t key, uint8_t action)
 {
     assert(key);
-    if (btable_get(kbd->seq_tbl, key))
+    if (btable_get(kbm->seq0_tbl, key))
         return kb_error(EEXIST, "conflicting key");
 
-    for (int i = 0; i < ARRAY_LEN(kbd->map); i++) {
-        uint16_t map_val = kbd->map[i];
+    for (int i = 0; i < ARRAY_LEN(kbm->map); i++) {
+        uint16_t map_val = kbm->map[i];
         // empty slot
         if (!map_val) {
-            kbd->map[i] = KB_PACK(key, action);
-            btable_set(kbd->ckey_tbl, key);
+            kbm->map[i] = KB_PACK(key, action);
+            btable_set(kbm->ckey_tbl, key);
             return 0;
         }
     }
@@ -66,10 +56,10 @@ static int kb_add_action(struct keybind_data *kbd, uint8_t key, uint8_t action)
 }
 
 /// get single key binding action
-static uint8_t kb_get_action(struct keybind_data *kbd, uint8_t key)
+static uint8_t kb_get_action(const struct keybind_map *kbm, uint8_t key)
 {
-    for (int i = 0; i < ARRAY_LEN(kbd->map); i++) {
-        uint16_t map_val = kbd->map[i];
+    for (int i = 0; i < ARRAY_LEN(kbm->map); i++) {
+        uint16_t map_val = kbm->map[i];
         if (!map_val)
             break;
 
@@ -93,7 +83,7 @@ static uint8_t kb_get_action(struct keybind_data *kbd, uint8_t key)
 #define KB_SEQ_UNPACK_ACTION(VAL) (((VAL) >> 16) & 0xFF)
 
 /// set key sequence action
-static int kb_seq_add_action(struct keybind_data *kbd,
+static int kb_seq_add_action(struct keybind_map *kbm,
                              uint8_t ctlkey,
                              uint8_t followk,
                              uint8_t action)
@@ -101,16 +91,17 @@ static int kb_seq_add_action(struct keybind_data *kbd,
     assert(ctlkey);
     assert(followk);
 
-    if (btable_get(kbd->ckey_tbl, ctlkey))
+    if (btable_get(kbm->ckey_tbl, ctlkey))
         return kb_error(EEXIST, "conflicting ctlkey");
 
-    for (int i = 0; i < ARRAY_LEN(kbd->seq_map); i++) {
-        uint32_t map_val = kbd->seq_map[i];
+    for (int i = 0; i < ARRAY_LEN(kbm->seq_map); i++) {
+        uint32_t map_val = kbm->seq_map[i];
         // empty slot
         if (!map_val) {
-            kbd->seq_map[i] = KB_SEQ_PACK(ctlkey, followk, action);
-            btable_set(kbd->ckey_tbl, ctlkey);
-            btable_set(kbd->seq_tbl, ctlkey);
+            kbm->seq_map[i] = KB_SEQ_PACK(ctlkey, followk, action);
+            btable_set(kbm->ckey_tbl, ctlkey);
+            btable_set(kbm->seq0_tbl, ctlkey);
+            btable_set(kbm->seq1_tbl, followk);
             return 0;
         }
     }
@@ -122,14 +113,14 @@ static int kb_seq_add_action(struct keybind_data *kbd,
 /** get key sequence action
  * return 0 if not unmapped
  */
-static uint8_t kb_seq_get_action(struct keybind_data *kbd,
+static uint8_t kb_seq_get_action(const struct keybind_map *kbm,
                                  uint8_t ctlkey,
                                  uint8_t followk)
 {
     uint32_t id = KB_SEQ_PACK(ctlkey, followk, 0);
 
-    for (int i = 0; i < ARRAY_LEN(kbd->seq_map); i++) {
-        uint32_t map_val = kbd->seq_map[i];
+    for (int i = 0; i < ARRAY_LEN(kbm->seq_map); i++) {
+        uint32_t map_val = kbm->seq_map[i];
         if (!map_val)
             break;
 
@@ -144,55 +135,47 @@ static uint8_t kb_seq_get_action(struct keybind_data *kbd,
 #undef KB_SEQ_UNPACK_ID
 #undef KB_SEQ_UNPACK_ACTION
 
-int keybind_eval(char c, char *cfwd)
+int keybind_eval(struct keybind_state *st, char c)
 {
     uint8_t key = c;
 
-    struct keybind_data *kbd = &keybind_data;
-    // had previosly first key of a sequence 
-    if (kbd->seq0) {
-        // forward ctrl key on double press
-        if (key == kbd->seq0) {
-            kbd->seq0 = 0;
-            cfwd[0] = key;
-            return K_ACTION_FWD1;
+    const struct keybind_map *kbm = &keybind_map;
+    if (st->_seq0) {
+        // had previosly first key of a sequence
+
+        if (!btable_get(kbm->seq1_tbl, key)) {
+            // was not a complete sequence - "flush" both chars
+            st->_seq0 = 0;
+            return K_ACTION_UNCACHE;
         }
 
-        uint8_t action = kb_seq_get_action(kbd, kbd->seq0, key);
-        if (!action) {
-            cfwd[0] = kbd->seq0; // i.e. prev char
-            cfwd[1] = key;
-            kbd->seq0 = 0;
-            return K_ACTION_FWD2;
-        }
+        uint8_t action = kb_seq_get_action(kbm, st->_seq0, key);
+        LOG_DBG("key:0x%02X,0x%02X --> action:%d", st->_seq0, key, action);
 
-        LOG_DBG("key:0x%02X,0x%02X --> action:%d", kbd->seq0, key, action);
         return action;
     }
 
-    if (kb_is_mapped(kbd, key)) {
-
-        if (kb_is_seq_mapped(kbd, key)) {
-            kbd->seq0 = key;
-            return 0; // consumed
+    if (btable_get(kbm->ckey_tbl, key)) {
+        // have mapped key
+        if (btable_get(kbm->seq0_tbl, key)) {
+            // have first key of sequence mapping
+            st->_seq0 = key;
+            // up to caller to cache this char
+            return K_ACTION_CACHE;
         }
-        // else single key mapped
-        else {
 
-            uint8_t action = kb_get_action(kbd, key);
-            if (!action) {
-                // should not occur!?
-                cfwd[0] = key;
-                return K_ACTION_FWD1;
-            }
-
-            LOG_DBG("key:0x%02X --> action:%d", key, action);
-            return action;
+        // have single key mapping
+        uint8_t action = kb_get_action(kbm, key);
+        if (!action) {
+            // should not occur!?
+            return K_ACTION_PUTC;
         }
+
+        LOG_DBG("key:0x%02X --> action:%d", key, action);
+        return action;
     }
 
-    cfwd[0] = key;
-    return K_ACTION_FWD1;
+    return K_ACTION_PUTC;
 }
 
 /**
@@ -245,17 +228,17 @@ static int keybind_post_parse(const struct opt_section_entry *entry)
 {
     int err;
 
-    struct keybind_data *kbd = &keybind_data;
-    err = kb_add_action(kbd, VT_CTRL_KEY('C'), K_ACTION_EXIT);
+    struct keybind_map *kbm = &keybind_map;
+    err = kb_add_action(kbm, VT_CTRL_KEY('C'), K_ACTION_EXIT);
     assert(!err);
 
-    err = kb_add_action(kbd, VT_CTRL_KEY('D'), K_ACTION_EXIT);
+    err = kb_add_action(kbm, VT_CTRL_KEY('D'), K_ACTION_EXIT);
     assert(!err);
 
-    err = kb_add_action(kbd, VT_CTRL_KEY('B'), K_ACTION_TOG_CMD_MODE);
+    err = kb_add_action(kbm, VT_CTRL_KEY('B'), K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
-    err = kb_seq_add_action(kbd, VT_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
+    err = kb_seq_add_action(kbm, VT_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
     return 0;
