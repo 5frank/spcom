@@ -54,10 +54,10 @@ const char *_parity_tostr(enum sp_parity parity)
     }
 }
 
-/** 
+/**
  * note this will briefly open the port in read mode and could alter the
  * state(s) of RTS, CTS, DTR and/or DSR depending on OS and configuration.
- */ 
+ */
 int port_info_print_osconfig(const char *name)
 {
     int err = 0;
@@ -126,8 +126,10 @@ cleanup:
 #if __linux__
 static int port_info_add_phyinfo(struct port_info_s *infos, size_t len)
 {
-#define BASE_PATH "/dev/serial/by-path/"
-#define FNAME_LEN_MAX (sizeof("pci-0000:00:14.0-usb-0:4:1.3") + 16)
+
+#define BASE_PATH       "/dev/serial/by-path/"
+/// size of typical filename and some margin
+#define FNAME_LEN_MAX   (sizeof("pci-0000:00:14.0-usb-0:4:1.3") + 16)
 
     int err = 0;
     char buf[sizeof(BASE_PATH) +  FNAME_LEN_MAX] = BASE_PATH;

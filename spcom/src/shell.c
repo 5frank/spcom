@@ -46,14 +46,6 @@ static struct shell_s {
 
 } shell = { 0 };
 
-#if 0
-static int uv_isatty(uv_file file)
-{
-    return (uv_guess_handle(file) == UV_TTY);
-}
-#endif
-
-
 const void *shell_output_lock(void)
 {
     const struct shell_mode_s *shm = shell.current_mode;
@@ -73,7 +65,7 @@ void shell_output_unlock(const void *x)
         return; // shell not initialized yet
 
     if (shm_x != shell.current_mode)
-        LOG_WRN("mode changed during output lock");
+        LOG_WRN("shell mode changed during output lock");
 
     // unlock anyways
     const struct shell_mode_s *shm = shell.current_mode;

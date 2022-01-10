@@ -18,7 +18,6 @@
 struct main_s {
     int exit_status;
     bool cleanup_done;
-    bool have_shell;
     uv_signal_t ev_sigint;
     uv_signal_t ev_sigterm;
 };
@@ -175,7 +174,6 @@ int main_init(void)
     if (isatty(STDIN_FILENO)) {
         err = shell_init();
         assert_z(err, "shell_init");
-        m->have_shell = true;
     }
 
     err = timeout_init(main_exit);
@@ -204,19 +202,16 @@ void main_cleanup(void)
 
     timeout_stop();
 
-    if (m->have_shell) {
-        shell_cleanup();
-        m->have_shell = 0;
-    }
+    shell_cleanup();
     port_cleanup();
     if (uv_loop_alive(loop)) {
         err = uv_loop_close(loop);
-        if (err)
-            LOG_UV_ERR(err, "uv_loop_close");
+        // only log debug on error as going to exit
+        if (err) {
+            LOG_DBG("uv_loop_close err. %s", log_libuv_errstr(err, errno));
+        }
     }
 
-
-    LOG_DBG("done");
     log_cleanup(); // last before exit
     m->cleanup_done = true;
 }

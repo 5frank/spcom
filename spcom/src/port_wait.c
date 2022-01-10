@@ -145,7 +145,7 @@ void port_wait_start(port_wait_cb *cb)
                             0); // UV_FS_EVENT_RECURSIVE);
     assert_uv_z(err, "uv_fs_event_start");
 
-    LOG_INF("Waiting for '%s' to be connected ...", pw->abspath);
+    LOG_INF("Waiting for non-existing device '%s' ...", pw->abspath);
     //_port.state = PORT_STATE_WAITING;
 }
 

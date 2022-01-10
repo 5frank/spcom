@@ -589,24 +589,31 @@ void port_cleanup(void)
 
 int port_write(const void *data, size_t size) 
 {
+#if 1
+    return -1;
+#else
+    /* TODO I think there is a good reason for not
+     * calling sp_nonblocking_write() directly here but I forgot if or why */
+
     if (!_port.port)
         return -1;
-#if 0 
-    // TODO use op queue
-    int err = txqueue_push(&_txqueue, data, size);
-    assert(!err);
-    //start if not alreay started
-    _tx_start();
-    return 0;
-#else
+
+    if (_port.state != PORT_STATE_READY) {
+        LOG_ERR("%s not ready. state: %s",
+                port_opts.name, port_state_to_str(_port.state));
+
+        return -1;
+    }
+
     int remains = size;
     const char *p = data;
     while (remains > 0) {
         int rc = sp_nonblocking_write(_port.port, p, remains);
 
         if (rc < 0) {
-             LOG_ERR("sp_nb_write rc=%d", rc);
-             return -1; // TODO retry?
+            LOG_ERR("sp_nb_write rc=%d", rc);
+            port_panic("write error");
+            return -1;
         }
         if (rc == 0) {
              // i.e. EAGAIN retry on next writable event
@@ -622,14 +629,25 @@ int port_write(const void *data, size_t size)
         assert(rc == size);
         break;
     }
-    return size;
+
+    return 0;
 #endif
 }
 
 int port_putc(int c)
 {
+#if 1
+    if (_port.state != PORT_STATE_READY) {
+        LOG_ERR("%s not ready. state: %s",
+                port_opts.name, port_state_to_str(_port.state));
+
+        return -1;
+    }
+    return opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
+#else
     unsigned char b = c;
     return port_write(&b, 1);
+#endif
 }
 
 int port_write_line(const char *line)
@@ -637,6 +655,33 @@ int port_write_line(const char *line)
     return -1; // TODO
 }
 
+int port_drain(uint32_t timeout_ms)
+{
+    /* Quote from libsp doc:
+     * "If your program runs on Unix, defines its own signal handlers, and
+     * needs to abort draining the output buffer when when these are called,
+     * then you should not use this function. It repeats system calls that
+     * return with EINTR. To be able to abort a drain from a signal handler,
+     * you would need to implement your own blocking drain by polling the
+     * result of sp_output_waiting()." */
+#if 0 //TODO
+    while(1) {
+        int rc = sp_output_waiting(_port.port);
+        if (rc == 0) {
+            break;
+        }
+        if (rc < 0) {
+            LOG_SP_ERR(rc, "sp_output_waiting");
+            return rc;
+        }
+        sleep_ms(1);
+    }
+
+    return 0;
+#else
+    return -1;
+#endif
+}
 
 
 int port_init(port_rx_cb_fn *rx_cb)

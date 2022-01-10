@@ -91,12 +91,12 @@ static const struct opt_conf port_opts_conf[] = {
     },
     {
         .name = "databits",
-        .shortname  = 'd',
+        .shortname = 'd',
         .parse = parse_databits,
     },
     {
         .name = "stopbits",
-        .shortname  = 's',
+        .shortname = 's',
         .parse = parse_stopbits,
     },
     {

@@ -13,7 +13,7 @@ static timeout_cb_fn *timeout_cb = NULL;
 
 static void _uvcb_on_timeout(uv_timer_t* handle)
 {
-    LOG_ERR("timedout after %d sec", opt_timeout_sec);
+    LOG_ERR("Application timeout after %d sec", opt_timeout_sec);
     assert(timeout_cb);
     timeout_cb(ETIMEDOUT);
 }

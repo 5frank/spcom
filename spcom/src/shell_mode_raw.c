@@ -27,6 +27,10 @@ static void sh_raw_leave(void)
 static int sh_raw_input_putc(char c)
 {
     opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
+
+    if (sh_raw_opts.local_echo)
+        putc(c, stdout);
+
     return 0;
 }
 

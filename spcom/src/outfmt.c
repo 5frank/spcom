@@ -131,7 +131,7 @@ static void print_hexesc(char c)
 
     strbuf_puts(buf);
 
-    if (color) 
+    if (color)
         strbuf_puts(VT_COLOR_OFF);
 }
 /* or use ts from moreutils? `apt install moreutils`
@@ -141,9 +141,6 @@ static void print_hexesc(char c)
 static void print_timestamp(void)
 {
     /* gettimeofday marked obsolete in POSIX.1-2008 and recommends
-     * clock_gettime.  clock_gettime in C11 In C11 way use timespec_get(&tms,
-     * TIME_UTC)) 
-     *
      * ... or use uv_gettimeofday?
      */
     if (!outfmt_opts.timestamp)
