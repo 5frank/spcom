@@ -50,42 +50,6 @@ struct opt_conf {
 /// inlcude depends on sizeof(struct opt_conf)
 #include "opt_section.h"
 
-#if 0
-
-struct opt_section_entry;
-/**  */
-typedef int (*opt_post_parse_fn)(const struct opt_section_entry *entry);
-
-struct opt_section_entry {
-    const char *name;
-    const struct opt_conf *conf;
-    size_t nconf;
-    //const char *file;
-    opt_post_parse_fn post_parse;
-};
-#ifndef STRINGIFY
-#define STRINGIFY(X) ___STRINGIFY_VIA(X)
-// Via expand macro. No parent
-#define ___STRINGIFY_VIA(X) #X
-#endif
-
-#define OPT_SECTION_ADD(NAME, CONF, NUM_CONF, POST_PARSE_CB)                   \
-    __attribute((used, section("options")))                                    \
-    static const struct opt_section_entry opt_conf_register_##NAME = {         \
-        .name = STRINGIFY(NAME),                                               \
-        .conf = CONF,                                                          \
-        .nconf = NUM_CONF,                                                     \
-        .post_parse = POST_PARSE_CB                                            \
-    };
-
-typedef int (opt_conf_foreach_cb_fn)(const struct opt_section_entry *entry,
-                                     const struct opt_conf *conf, void *arg);
-
-/** run callback for every opt_conf instance.
- * iteration stops if callback returns non-zero */
-int opt_conf_foreach(opt_conf_foreach_cb_fn *cb, void *cb_arg);
-#endif
-
 /**
  * @param startstr only match words starting with startstr. can be NULL.
  * @return NULL or NULL terminated list of autocomplete strings.

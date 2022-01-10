@@ -1,19 +1,22 @@
+/**
+ * option section utils.
+ */
 #ifndef OPT_SECTION_INCLUDE_H_
 #define OPT_SECTION_INCLUDE_H_
+
+#include <stdint.h>
 
 struct opt_conf;
 struct opt_section_entry;
 
-
-/**  */
-typedef int (*opt_post_parse_fn)(const struct opt_section_entry *entry);
+/** callback for eacy entry */
+typedef int (*opt_section_entry_cb_fn)(const struct opt_section_entry *entry);
 
 struct opt_section_entry {
     const char *name;
     const struct opt_conf *conf;
-    size_t nconf;
-    //const char *file;
-    opt_post_parse_fn post_parse;
+    unsigned int num_conf;
+    opt_section_entry_cb_fn post_parse;
 };
 
 /**
@@ -48,7 +51,7 @@ static inline size_t opt_section_num_entries(void)
     static const struct opt_section_entry opt_conf_register_##NAME = {         \
         .name = STRINGIFY(NAME),                                               \
         .conf = CONF,                                                          \
-        .nconf = NUM_CONF,                                                     \
+        .num_conf = NUM_CONF,                                                  \
         .post_parse = POST_PARSE_CB                                            \
     };
 
@@ -68,7 +71,7 @@ static inline int opt_section_foreach_conf(opt_conf_foreach_cb_fn *cb,
 
         const struct opt_section_entry *entry = &entries[i];
 
-        for (int i = 0; i < entry->nconf; i++) {
+        for (int i = 0; i < entry->num_conf; i++) {
 
             const struct opt_conf *conf = &entry->conf[i];
 
