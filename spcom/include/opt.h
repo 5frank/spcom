@@ -25,6 +25,8 @@
 /** Do not test parsed floating point values with `isnormal(X)`
  * (see man page for `isnomral`for more info) */
 #define OPT_F_NO_ISNORMAL  (1 << 4)
+
+#define OPT_F_HIDDEN  (1 << 5)
 #endif
 
 
@@ -63,7 +65,7 @@ int opt_error(const struct opt_conf *conf, const char *msg);
 
 int opt_parse_args(int argc, char *argv[]);
 
-int opt_show_help(const char *s);
+int opt_show_help(void);
 
 int opt_ap_int(const struct opt_conf *conf, char *s);
 

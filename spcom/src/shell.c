@@ -264,7 +264,6 @@ void shell_cleanup(void)
     }
 #endif
 
-
     rl_message("");
     rl_callback_handler_remove();
 

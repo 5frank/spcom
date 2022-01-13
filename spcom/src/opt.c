@@ -26,12 +26,16 @@
 
 struct opt_context {
     bool initialized;
+    /// number of opt_conf
     unsigned int num_opts;
     // binary search tree for options also provides duplicate check
-    unsigned int num_nodes;
     struct btree btree;
+    /// number of nodes in btree. up to 3 per opt_conf.
+    unsigned int num_nodes;
+    /// tree nodes dynamically allocated
     struct btree_node *btree_nodes;
-    struct btree_node *node_wrp; // node write pointer
+    // node write pointer. should always point in range of btree_nodes
+    struct btree_node *node_wrp;
 
     struct {
         unsigned int last;
@@ -129,7 +133,7 @@ static int opt_arg_error(const struct opt_conf *conf,
     return -EINVAL;
 }
 
-int opt_error(const struct opt_conf *conf, const char *msg) 
+int opt_error(const struct opt_conf *conf, const char *msg)
 {
    return opt_arg_error(conf, NULL, msg); // TODO
 }
@@ -233,7 +237,8 @@ static int opt_init_cb_precheck(const struct opt_section_entry *entry,
 }
 
 static int opt_init_cb_addtobtree(const struct opt_section_entry *entry,
-                                  const struct opt_conf *conf, void *arg)
+                                  const struct opt_conf *conf,
+                                  void *arg)
 {
     struct opt_context *ctx = arg;
     int err;
@@ -244,7 +249,8 @@ static int opt_init_cb_addtobtree(const struct opt_section_entry *entry,
         return 0;
     }
 
-    unsigned int conf_id = (unsigned int)(ctx->node_wrp - ctx->btree_nodes);
+    unsigned int conf_id = (uintptr_t)ctx->node_wrp
+                         - (uintptr_t)ctx->btree_nodes;
 
     const char *svals[] = {
         conf->name,
@@ -263,7 +269,6 @@ static int opt_init_cb_addtobtree(const struct opt_section_entry *entry,
 
         err = btree_add_node(&ctx->btree, node);
         if (err) {
-
             if (err == -EEXIST)
                 opt_conf_error(NULL, conf, "duplicate option names");
 
@@ -302,7 +307,7 @@ static int opt_init(struct opt_context *ctx)
     return 0;
 }
 
-static int opt_conf_parse(struct opt_context *ctx, 
+static int opt_conf_parse(struct opt_context *ctx,
                     const struct opt_conf *conf,
                     char *sval)
 {
@@ -310,7 +315,7 @@ static int opt_conf_parse(struct opt_context *ctx,
     assert(conf->parse);
     int err = conf->parse(conf, sval);
     if (err) {
-        fprintf(stderr, "error: %s - parse failure %d\n", 
+        fprintf(stderr, "error: %s - parse failure %d\n",
                 opt_conf_str(NULL, conf), err);
 
         return err;
@@ -319,14 +324,14 @@ static int opt_conf_parse(struct opt_context *ctx,
     return 0;
 }
 
-int opt_parse_args(int argc, char *argv[]) 
+int opt_parse_args(int argc, char *argv[])
 {
 
     int err;
     struct opt_context *ctx = &g_ctx;
     if (!ctx->initialized) {
         err = opt_init(ctx);
-        if (err) 
+        if (err)
             return err;
         ctx->initialized = true;
     }
@@ -335,7 +340,6 @@ int opt_parse_args(int argc, char *argv[])
     int flags = 0;
     err = opt_argviter_init(&itr, flags, argc, argv);
     assert(!err);
-
 
     while(1) {
         err = opt_argviter_getkey(&itr);
@@ -397,7 +401,6 @@ int opt_parse_args(int argc, char *argv[])
     return 0;
 }
 
-
 static int opt_help_cb(const struct opt_section_entry *entry,
                        const struct opt_conf *conf, void *arg)
 {
@@ -414,7 +417,7 @@ static int opt_help_cb(const struct opt_section_entry *entry,
     return 0;
 }
 
-int opt_show_help(const char *s)
+int opt_show_help(void)
 {
     return opt_section_foreach_conf(opt_help_cb, &g_ctx);
 }

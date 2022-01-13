@@ -13,8 +13,9 @@
 #include "str.h"
 #include "utils.h"
 #include "opt.h"
+#include "charmap.h"
 
-#define REPR_BUF_SIZE 8
+#define REPR_BUF_SIZE CHARMAP_REMAP_MAX_LEN 
 #define CHARMAP_HEXFMT_DEFAULT "\\%02x"
 
 enum char_class_id {
@@ -53,12 +54,12 @@ static struct charmap_s {
 
 // initalized if needed
 static struct charmap_s _charmap_tx = {0};;
-// exposed const pointer
-const struct charmap_s *charmap_tx = &_charmap_tx;
+// exposed const pointer. NULL until enabled
+const struct charmap_s *charmap_tx = NULL;
 // initalized if needed
 static struct charmap_s _charmap_rx = {0};
-// exposed const pointer
-const struct charmap_s *charmap_rx = &_charmap_rx;
+// exposed const pointer. NULL until enabled
+const struct charmap_s *charmap_rx = NULL;
 
 static const char *cntrl_valtostr(int val)
 {
@@ -228,14 +229,20 @@ static int bufputs(char *dst, const char *src)
     return 0;
 }
 
-int charmap_remap(const struct charmap_s *cm, char c, char *buf, int *remapped)
+int charmap_remap(const struct charmap_s *cm,
+                  char c,
+                  char *buf,
+                  char **color)
 {
     unsigned char i = c;
 
     const char *s;
     uint16_t x = cm->map[i];
 
-    *remapped = ((int) x == (int) c) ? false : true;
+    *color = NULL; // TODO
+    bool is_remapped = ((int) x == (int) c) ? false : true;
+    if (!is_remapped)
+        return 0;
 
     if (x < CHAR_REPR_BASE)
         return bufputc(buf, x);
@@ -306,32 +313,32 @@ int mk_hexformater(const char *fmt)
 #endif
 
 // clang-format off
-static const struct str_kvi cclass_id_strmap[] = {
-    { "cntrl",    CHAR_CLASS_CNTRL },
-    { "ctrl",     CHAR_CLASS_CNTRL },
-    { "nonprint", CHAR_CLASS_NONPRINT },
-    { "!isprint", CHAR_CLASS_NONPRINT },
+static const struct str_map cclass_id_strmap[] = {
+    STR_MAP_INT("cntrl",    CHAR_CLASS_CNTRL ),
+    STR_MAP_INT("ctrl",     CHAR_CLASS_CNTRL ),
+    STR_MAP_INT("nonprint", CHAR_CLASS_NONPRINT ),
+    STR_MAP_INT("!isprint", CHAR_CLASS_NONPRINT ),
 };
 // clang-format on
 
 static int str_to_cclass_id(const char *s, int *id)
 {
     const size_t nmemb = ARRAY_LEN(cclass_id_strmap);
-    return str_kvi_getval(s, id, cclass_id_strmap, nmemb);
+    return str_map_to_int(s, cclass_id_strmap, nmemb, id);
 }
 
 // clang-format off
-static const struct str_kvi crepr_id_strmap[] = {
-    { "hex",    CHAR_REPR_HEX },
-    { "none",   CHAR_REPR_IGNORE },
-    { "ignore", CHAR_REPR_IGNORE },
+static const struct str_map crepr_id_strmap[] = {
+    STR_MAP_INT("hex",    CHAR_REPR_HEX ),
+    STR_MAP_INT("none",   CHAR_REPR_IGNORE ),
+    STR_MAP_INT("ignore", CHAR_REPR_IGNORE ),
 };
 // clang-format on
 
 static int str_to_crepr_id(const char *s, int *id)
 {
     const size_t nmemb = ARRAY_LEN(crepr_id_strmap);
-    return str_kvi_getval(s, id, crepr_id_strmap, nmemb);
+    return str_map_to_int(s, crepr_id_strmap, nmemb, id);
 }
 
 static int str_0xhexbytetoi(const char *s, int *res)
@@ -523,12 +530,20 @@ static int parse_hexfmt(const struct opt_conf *conf, char *s)
 
 static int parse_map_txc(const struct opt_conf *conf, char *s)
 {
-    return charmap_parse_opts(&_charmap_tx, s);
+    int err = charmap_parse_opts(&_charmap_tx, s);
+    if (!err)
+         charmap_tx = &_charmap_tx; // i.e. enable
+
+    return err;
 }
 
 static int parse_map_rxc(const struct opt_conf *conf, char *s)
 {
-    return charmap_parse_opts(&_charmap_rx, s);
+    int err = charmap_parse_opts(&_charmap_rx, s);
+    if (!err)
+        charmap_rx = &_charmap_rx; // i.e. enable
+
+    return err;
 }
 
 static const struct opt_conf charmap_opts_conf[] = {

@@ -76,7 +76,22 @@ static const char **_match_list(const char *s, const void *items, size_t itemsiz
 
     return _matchresult;
 }
+#if 1
 
+const struct str_map *str_map_lookup(const char *s,
+                                     const struct str_map *map,
+                                     size_t map_len)
+{
+    for (unsigned int i = 0; i < map_len; i++) {
+        const struct str_map *itm = &map[i];
+        if (!strcasecmp(s, itm->key)) {
+            return itm;
+        }
+    }
+
+   return NULL;
+}
+#else
 const struct str_kvi *str_kvi_lookup(const char *s, const struct str_kvi *map, size_t n)
 {
    for (int i = 0; i < n; i++) {
@@ -110,6 +125,7 @@ const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map, size
 
    return NULL;
 }
+#endif
 int _lookup_oddtruelist(const char *s, int *res, const char *list[], size_t listlen)
 {
    for (int i = 0; i < listlen; i++) {
@@ -397,19 +413,19 @@ int str_to_xonxoff(const char *s, int *xonxoff)
 #define FLOW_XONXOFF_TX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_OUT << 8))
 #define FLOW_XONXOFF_RX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_IN << 8))
 
-static const struct str_kvi flowcontrol_map[] = {
+static const struct str_map flowcontrol_map[] = {
     // No flow control
-    { "none", SP_FLOWCONTROL_NONE },
-    // Hardware flow control using RTS/CTS. 
-    { "rtscts", SP_FLOWCONTROL_RTSCTS },
+    STR_MAP_INT("none",        SP_FLOWCONTROL_NONE),
+    // Hardware flow control using RTS/CTS.
+    STR_MAP_INT("rtscts",      SP_FLOWCONTROL_RTSCTS ),
     // Hardware flow control using DTR/DSR
-    { "dtrdsr", SP_FLOWCONTROL_DTRDSR },
+    STR_MAP_INT("dtrdsr",      SP_FLOWCONTROL_DTRDSR ),
     // Software flow control using XON/XOFF characters
-    { "xonxoff", SP_FLOWCONTROL_XONXOFF },
-    { "xonxoff-tx", FLOW_XONXOFF_TX_ONLY},
-    { "xonxoff-out", FLOW_XONXOFF_TX_ONLY},
-    { "xonxoff-rx", FLOW_XONXOFF_RX_ONLY},
-    { "xonxoff-in", FLOW_XONXOFF_RX_ONLY}
+    STR_MAP_INT("xonxoff",     SP_FLOWCONTROL_XONXOFF ),
+    STR_MAP_INT("xonxoff-tx",  FLOW_XONXOFF_TX_ONLY),
+    STR_MAP_INT("xonxoff-out", FLOW_XONXOFF_TX_ONLY),
+    STR_MAP_INT("xonxoff-rx",  FLOW_XONXOFF_RX_ONLY),
+    STR_MAP_INT("xonxoff-in",  FLOW_XONXOFF_RX_ONLY)
     //{ "xonxoff-txrx", SP_FLOWCONTROL_XONXOFF },
     //{ "xonxoff-inout", SP_FLOWCONTROL_XONXOFF },
 };
@@ -423,48 +439,15 @@ int str_to_flowcontrol(const char *s, int *flowcontrol)
     _Static_assert((unsigned int) SP_XONXOFF_IN < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_OUT < 256, "");
     _Static_assert((unsigned int) SP_XONXOFF_INOUT < 256, "");
-    const size_t nmemb = ARRAY_LEN(flowcontrol_map);
-    return str_kvi_getval(s, flowcontrol, flowcontrol_map, nmemb);
+    return str_map_to_int(s,
+                          flowcontrol_map,
+                          ARRAY_LEN(flowcontrol_map),
+                          flowcontrol);
 }
 
 const char **str_match_flowcontrol(const char *s)
 {
     return _MATCH(s, flowcontrol_map);
-}
-
-static int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc)
-{
-    int err = 0;
-    int n = 0;
-    bool have_arg = false;
-    while (1) {
-        char c = *s;
-        if (_is_termchar(c)) {
-            *s = '\0'; // could be other then '\0'
-            break;
-        }
-
-        if (isspace(c)) {
-            *s++ = '\0';
-            have_arg = false;
-            continue;
-        }
-
-        if (!have_arg) {
-            argv[n++] = s;
-            if (n >= max_argc) {
-                err = STR_E2BIG;
-                break;
-            }
-            have_arg = true;
-        }
-        s++;
-    };
-
-    *argc   = n;
-    argv[n] = 0;
-
-    return err;
 }
 
 static int str_hex2nib(char sc, uint8_t *b)

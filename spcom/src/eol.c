@@ -118,11 +118,11 @@ static int eol_set(struct eol_seq *es, const uint8_t *bytes, size_t len)
     return 0;
 }
 
-static const struct str_kv eol_aliases[] = {
-    { "CRLF",   "\r\n" },
-    { "LFCR",   "\n\r" },
-    { "CR",     "\r" },
-    { "LF",     "\n" },
+static const struct str_map eol_aliases[] = {
+    STR_MAP_STR("CRLF",   "\r\n" ),
+    STR_MAP_STR("LFCR",   "\n\r" ),
+    STR_MAP_STR("CR",     "\r" ),
+    STR_MAP_STR("LF",     "\n" ),
 };
 
 static int parse_modify_str_seq(struct eol_seq *es, char *s)
@@ -159,13 +159,13 @@ static int parse_modify_str_seq(struct eol_seq *es, char *s)
             continue;
         }
         size_t nitems = ARRAY_LEN(eol_aliases);
-        const struct str_kv *ea = str_kv_lookup(tok, eol_aliases, nitems);
+        const struct str_map *ea = str_map_lookup(tok, eol_aliases, nitems);
         if (ea) {
-            int slen = strlen(ea->val);
+            int slen = strlen(ea->val.v_str);
             if ((len + slen) >= len_max)
                 return E2BIG;
 
-            memcpy(&bytes[len], ea->val, slen);
+            memcpy(&bytes[len], ea->val.v_str, slen);
             len += slen;
             continue;
         }

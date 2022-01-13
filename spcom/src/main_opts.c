@@ -22,7 +22,7 @@ static struct main_opts_s {
 static int main_opts_post_parse(const struct opt_section_entry *entry)
 {
     if (main_oflags.show_help) {
-        int err = opt_show_help(NULL);
+        int err = opt_show_help();
         exit(err ? EXIT_FAILURE : 0);
     }
     if (main_oflags.show_version) {

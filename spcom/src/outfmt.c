@@ -9,6 +9,7 @@
 #include "log.h"
 #include "eol.h"
 #include "shell.h"
+#include "charmap.h"
 #include "outfmt.h"
 
 
@@ -24,6 +25,7 @@ static struct outfmt_s
     // hex char lookup table
     const char *hexlut;
     int prev_c;
+    char last_c;
 } outfmt = {
     .prev_c = -1,
     .hexlut = HEX_CHR_LUT_UPPER
@@ -48,44 +50,48 @@ static struct outfmt_opts_s {
  * if shell is async/sticky we need to copy the readline state for
  * every write to stdout. also fputc is slow... 
  * must ensure a flush after strbuf operation(s).
- */ 
+ */
 static struct strbuf_s {
     char data[128];
     size_t len;
+    char last_c_flushed;
 } _strbuf;
 
 static void strbuf_flush(void)
 {
-    struct strbuf_s *buf = &_strbuf;
+    struct strbuf_s *sb = &_strbuf;
 
-    if (!buf->len)
+    if (!sb->len)
         return;
 
     const void *lock = shell_output_lock();
 
-    size_t rc = fwrite(buf->data, buf->len, 1, stdout);
+    size_t rc = fwrite(sb->data, sb->len, 1, stdout);
 
     shell_output_unlock(lock);
+
 
     if (rc == 0) {
         // TODO log error. retry?
     }
-    else if (rc != buf->len) {
-
+    else if (rc != sb->len) {
         // TODO log error. retry?
     }
-    buf->len = 0;
+
+    sb->last_c_flushed = sb->data[sb->len];
+
+    sb->len = 0;
 }
 
 static inline void strbuf_putc(char c)
 {
-    struct strbuf_s *buf = &_strbuf;
-    size_t remains = sizeof(buf->data) - buf->len;
-    if (remains < 1) 
+    struct strbuf_s *sb = &_strbuf;
+    size_t remains = sizeof(sb->data) - sb->len;
+    if (remains < 1)
         strbuf_flush();
 
-    buf->data[buf->len] = c;
-    buf->len++;
+    sb->data[sb->len] = c;
+    sb->len++;
 }
 
 static void strbuf_write(const char *src, size_t size)
@@ -159,18 +165,40 @@ static void print_timestamp(void)
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.", &tm);
     strbuf_puts(buf);
 
-    sprintf(buf, "%09luZ:", now.tv_nsec);
+    sprintf(buf, "%09luZ: ", now.tv_nsec);
     strbuf_puts(buf);
 }
 
-static void strbuf_esc_putc(int c)
+static void outfmt_putc(int c, bool check_remap)
 {
+#if 1
+
+    if (check_remap && charmap_rx) {
+        char buf[CHARMAP_REMAP_MAX_LEN] = { 0 };
+        char *color = NULL;
+        int rc = charmap_remap(charmap_rx, c, buf, &color);
+        if (rc < 0) // drop
+            return;
+
+        if (rc == 0) // not remapped
+            strbuf_putc(c);
+
+        if (rc == 1) // remapped to size == 1
+            strbuf_putc(buf[0]);
+
+        // remapped to size == rc
+        strbuf_write(buf, rc);
+    }
+
+    strbuf_putc(c);
+#else
     if (isprint(c)) {
         strbuf_putc(c);
     }
     else if (1) { // TODO outfmt.opts.escape map..
         print_hexesc(c);
     }
+#endif
 }
 /**
  * handle seq crlf:
@@ -202,7 +230,7 @@ void outfmt_write(const void *data, size_t size)
         switch (ec) {
 
             case EOL_C_NONE:
-                strbuf_esc_putc(c);
+                outfmt_putc(c, true);
                 break;
 
             case EOL_C_CONSUMED:
@@ -210,21 +238,21 @@ void outfmt_write(const void *data, size_t size)
 
             case EOL_C_FOUND:
                 had_eol = true;
-                strbuf_putc('\n');
+                outfmt_putc('\n', false);
                 break;
 
             case EOL_C_FWD1:
-                strbuf_esc_putc(cfwd[0]);
+                outfmt_putc(cfwd[0], true);
                 break;
 
             case EOL_C_FWD2:
-                strbuf_esc_putc(cfwd[0]);
-                strbuf_esc_putc(cfwd[1]);
+                outfmt_putc(cfwd[0], true);
+                outfmt_putc(cfwd[1], true);
                 break;
 
             default:
                 LOG_ERR("never!");
-                strbuf_esc_putc(c);
+                outfmt_putc(c, true);
                 break;
         }
 #if 0
@@ -249,9 +277,21 @@ void outfmt_write(const void *data, size_t size)
     outfmt.prev_c = prev_c;
 }
 
-void out_drain_reset(void)
-{}
+void outfmt_cleanup(void)
+{
+    const struct strbuf_s *sb = &_strbuf;
 
+    if (sb->last_c_flushed != '\n') {
+        // add newline to avoid text on same line as prompt after exit
+        fputc('\n', stdout);
+    }
+}
+
+
+static int parse_timestamp_format(const struct opt_conf *conf, char *sval)
+{
+    return -1;
+}
 
 static const struct opt_conf outfmt_opts_conf[] = {
     {
@@ -260,6 +300,14 @@ static const struct opt_conf outfmt_opts_conf[] = {
         .parse = opt_ap_flag_true,
         .descr = "prepend timestamp on every line",
     },
+#if 0 // TODO {long, short, +TZ, +ns, +ms }
+    {
+        .name = "iso8601-format",
+        .dest = &outfmt_opts.timestamp,
+        .parse = opt_ap_flag_true,
+        .descr = "ISO 8601 format for timestamp",
+    },
+#endif
     {
         .name = "color",
         .dest = &outfmt_opts.color,

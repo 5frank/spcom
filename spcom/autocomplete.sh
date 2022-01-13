@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # This script should go in /etc/bash_completion.d/ or where
 # env $BASH_COMPLETION_COMPAT_DIR says.
@@ -21,24 +22,24 @@ _spcom_complete()
 
     #local COMPLETES="cd add rm mv ls"
     #if [ $COMP_CWORD -eq 1 ] ; then
-    #COMPREPLY=( $(compgen -W "$COMPLETES" -- $cur) ) 
+    #COMPREPLY=( $(compgen -W "$COMPLETES" -- $cur) )
         #return
     #fi
 
-    case ${COMP_WORDS[1]} in 
+    case ${COMP_WORDS[1]} in
 
         "-b" | "--baud" )
-            COMPREPLY=( $( compgen -W '$( command ./build/spcom --autocomplete baud  2>/dev/null )' -- "$cur" ) )
+            COMPREPLY=( $( compgen -W '$( command spcom --autocomplete baud  2>/dev/null )' -- "$cur" ) )
             ;;
 
         "-p" | "--parity")
-            COMPREPLY=( $( compgen -W '$( command ./build/spcom --autocomplete parity  2>/dev/null )' -- "$cur" ) )
+            COMPREPLY=( $( compgen -W '$( command spcom --autocomplete parity  2>/dev/null )' -- "$cur" ) )
             ;;
-        *) 
+        *)
             if [[ ${prev} != -* ]] ; then
-                COMPREPLY=( $( compgen -W '$( command ./build/spcom --autocomplete baud  2>/dev/null )' -- "$cur" ) )
+                COMPREPLY=( $( compgen -W '$( command spcom --autocomplete port  2>/dev/null )' -- "$cur" ) )
             else
-                COMPREPLY=( $( compgen -W '$( command ./build/spcom --autocomplete port  2>/dev/null )' -- "$cur" ) )
+                COMPREPLY=( $( compgen -W '$( command spcom --autocomplete baud  2>/dev/null )' -- "$cur" ) )
             fi
           ;;
     esac

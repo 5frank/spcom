@@ -387,12 +387,12 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 {
     // This will typicaly occur if user pulls the cabel for /dev/ttyUSB
     if (status == UV_EBADF) {
-        LOG_UV_ERR(status, "status");
+        LOG_DBG("poll event EBADF - device disconnected!?");
         port_panic("EBADF");
         return;
     }
     else if (status) {
-        LOG_UV_ERR(status, "unexpected status");
+        LOG_ERR("unexpected uv poll status %d", status);
     }
     //LOG_DBG("port event. status=%d, event_flags=0x%x", status, events);
     if (events & UV_READABLE) {

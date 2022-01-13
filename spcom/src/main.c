@@ -212,7 +212,9 @@ void main_cleanup(void)
         }
     }
 
+    outfmt_cleanup();
     log_cleanup(); // last before exit
+
     m->cleanup_done = true;
 }
 

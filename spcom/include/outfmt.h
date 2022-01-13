@@ -13,6 +13,6 @@ void outfmt_write(const void *data, size_t size);
 /*
  *
  *
-void outfmt_verbose(const void *data, size_t size);
 */
+void outfmt_cleanup(void);
 #endif

@@ -78,6 +78,7 @@ static const struct opt_conf port_opts_conf[] = {
     },
     {
         .name = "port",
+        //.shortname = 'x', // TODO use what?
         .alias = "device",
         .parse = parse_devname,
         .complete = port_info_complete,

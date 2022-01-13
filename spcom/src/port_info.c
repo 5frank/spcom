@@ -357,7 +357,7 @@ const char** port_info_complete(const char *s)
         LOG_SP_ERR(err, "sp_list_ports");
         goto cleanup;
     }
-    int slen = strlen(s);
+    int slen = s ? strlen(s) : 0;
     int n = 0;
     // -1 to save space for last NULL
     for (n = 0; (ARRAY_LEN(_matchlist) - 1); n++) {
@@ -369,7 +369,7 @@ const char** port_info_complete(const char *s)
         if (!name)
             continue;
 
-        if (strncmp(name, s, slen))
+        if (s && strncmp(name, s, slen))
             continue;
 
         _matchlist[n] = strdup(name);
