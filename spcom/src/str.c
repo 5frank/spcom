@@ -468,15 +468,15 @@ static int str_hex2nib(char sc, uint8_t *b)
     return -1;
 }
 
-int str_0xhextou8(const char *s, uint8_t *res, const char **ep) 
+int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
 {
     int err;
     uint8_t b = 0;
-    if (*s != '0') 
+    if (*s != '0')
         return EINVAL;
     s++;
 
-    if (*s != 'x') 
+    if (*s != 'x')
         return EINVAL;
     s++;
 

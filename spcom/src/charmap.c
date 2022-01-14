@@ -12,11 +12,9 @@
 #include "eol.h"
 #include "str.h"
 #include "utils.h"
+#include "ctohex.h"
 #include "opt.h"
 #include "charmap.h"
-
-#define REPR_BUF_SIZE CHARMAP_REMAP_MAX_LEN 
-#define CHARMAP_HEXFMT_DEFAULT "\\%02x"
 
 enum char_class_id {
     CHAR_CLASS_CNTRL = UCHAR_MAX + 1,
@@ -44,8 +42,6 @@ static const char *ascii_cntrl_names[] = {
 
 static struct charmap_opts {
     int use_ascii_name;
-    int use_hexfmt;
-    char hexfmt[8];
 } charmap_opts = {0};
 
 static struct charmap_s {
@@ -89,67 +85,6 @@ static int cntrl_strtoval(const char *s, int *val)
     return -1;
 }
 
-static int _verify_byte_print_fmt(const char *fmt)
-{
-    if (!fmt)
-        return 1;
-
-    const char *sp = fmt;
-    int len = 0;
-    int percent_count = 0;
-
-    for (; *sp != '\0'; len++) {
-        char c = *sp++;
-        if (c == '*')
-            return -EINVAL;
-
-        if (c == '%')
-            percent_count++;
-
-        /* isprint() returns
-         * ... false (zero) for: '\n', '\r', '\t'
-         * ... true (non-zero) for: ' ' */ 
-        if (!isprint(c))
-            return -EINVAL;
-    }
-    if (len < 2)
-        return -EINVAL;
-
-    size_t maxlen = sizeof(charmap_opts.hexfmt) - 1;
-    if (len >= maxlen)
-        return -EINVAL;
-
-    if (percent_count != 1)
-        return -EINVAL;
-
-    char buf[REPR_BUF_SIZE];
-
-    int rc = snprintf(buf, sizeof(buf), fmt, 0xAB);
-    if (rc < 1)
-        return -EINVAL;
-
-    if (rc >= sizeof(buf))
-        return -ERANGE;
-
-    if (!strstr(buf, "ab") && !strstr(buf, "AB") && !strstr(buf, "171"))
-        return -EINVAL;
-
-    return 0;
-}
-
-static char g_hextbl[UCHAR_MAX + 1][REPR_BUF_SIZE];
-
-static void charmap_init_hextbl(const char *fmt)
-{
-    const int maxlen = REPR_BUF_SIZE;
-    for (unsigned int i = 0; i <= UCHAR_MAX; i++) {
-        int rc = snprintf(g_hextbl[i], maxlen, fmt, i);
-        assert(rc > 0);
-        //printf("val=%u, rc='%d' -- '%s'\n", i, rc, g_hextbl[i]);
-        assert(rc < maxlen);
-    }
-}
-
 struct strlits {
     unsigned int count;
     const char *strs[16];
@@ -184,12 +119,13 @@ char *str_simple_unquote_cpy(const char *str)
     s[len] = '\0';
     return s;
 }
+
 /// assume params str to be within quotes
 static int _strlit_add(const char *str, int *id)
 {
     char *s = str_simple_unquote_cpy(str);
 
-    if (strlen(s) >= REPR_BUF_SIZE) {
+    if (strlen(s) >= CHARMAP_REPR_BUF_SIZE) {
         free(s);
         return E2BIG;
     }
@@ -220,7 +156,7 @@ static inline int bufputc(char *dst, char c)
 static int bufputs(char *dst, const char *src)
 {
     assert(src);
-    for (int i = 0; i < REPR_BUF_SIZE; i++) {
+    for (int i = 0; i < CHARMAP_REPR_BUF_SIZE; i++) {
             *dst++ = *src++;
             if (*src == '\0')
                 return i;
@@ -247,8 +183,10 @@ int charmap_remap(const struct charmap_s *cm,
     if (x < CHAR_REPR_BASE)
         return bufputc(buf, x);
 
-    if (x == CHAR_REPR_HEX)
-        return bufputs(buf, g_hextbl[i]);
+    if (x == CHAR_REPR_HEX) {
+        _Static_assert(CTOHEX_BUF_SIZE <= CHARMAP_REPR_BUF_SIZE, "");
+        return ctohex(c, buf);
+    }
 
     if (x == CHAR_REPR_IGNORE)
         return -1;
@@ -511,20 +449,6 @@ done:
 
 static int charmap_opt_post_parse(const struct opt_section_entry *entry)
 {
-    if (!charmap_opts.hexfmt[0]) {
-        strcpy(charmap_opts.hexfmt, CHARMAP_HEXFMT_DEFAULT);
-    }
-    charmap_init_hextbl(charmap_opts.hexfmt);
-
-    return 0;
-}
-
-static int parse_hexfmt(const struct opt_conf *conf, char *s)
-{
-    if (_verify_byte_print_fmt(s))
-        return opt_error(conf, "invalid format");
-    // assume check len in _is_valid_hexfmt()
-    strcpy(charmap_opts.hexfmt, s);
     return 0;
 }
 
@@ -548,14 +472,6 @@ static int parse_map_rxc(const struct opt_conf *conf, char *s)
 
 static const struct opt_conf charmap_opts_conf[] = {
     {
-        .name = "hexformat",
-        .alias = "hexfmt",
-        .dest = &charmap_opts.hexfmt,
-        .parse = parse_hexfmt,
-        .descr = "hex printf format for byte values."
-            "Default '" CHARMAP_HEXFMT_DEFAULT "'",
-    },
-    {
         .name = "map-txc",
         .parse = parse_map_txc,
         .descr = "map TX (sent) character(s)",
@@ -565,6 +481,13 @@ static const struct opt_conf charmap_opts_conf[] = {
         .parse = parse_map_rxc,
         .descr = "map RX (received) character(s)",
     },
+#if 0 // TODO
+    {
+        .name = "hex-color",
+        .parse = parse_hex_color,
+        .descr = "",
+    },
+#endif
 };
 
 OPT_SECTION_ADD(outfmt,

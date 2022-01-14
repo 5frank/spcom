@@ -12,27 +12,18 @@
 #include "charmap.h"
 #include "outfmt.h"
 
-
-#define HEX_CHR_LUT_UPPER "0123456789ABCDEF"
-#define HEX_CHR_LUT_LOWER "0123456789abcdef"
-
 static struct outfmt_s 
 {
     // end-of-line sequence
     bool had_eol;
 
-    //enum eol_e eol_opt;
-    // hex char lookup table
-    const char *hexlut;
     int prev_c;
     char last_c;
 } outfmt = {
     .prev_c = -1,
-    .hexlut = HEX_CHR_LUT_UPPER
 };
 
 static struct outfmt_opts_s {
-    const char* hexfmt; // TODO
     bool color;
     struct {
         const char *hexesc;
@@ -45,10 +36,10 @@ static struct outfmt_opts_s {
     },
 };
 
-/** 
+/**
  * premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for
- * every write to stdout. also fputc is slow... 
+ * every write to stdout. also fputc is slow...
  * must ensure a flush after strbuf operation(s).
  */
 static struct strbuf_s {
@@ -108,97 +99,74 @@ static void strbuf_puts(const char *s)
     }
 }
 
-static void print_hexesc(char c)
-{
-    // TODO check lots of optins here
-
-    char buf[5];
-    char *p = buf;
-    // hex escape format, have color...
-    const char *lut = outfmt.hexlut;
-    unsigned char b = c;
-
-#if 1
-    *p++ = '\\';
-    *p++ = 'x';
-    *p++ = lut[b >> 4];
-    *p++ = lut[b & 0x0f];
-    *p = '\0';
-#else
-    *p++ = '[';
-    *p++ = lut[b >> 4];
-    *p++ = lut[b & 0x0f];
-    *p++ = ']';
-    *p = '\0';
-#endif
-    const char *color = outfmt_opts.colors.hexesc;
-    if (color)
-        strbuf_puts(color);
-
-    strbuf_puts(buf);
-
-    if (color)
-        strbuf_puts(VT_COLOR_OFF);
-}
 /* or use ts from moreutils? `apt install moreutils`
- * 
+ *
  *  comand | ts '[%Y-%m-%d %H:%M:%S]'
  */
 static void print_timestamp(void)
 {
+    int err;
     /* gettimeofday marked obsolete in POSIX.1-2008 and recommends
      * ... or use uv_gettimeofday?
      */
     if (!outfmt_opts.timestamp)
         return;
-
     struct timespec now;
-    int err = clock_gettime(CLOCK_REALTIME, &now);
+#if 0 // TODO use uv_gettimeofday - more portable
+    uv_timeval64_t uvtv;
+    err = uv_gettimeofday(&uvtv);
+    if (err) {
+        LOG_ERR("uv_gettimeofday err=%d", err);
+        return;
+    }
+    now.tv_sec = uvtv.tv_sec;
+    now.tv_nsec = uvtv.tv_usec * 1000;
+
+#else
+    err = clock_gettime(CLOCK_REALTIME, &now);
     if (err) {
         // should not occur. TODO check errno?
         return;
     }
+#endif
     struct tm tm;
     gmtime_r(&now.tv_sec, &tm);
     static char buf[32];
 
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S.", &tm);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tm);
     strbuf_puts(buf);
 
-    sprintf(buf, "%09luZ: ", now.tv_nsec);
+    // do not have nanosecond precision 
+    sprintf(buf, ".%03luZ: ", now.tv_nsec / 1000000);
+
     strbuf_puts(buf);
 }
 
-static void outfmt_putc(int c, bool check_remap)
+static void outfmt_putc(int c)
 {
-#if 1
-
-    if (check_remap && charmap_rx) {
-        char buf[CHARMAP_REMAP_MAX_LEN] = { 0 };
-        char *color = NULL;
-        int rc = charmap_remap(charmap_rx, c, buf, &color);
-        if (rc < 0) // drop
-            return;
-
-        if (rc == 0) // not remapped
-            strbuf_putc(c);
-
-        if (rc == 1) // remapped to size == 1
-            strbuf_putc(buf[0]);
-
-        // remapped to size == rc
-        strbuf_write(buf, rc);
-    }
-
-    strbuf_putc(c);
-#else
-    if (isprint(c)) {
+    if (!charmap_rx) {
         strbuf_putc(c);
     }
-    else if (1) { // TODO outfmt.opts.escape map..
-        print_hexesc(c);
-    }
-#endif
+
+    char buf[CHARMAP_REPR_BUF_SIZE] = { 0 };
+    char *color = NULL;
+    int rc = charmap_remap(charmap_rx, c, buf, &color);
+    if (rc < 0) // drop
+        return;
+
+    if (rc == 0) // not remapped
+        strbuf_putc(c);
+
+    if (rc == 1) // remapped to size == 1
+        strbuf_putc(buf[0]);
+
+    // remapped to size == rc.
+    strbuf_write(buf, rc);
+}
+
+static inline void outfmt_nocheck_putc(int c)
+{
+    strbuf_putc(c);
 }
 /**
  * handle seq crlf:
@@ -230,7 +198,7 @@ void outfmt_write(const void *data, size_t size)
         switch (ec) {
 
             case EOL_C_NONE:
-                outfmt_putc(c, true);
+                outfmt_putc(c);
                 break;
 
             case EOL_C_CONSUMED:
@@ -238,37 +206,23 @@ void outfmt_write(const void *data, size_t size)
 
             case EOL_C_FOUND:
                 had_eol = true;
-                outfmt_putc('\n', false);
+                outfmt_nocheck_putc('\n');
                 break;
 
             case EOL_C_FWD1:
-                outfmt_putc(cfwd[0], true);
+                outfmt_putc(cfwd[0]);
                 break;
 
             case EOL_C_FWD2:
-                outfmt_putc(cfwd[0], true);
-                outfmt_putc(cfwd[1], true);
+                outfmt_putc(cfwd[0]);
+                outfmt_putc(cfwd[1]);
                 break;
 
             default:
                 LOG_ERR("never!");
-                outfmt_putc(c, true);
+                outfmt_putc(c);
                 break;
         }
-#if 0
-        had_eol = eol_rx_check(c);
-
-        if (had_eol) {
-            // TODO optionaly print escaped CR 
-            strbuf_putc('\n');
-        }
-        else if (isprint(c)) {
-            strbuf_putc(c);
-        }
-        else if (1) { // TODO outfmt.opts.escape map..
-            print_hexesc(c);
-        }
-#endif
         prev_c = c;
     }
     strbuf_flush();

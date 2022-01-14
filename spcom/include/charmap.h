@@ -1,7 +1,8 @@
 #ifndef CHARMAP_INCLUDE_H_
 #define CHARMAP_INCLUDE_H_
 
-#define CHARMAP_REMAP_MAX_LEN 8
+/// max buf size needed for charmap_remap buf
+#define CHARMAP_REPR_BUF_SIZE 8
 
 struct charmap_s;
 /// NULL if nothing remaped

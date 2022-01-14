@@ -7,6 +7,7 @@ set(SOURCES
     src/main_opts.c
     src/charmap.c
     src/cmd.c
+    src/ctohex.c
     src/btree.c
     src/errnotostr.c
     src/eol.c
