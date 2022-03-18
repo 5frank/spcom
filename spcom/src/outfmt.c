@@ -146,6 +146,7 @@ static void outfmt_putc(int c)
 {
     if (!charmap_rx) {
         strbuf_putc(c);
+        return;
     }
 
     char buf[CHARMAP_REPR_BUF_SIZE] = { 0 };

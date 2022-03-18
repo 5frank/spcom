@@ -170,8 +170,10 @@ int charmap_remap(const struct charmap_s *cm,
                   char *buf,
                   char **color)
 {
-    unsigned char i = c;
+    if (!cm)
+        return 0; // no remap
 
+    unsigned char i = c;
     const char *s;
     uint16_t x = cm->map[i];
 
