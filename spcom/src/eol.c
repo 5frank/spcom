@@ -92,7 +92,7 @@ struct eol_seq *eol_rx = &eol_seq_rx;
 
 static int eol_set(struct eol_seq *es, const uint8_t *bytes, size_t len)
 {
-    if (len >= ARRAY_LEN(es->seq))
+    if (len > ARRAY_LEN(es->seq))
         return E2BIG;
 
     switch (len) {
