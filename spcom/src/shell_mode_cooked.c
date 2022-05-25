@@ -26,11 +26,14 @@ static void sh_cooked_rl_on_newline(char *line)
     }
 
     size_t len = strlen(line);
-    if (len)
+    if (len) {
         opq_enqueue_hdata(&opq_rt, OP_PORT_WRITE, line, len);
-    else
+        add_history(line);
+    }
+    else {
         free(line);
-
+    }
+    // always send EOL on enter
     opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
     LOG_DBG("'%s'", line);
     // no free!
@@ -58,7 +61,7 @@ static int sh_cooked_init(const struct shell_opts_s *opts)
     // Allow conditional parsing of the ~/.inputrc file. 
     rl_readline_name = "spcom";
     rlstate->attemptfunc = sh_cooked_complete;
-
+    using_history();    // initialize history
     rl_save_state(rlstate);
 
     return 0;

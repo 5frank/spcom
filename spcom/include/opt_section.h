@@ -20,7 +20,7 @@ struct opt_section_entry {
 };
 
 /**
- * these assume `__attribute((used, section("options"))) `
+ * these assume `__attribute__((used, section("options"))) `
  * used in OPT_SECTION_ADD() macro
 */
 extern const struct opt_section_entry __start_options;
@@ -47,7 +47,7 @@ static inline size_t opt_section_num_entries(void)
 #endif
 
 #define OPT_SECTION_ADD(NAME, CONF, NUM_CONF, POST_PARSE_CB)                   \
-    __attribute((used, section("options")))                                    \
+    __attribute__((used, section("options")))                                  \
     static const struct opt_section_entry opt_conf_register_##NAME = {         \
         .name = STRINGIFY(NAME),                                               \
         .conf = CONF,                                                          \
@@ -58,7 +58,8 @@ static inline size_t opt_section_num_entries(void)
 typedef int (opt_conf_foreach_cb_fn)(const struct opt_section_entry *entry,
                                      const struct opt_conf *conf, void *arg);
 
-/** run callback for every opt_conf instance.
+/**
+ * run callback for every opt_conf instance.
  * iteration stops if callback returns non-zero
  * */
 static inline int opt_section_foreach_conf(opt_conf_foreach_cb_fn *cb,
