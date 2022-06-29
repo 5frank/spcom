@@ -10,7 +10,6 @@
 #ifndef ASSERT_INCLUDE_H__
 #define ASSERT_INCLUDE_H__
 
-#include <stdlib.h> // EXIT_FAILURE
 #include <errno.h>
 #include "common.h"
 #include "log.h"
@@ -24,8 +23,7 @@
 #define assert(COND)                                                           \
     do {                                                                       \
         if (!(COND)) {                                                         \
-            LOG_ERR("assert '%s' failed", STRINGIFY(COND));                    \
-            spcom_exit(EXIT_FAILURE);                                          \
+            SPCOM_EXIT(-2, "assert '%s' failed", STRINGIFY(COND));             \
         }                                                                      \
     } while (0)
 
@@ -34,9 +32,9 @@
     do {                                                                       \
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
-            LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
-                    log_errnostr(errno));                                      \
-            spcom_exit(EXIT_FAILURE);                                          \
+            SPCOM_EXIT(-2, "assert failed, "                                   \
+                       "'%d' is not zero, %s, %s",                             \
+                       __val, (MSG), log_errnostr(errno));                     \
         }                                                                      \
     } while (0)
 
@@ -45,9 +43,9 @@
     do {                                                                       \
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
-            LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
-                    log_libuv_errstr(__val, errno));                           \
-            spcom_exit(EXIT_FAILURE);                                          \
+            SPCOM_EXIT(-3, "assert failed, "                                   \
+                       "libuv value '%d' is not zero, %s, %s",                 \
+                       __val, (MSG), log_libuv_errstr(__val, errno));          \
         }                                                                      \
     } while (0)
 
@@ -56,9 +54,9 @@
     do {                                                                       \
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
-            LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
-                    log_libsp_errstr(__val, errno));                           \
-            spcom_exit(EXIT_FAILURE);                                          \
+            SPCOM_EXIT(-3, "assert failed, "                                   \
+                       "libsp value '%d' is not zero, %s, %s",                 \
+                       __val, (MSG), log_libsp_errstr(__val, errno));          \
         }                                                                      \
     } while (0)
 

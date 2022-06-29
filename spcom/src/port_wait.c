@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <fcntl.h> // AT_* defs
@@ -145,7 +146,7 @@ void port_wait_start(port_wait_cb *cb)
                             0); // UV_FS_EVENT_RECURSIVE);
     assert_uv_z(err, "uv_fs_event_start");
 
-    LOG_INF("Waiting for %s ...", pw->abspath);
+    SPCOM_PINFO("Waiting for %s ...", pw->abspath);
     //_port.state = PORT_STATE_WAITING;
 }
 

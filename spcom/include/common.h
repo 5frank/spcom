@@ -41,17 +41,26 @@ extern const struct global_opts_s *global_opts;
 
 void spcom_exit(int err);
 
-#define SPCOM_EXIT(ERR, FMT, ...) do {                                         \
-    int _err = (ERR);                                                          \
-    if (_err) {                                                                \
-        /* message to log and stderr - might have duplicated messages */       \
-        LOG_ERR("exit %d:" FMT, _err, ##__VA_ARGS__);                          \
-        fprintf(stderr, "error: %d: " FMT, _err, ##__VA_ARGS__);               \
-    }                                                                          \
-    else {                                                                     \
-        LOG_DBG("exit 0: " FMT, ##__VA_ARGS__);                                \
-    }                                                                          \
-    spcom_exit(_err);                                                          \
-} while(0)
+#define SPCOM_PINFO(FMT, ...)                                                  \
+    do {                                                                       \
+        LOG_INF(FMT, ##__VA_ARGS__);                                           \
+        /* extra new line to ensure info message on separate line */           \
+        fprintf(stderr, "\ninfo: " FMT "\n", ##__VA_ARGS__);                   \
+    } while(0)
+
+#define SPCOM_EXIT(ERR, FMT, ...)                                              \
+    do {                                                                       \
+        int _err = (ERR);                                                      \
+        if (_err) {                                                            \
+            /* to log and stderr - possible duplicated messages */             \
+            LOG_ERR("exit %d:" FMT, _err, ##__VA_ARGS__);                      \
+            /* extra new line to ensure error message on separate line */      \
+            fprintf(stderr, "\nerror: %d: " FMT "\n", _err, ##__VA_ARGS__);    \
+        }                                                                      \
+        else {                                                                 \
+            LOG_DBG("exit 0: " FMT, ##__VA_ARGS__);                            \
+        }                                                                      \
+        spcom_exit(_err);                                                      \
+    } while(0)
 
 #endif
