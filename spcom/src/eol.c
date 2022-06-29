@@ -2,12 +2,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <ctype.h>
 #include <string.h>
+
+#include "assert.h"
+#include "common.h"
 #include "str.h"
 #include "opt.h"
-#include "utils.h"
 #include "eol.h"
 
 enum eol_type_e {

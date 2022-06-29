@@ -1,7 +1,6 @@
 
 #include <ctype.h>
 #include <errno.h>
-#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -9,9 +8,9 @@
 #include <limits.h>
 #include <string.h>
 
+#include "common.h"
 #include "eol.h"
 #include "str.h"
-#include "utils.h"
 #include "ctohex.h"
 #include "opt.h"
 #include "charmap.h"

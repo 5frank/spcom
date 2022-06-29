@@ -8,8 +8,8 @@
 #include <libserialport.h>
 
 #include "assert.h"
+#include "common.h"
 #include "log.h"
-#include "utils.h"
 
 // TODO use async shell print!?
 #define PINDENT(N, FMT, ...) printf("%*c" FMT "\n", N, ' ', ##__VA_ARGS__)

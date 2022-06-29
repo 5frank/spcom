@@ -3,9 +3,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include "opq.h"
-#include "utils.h"
+#include "common.h"
 #include "assert.h"
+#include "opq.h"
 
 struct opq {
     struct opq_item items[64];

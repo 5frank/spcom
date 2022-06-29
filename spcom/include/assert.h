@@ -12,7 +12,7 @@
 
 #include <stdlib.h> // EXIT_FAILURE
 #include <errno.h>
-#include "main.h"
+#include "common.h"
 #include "log.h"
 
 #ifndef STRINGIFY
@@ -25,7 +25,7 @@
     do {                                                                       \
         if (!(COND)) {                                                         \
             LOG_ERR("assert '%s' failed", STRINGIFY(COND));                    \
-            main_exit(EXIT_FAILURE);                                           \
+            spcom_exit(EXIT_FAILURE);                                          \
         }                                                                      \
     } while (0)
 
@@ -36,7 +36,7 @@
         if (__val) {                                                           \
             LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
                     log_errnostr(errno));                                      \
-            main_exit(EXIT_FAILURE);                                           \
+            spcom_exit(EXIT_FAILURE);                                          \
         }                                                                      \
     } while (0)
 
@@ -47,7 +47,7 @@
         if (__val) {                                                           \
             LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
                     log_libuv_errstr(__val, errno));                           \
-            main_exit(EXIT_FAILURE);                                           \
+            spcom_exit(EXIT_FAILURE);                                          \
         }                                                                      \
     } while (0)
 
@@ -58,7 +58,7 @@
         if (__val) {                                                           \
             LOG_ERR("assert failed, '%d' is not zero, %s, %s", __val, (MSG),   \
                     log_libsp_errstr(__val, errno));                           \
-            main_exit(EXIT_FAILURE);                                           \
+            spcom_exit(EXIT_FAILURE);                                          \
         }                                                                      \
     } while (0)
 

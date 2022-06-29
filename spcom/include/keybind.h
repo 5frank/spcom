@@ -19,5 +19,6 @@ struct keybind_state {
  * return keybind action K_ACTION_xxx
  */
 int keybind_eval(struct keybind_state *st, char c);
+
 #endif
 

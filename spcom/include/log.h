@@ -1,6 +1,8 @@
 #ifndef __LOG_INCLUDE_H__
 #define __LOG_INCLUDE_H__
 
+#include <stdbool.h>
+
 #ifndef DEBUG
 #define DEBUG 0
 #endif

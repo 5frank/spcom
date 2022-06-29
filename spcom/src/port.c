@@ -8,9 +8,9 @@
 
 #include <unistd.h> // access
 
+#include "common.h"
 #include "assert.h"
 #include "opt.h"
-#include "utils.h"
 #include "eol.h"
 #include "log.h"
 #include "cmd.h"
@@ -38,8 +38,8 @@ enum port_state_e {
     /// TXRX ready
     PORT_STATE_READY
 };
-extern struct port_opts_s port_opts;
 
+extern struct port_opts_s port_opts;
 
 static struct port_s {
     struct sp_port *port;
@@ -97,8 +97,7 @@ static void port_panic(const char *msg)
 
     if (!port_opts.stay) {
         // TODO user error
-        LOG_ERR("port error - %s", msg);
-        main_exit(EXIT_FAILURE);
+        SPCOM_EXIT(EXIT_FAILURE, "port error - %s", msg);
         return;
     }
     /* if we get here, device probably still "exists" as this process holds a
@@ -233,7 +232,7 @@ static void _on_prepare(uv_prepare_t* handle)
     _port.current_op = op;
     // OP_EXIT is the only accepted op_code when port not ready
     if (op->op_code == OP_EXIT) {
-        main_exit(EXIT_SUCCESS);
+        SPCOM_EXIT(0, "op exit");
         return;
     }
 

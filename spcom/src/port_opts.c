@@ -120,11 +120,13 @@ static const struct opt_conf port_opts_conf[] = {
         .name = "wait",
         .dest = &port_opts.wait,
         .parse = opt_ap_flag_true,
+        .descr = "wait on specified serial port to show up if it do not exists"
     },
     {
         .name = "stay",
         .dest = &port_opts.stay,
         .parse = opt_ap_flag_true,
+        .descr = "Similar to --wait but will never exit if the serial port disappears and wait for it to reappear instead"
     },
 };
 

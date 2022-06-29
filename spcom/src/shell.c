@@ -11,12 +11,11 @@
 #include <readline/history.h>
 #include <uv.h>
 
+#include "common.h"
 #include "assert.h"
 #include "cmd.h"
-#include "main.h"
 #include "opt.h"
 #include "port.h"
-#include "utils.h"
 #include "opq.h"
 #include "keybind.h"
 #include "vt_defs.h"
@@ -111,6 +110,9 @@ static void shell_input_putc(int prev_c, int c)
     struct keybind_state *kb_state = &shell.kb_state;
 
     int action = keybind_eval(kb_state, c);
+
+    //LOG_DBG("input: %d, action: %d", (int)c, action);
+
     switch (action) {
         case K_ACTION_CACHE:
             kb_state->cache[0] = c;
@@ -126,7 +128,7 @@ static void shell_input_putc(int prev_c, int c)
             break;
 
         case K_ACTION_EXIT:
-            main_exit(EXIT_SUCCESS);
+            SPCOM_EXIT(0, "user key");
             break;
 
         case K_ACTION_TOG_CMD_MODE:

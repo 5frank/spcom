@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "assert.h"
-#include "utils.h"
+#include "common.h"
 #include "vt_defs.h"
 #include "log.h"
 #include "opt.h"

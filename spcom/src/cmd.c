@@ -8,7 +8,7 @@
 #include "assert.h"
 #include "opt.h"
 #include "log.h"
-#include "utils.h"
+#include "common.h"
 #include "opq.h"
 #include "str.h"
 #include "cmd.h"
@@ -152,7 +152,7 @@ static CMD_FUNC(_cmd_sleep)
 static CMD_FUNC(_cmd_exit) 
 {
     // TODO exit depending on cmd src
-    main_exit(EXIT_SUCCESS);
+    SPCOM_EXIT(0, "user cmd");
     return 0;
 }
 

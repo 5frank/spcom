@@ -5,18 +5,16 @@
 #include <uv.h>
 #include <stdbool.h>
 
+#include "common.h"
 #include "assert.h"
 #include "opt.h"
 #include "shell.h"
-#include "utils.h"
 #include "cmd.h"
 #include "timeout.h"
 #include "outfmt.h"
 #include "port.h"
-#include "main.h"
 
 struct main_s {
-    int exit_status;
     bool cleanup_done;
     uv_signal_t ev_sigint;
     uv_signal_t ev_sigterm;
@@ -49,10 +47,14 @@ static void print_backtrace(void)
 static void print_backtrace(void) {}
 #endif
 
-void main_exit(int status) 
+void spcom_exit(int err)
 {
-    if (status != EXIT_SUCCESS)
+    if (err) {
         print_backtrace();
+    }
+
+    _Static_assert(EXIT_SUCCESS == 0, "what platform is this?");
+    int status = err;
 
     uv_loop_t *loop = uv_default_loop();
 #if 1
@@ -130,7 +132,7 @@ void _uvcb_on_signal(uv_signal_t *handle, int signum)
     printf("Signal received: %d\n", signum);
     //uv_signal_stop(handle);
     uv_stop(uv_default_loop());
-    // main_exit(EXIT_SUCCESS); // TODO
+    // spcom_exit(EXIT_SUCCESS); // TODO
 }
 
 
@@ -176,13 +178,13 @@ int main_init(void)
         assert_z(err, "shell_init");
     }
 
-    err = timeout_init(main_exit);
+    err = timeout_init(spcom_exit);
     assert(!err);
 
     // rx callback == outfmt_write
     err = port_init(outfmt_write);
     if (err) {
-        LOG_ERR("port_init err=%d", err);
+        // assume errora already logged
         return err;
     }
     return 0;
@@ -232,20 +234,21 @@ int main(int argc, char *argv[])
 
     err = main_init();
     if (err) {
-        LOG_ERR("main_init failed");
         main_cleanup();
         return EXIT_FAILURE;
     }
 
     uv_loop_t *loop = uv_default_loop();
     err = uv_run(loop, UV_RUN_DEFAULT);
-
+    /* log err but must always run SPCOM_EXIT handler for cleanup */
     if (err) {
         LOG_UV_ERR(err, "uv_run");
     }
 
-    main_cleanup();
+    SPCOM_EXIT(err, "main");
 
-    return g_main.exit_status;
+    // should never get here!?
+    assert(0);
+    return 0;
 }
 

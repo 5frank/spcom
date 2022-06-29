@@ -2,12 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "opt.h"
+#include "common.h"
 #include "assert.h"
-
+#include "opt.h"
 #include "port_info.h"
-#include "utils.h"
-#include "main.h"
 
 static struct global_opts_s _global_opts;
 
@@ -25,6 +23,7 @@ static int main_opts_post_parse(const struct opt_section_entry *entry)
         int err = opt_show_help();
         exit(err ? EXIT_FAILURE : 0);
     }
+
     if (main_oflags.show_version) {
         version_print(_global_opts.verbose);
         exit(0);
@@ -34,6 +33,7 @@ static int main_opts_post_parse(const struct opt_section_entry *entry)
         port_info_print_list(_global_opts.verbose);
         exit(0);
     }
+
     return 0;
 }
 

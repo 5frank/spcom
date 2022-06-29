@@ -7,9 +7,9 @@
 #include <errno.h>
 #include <libserialport.h>
 #include "assert.h"
+#include "common.h"
 #include "str.h"
 #include "vt_defs.h"
-#include "utils.h"
 
 /// unknown parse failure
 #define STR_EUNKNOWN (300)
