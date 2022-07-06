@@ -56,6 +56,49 @@ static struct charmap_s _charmap_rx = {0};
 // exposed const pointer. NULL until enabled
 const struct charmap_s *charmap_rx = NULL;
 
+#if 1
+static void charmap_print_map(const char *name, const struct charmap_s *map) 
+{
+    if (!map) {
+        printf("%s: none\n", name);
+        return;
+    }
+
+    printf("%s:\n", name);
+    for (int i = 0; i < ARRAY_LEN(map->map); i++) {
+        if (!map->map[i]) 
+            continue;
+
+        printf("0x%02X ", i);
+        if (isprint(i) && !isblank(i)) {
+            printf("(%c) ", (char)i);
+        }
+        else {
+            printf("    ");
+        }
+
+        switch(map->map[i]) {
+            case CHAR_REPR_IGNORE:
+                printf("ignore");
+                break;
+            case CHAR_REPR_HEX:
+                printf("hex");
+                break;
+            case CHAR_REPR_CNTRLNAME:
+                printf("cntrlname");
+                break;
+            case CHAR_REPR_STRLIT_BASE:
+                printf("strlit");
+            default:
+                printf("<unknown>%u", (unsigned int)map->map[i]);
+                break;
+        }
+
+        printf("\n");
+    }
+}
+#endif
+
 static const char *cntrl_valtostr(int val)
 {
     unsigned int n = val;
@@ -181,16 +224,18 @@ int charmap_remap(const struct charmap_s *cm,
     if (!is_remapped)
         return 0;
 
-    if (x < CHAR_REPR_BASE)
+    if (x < CHAR_REPR_BASE) {
         return bufputc(buf, x);
+    }
 
     if (x == CHAR_REPR_HEX) {
         _Static_assert(CTOHEX_BUF_SIZE <= CHARMAP_REPR_BUF_SIZE, "");
         return ctohex(c, buf);
     }
 
-    if (x == CHAR_REPR_IGNORE)
+    if (x == CHAR_REPR_IGNORE) {
         return -1;
+    }
 
     if (x == CHAR_REPR_CNTRLNAME) {
         s = cntrl_valtostr(c);
@@ -450,6 +495,10 @@ done:
 
 static int charmap_opt_post_parse(const struct opt_section_entry *entry)
 {
+#if 0
+    charmap_print_map("tx", charmap_tx);
+    charmap_print_map("rx", charmap_rx);
+#endif
     return 0;
 }
 

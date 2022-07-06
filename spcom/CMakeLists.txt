@@ -32,7 +32,9 @@ set(SOURCES
     src/opq.c
     src/version.c
 )
-
+# TODO use gcc `-I` to include pre_defs.h before any other headers'
+#add_compile_options ( -Wno-reorder )
+#add_definitions( "-Iinclude/pre_defs.h"  )
 
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb -g3 -Os -std=gnu99 -Wall")

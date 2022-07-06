@@ -1,32 +1,27 @@
 #include <stdint.h>
 #include <uv.h>
 #include <errno.h>
+
 #include "log.h"
+#include "common.h"
 #include "assert.h"
 #include "opt.h"
 #include "timeout.h"
 
-
 static uv_timer_t uvt_timeout;
 static int opt_timeout_sec = 0;
-static timeout_cb_fn *timeout_cb = NULL;
 
 static void _uvcb_on_timeout(uv_timer_t* handle)
 {
-    LOG_ERR("Application timeout after %d sec", opt_timeout_sec);
-    assert(timeout_cb);
-    timeout_cb(ETIMEDOUT);
+    SPCOM_EXIT(ETIMEDOUT, "Application timeout after %d sec", opt_timeout_sec);
 }
 
-int timeout_init(timeout_cb_fn *cb)
+int timeout_init(void)
 {
     int err;
-    assert(cb);
 
     if (!opt_timeout_sec)
         return 0;
-
-    timeout_cb = cb;
 
     uv_loop_t *loop = uv_default_loop();
     assert(loop);

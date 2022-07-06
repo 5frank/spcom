@@ -47,11 +47,28 @@ static void print_backtrace(void)
 static void print_backtrace(void) {}
 #endif
 
-void spcom_exit(int err)
+void spcom_exit(int err, const char *where, const char *fmt, ...)
 {
+    /* ensure exit message(s) on separate line. could use '\r' to clear line 
+     * but then some data lost */
+    outfmt_endline();
+
+    int level = err ? LOG_LEVEL_ERR : LOG_LEVEL_DBG;
+
+    va_list args;
+    va_start(args, fmt);
+
+    // write to log first - looks better in case log output to stderr 
+    log_vprintf(level, where, fmt, args);
+
     if (err) {
         print_backtrace();
+        fputc('\r', stderr);
+        vfprintf(stderr, fmt, args);
+        fputc('\n', stderr);
     }
+
+    va_end(args);
 
     _Static_assert(EXIT_SUCCESS == 0, "what platform is this?");
     int status = err;
@@ -178,7 +195,7 @@ int main_init(void)
         assert_z(err, "shell_init");
     }
 
-    err = timeout_init(spcom_exit);
+    err = timeout_init();
     assert(!err);
 
     // rx callback == outfmt_write
@@ -214,7 +231,7 @@ void main_cleanup(void)
         }
     }
 
-    outfmt_cleanup();
+    outfmt_endline();
     log_cleanup(); // last before exit
 
     m->cleanup_done = true;

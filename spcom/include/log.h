@@ -2,6 +2,7 @@
 #define __LOG_INCLUDE_H__
 
 #include <stdbool.h>
+#include <stdarg.h>
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -20,11 +21,13 @@ enum log_tag_e {
     LOG_LEVEL_DBG = 4
 };
 
-__attribute__((format(printf, 3, 4)))
-void log_printf(int tag, const char *where, const char *fmt, ...);
+void log_vprintf(int level, const char *where, const char *fmt, va_list args);
 
-#define __LOG(TAG, FMT, ...) \
-    log_printf(TAG, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
+__attribute__((format(printf, 3, 4)))
+void log_printf(int level, const char *where, const char *fmt, ...);
+
+#define __LOG(LEVEL, FMT, ...) \
+    log_printf(LEVEL, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
 
 #define LOG_ERR(FMT, ...)  \
     __LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)

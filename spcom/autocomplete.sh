@@ -9,13 +9,6 @@
 #   > source autocomplete.sh
 #
 
-__cdb_complete_dir() {
-  local cur=${COMP_WORDS[COMP_CWORD]}
-
-  local IFS=$'\n'
-  COMPREPLY=( $( compgen -o plusdirs  -f -X '!*.txt' -- $cur ) )
-}
-
 #complete -o dirnames -F _xyz xyz
 
 _spcom_complete_opt()

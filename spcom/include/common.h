@@ -1,10 +1,13 @@
 #ifndef COMMON_INCLUDE_H__
 #define COMMON_INCLUDE_H__
 
+
+
 #include <stdio.h>
 #include <stdbool.h>
 
 #include "assert.h"
+#include "outfmt.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -39,7 +42,8 @@ struct global_opts_s {
 
 extern const struct global_opts_s *global_opts;
 
-void spcom_exit(int err);
+__attribute__((format(printf, 3, 4)))
+void spcom_exit(int err, const char *where, const char *fmt, ...);
 
 #define SPCOM_PINFO(FMT, ...)                                                  \
     do {                                                                       \
@@ -48,6 +52,13 @@ void spcom_exit(int err);
         fprintf(stderr, "\ninfo: " FMT "\n", ##__VA_ARGS__);                   \
     } while(0)
 
+
+#if 1
+
+#define SPCOM_EXIT(ERR, FMT, ...)                                              \
+        spcom_exit(ERR, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
+
+#else
 #define SPCOM_EXIT(ERR, FMT, ...)                                              \
     do {                                                                       \
         int _err = (ERR);                                                      \
@@ -60,7 +71,8 @@ void spcom_exit(int err);
         else {                                                                 \
             LOG_DBG("exit 0: " FMT, ##__VA_ARGS__);                            \
         }                                                                      \
-        spcom_exit(_err);                                                      \
+        spcom_exit(_err, LOG_WHERESTR(), ##__VA_ARGS__);                       \
     } while(0)
+#endif
 
 #endif

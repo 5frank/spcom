@@ -1,25 +1,56 @@
-
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+
 #include <uv.h>
 #include <libserialport.h>
+
+#include "strbuf.h"
 #include "opt.h"
 #include "shell.h"
-#include "assert.h"
 #include "log.h"
+
+/**
+ * assert RC is greater then zero (printf returns negative on error)
+ * log module should not use log itself or application custom assert as exit
+ * handler might call log_printf() resulting in recursion loop. Must run
+ * cleanup code so can not use libc assert. Alternative soulution: ensure
+ * assert and exit handler do not use the log module */
+#define check_printfrc(RC)                                                     \
+    do {                                                                       \
+        int _rc = (RC);                                                        \
+        if (!(_rc > 0)) {                                                      \
+            fprintf(stderr,                                                    \
+              "ERR: (sn)printf retval '%d' in log module func:%s at line %d\n",\
+               _rc, __func__, __LINE__);                                       \
+        }                                                                      \
+    } while(0)
 
 struct log_opts_s {
     const char *file;
     int level;
+    int silent;
 } log_opts = {
     .level = 3
 };
 
 extern const char *errnotostr(int n);
 
-static FILE *logfp = NULL;
+static struct log_data_s {
+    //bool stderr_isatty;
+    FILE *outfp;
+    char buf[1024];
+    unsigned int bufovf;
+} log_data = { 0 };
+
+/* should only be called if buf to small */
+static void log_strbuf_flush(const struct strbuf *sb)
+{
+    log_data.bufovf++;
+}
+
+STRBUF_STATIC_INIT(log_strbuf, 1024, log_strbuf_flush);
 
 static char *_truncate(char *buf, size_t size) 
 {
@@ -31,7 +62,7 @@ static char *_truncate(char *buf, size_t size)
     return buf;
 }
 
-static const char *log_tagstr(int tag) 
+static const char *log_levelstr(int tag) 
 {
     switch (tag) {
         case LOG_LEVEL_ERR:
@@ -59,7 +90,7 @@ const char *log_errnostr(int eno)
         return "";
 
     int n = _snprintf_errno(buf, sizeof(buf), eno);
-    assert(n > 0);
+    check_printfrc(n);
     if (n >= sizeof(buf))
         return _truncate(buf, sizeof(buf));
 
@@ -78,7 +109,7 @@ const char *log_libuv_errstr(int uvrc, int eno)
 
     int n = 0;
     n = snprintf(dest, size, "uv_err=%d='%s'", uvrc, uvstr);
-    assert(n > 0);
+    check_printfrc(n);
     dest += n;
     size -= n;
     if (size <= 0)
@@ -86,7 +117,7 @@ const char *log_libuv_errstr(int uvrc, int eno)
 
     if (eno) {
         n = _snprintf_errno(dest, size, eno);
-        assert(n > 0);
+        check_printfrc(n);
         dest += n;
         size -= n;
         if (size <= 0)
@@ -105,7 +136,7 @@ const char *log_libsp_errstr(int sprc, int eno)
     int n = 0;
 
     n = snprintf(dest, size, "sp_err=%d=", sprc);
-    assert(n > 0);
+    check_printfrc(n);
     dest += n;
     size -= n;
     if (size <= 0)
@@ -133,7 +164,7 @@ const char *log_libsp_errstr(int sprc, int eno)
             n = snprintf(dest, size, "'unknown''");
             break;
     }
-    assert(n > 0);
+    check_printfrc(n);
     dest += n;
     size -= n;
     if (size <= 0)
@@ -142,7 +173,7 @@ const char *log_libsp_errstr(int sprc, int eno)
 
     if (eno) {
         n = _snprintf_errno(dest, size, eno);
-        assert(n > 0);
+        check_printfrc(n);
         dest += n;
         size -= n;
         if (size <= 0)
@@ -156,62 +187,100 @@ const char *log_wherestr(const char *file, unsigned int line, const char *func)
 {
     static char buf[128];
     int n = snprintf(buf, sizeof(buf), "%s:%d:%s", file, line, func);
-    assert(n > 0);
+    check_printfrc(n);
     if (n >= sizeof(buf))
         return _truncate(buf, sizeof(buf));
     return buf;
 }
 
-void log_printf(int level, const char *where, const char *fmt, ...)
+static void log_sb_fmtmsg(struct strbuf *sb, const char *levelstr,
+                       const char *where, const char *fmt, va_list args)
 {
-    va_list args;
+    strbuf_reset(sb);
 
+    if (levelstr) {
+        strbuf_puts(sb, levelstr);
+        strbuf_putc(sb, ':');
+    }
+
+    if (where) {
+        strbuf_puts(sb, where);
+        strbuf_putc(sb, ':');
+    }
+
+    strbuf_putc(sb, ' ');
+
+    strbuf_vprintf(sb, fmt, args);
+
+    strbuf_putc(sb, '\n');
+}
+
+static void log_sb_fwrite_nolock(const struct strbuf *sb, FILE *fp) 
+{
+    size_t rc = fwrite(sb->buf, 1, sb->len, fp);
+    if (rc != sb->len) {
+        // TODO do what?
+    }
+}
+
+void log_vprintf(int level, const char *where, const char *fmt, va_list args)
+{
     if (level > log_opts.level)
         return;
 
-    if (!logfp)
-        logfp = stderr;
+    struct strbuf *sb = &log_strbuf;
+
+    // fp1 never NULL;
+    FILE *fp1 = log_data.outfp;
+    if (!fp1) {
+        fp1 = stderr;
+    }
+
+    /* output both to file and stderr in some cases.
+     * silent option does not affect output to separate log file */
+    FILE *fp2 = NULL;
+
+    if (fp1 != stderr && !log_opts.silent && level >= LOG_LEVEL_INF) {
+
+        fp2 = stderr;
+    }
+
+    const char *levelstr = log_levelstr(level);
+    log_sb_fmtmsg(sb, levelstr, where, fmt, args);
+
 
     const void *lock = shell_output_lock();
 
-#if 1 // behave like normal printf on log_printf(0, 0, ...)
-    if (level) {
-        fputs(log_tagstr(level), logfp);
-        fputc(':', logfp);
-    }
-    if (where) {
-        fputs(where, logfp);
-        fputc(':', logfp);
-    }
-    fputc(' ', logfp);
-#else
-    if (!where)
-        where = "";
-    fprintf(logfp, "%s:%s: ", , where);
-#endif
+    log_sb_fwrite_nolock(sb, fp1);
 
-    int rc;
-    va_start(args, fmt);
-    rc = vfprintf(logfp, fmt, args);
-    va_end(args);
-    (void) rc;
-
-    fputc('\n', logfp);
+    if (fp2) {
+        log_sb_fwrite_nolock(sb, fp2);
+    }
 
     shell_output_unlock(lock);
 }
 
-static void _sp_log_handler(const char *fmt, ...)
+void log_printf(int level, const char *where, const char *fmt, ...)
 {
     va_list args;
-    if (!logfp)
+    va_start(args, fmt);
+    log_vprintf(level, where, fmt, args);
+    va_end(args);
+}
+
+static void _sp_log_handler(const char *fmt, ...)
+{
+
+    FILE *fp = log_data.outfp;
+    if (!fp)
         return;
+    va_list args;
 
     const void *lock = shell_output_lock();
 
-    fputs("DBG:SP:", logfp);
+    fputs("DBG:SP:", fp);
     va_start(args, fmt);
-    int rc = vfprintf(logfp, fmt, args);
+    int rc = vfprintf(fp, fmt, args);
     va_end(args);
     (void) rc;
 
@@ -262,15 +331,16 @@ int log_init(void)
     const char *path = log_opts.file;
     int level = log_opts.level;
     if (!path) {
-        logfp = stderr;
+        log_data.outfp = stderr;
     }
     else {
-        logfp = fopen(path, "w");
-        if (!logfp) {
+        FILE *fp = fopen(path, "w");
+        if (!fp) {
             fprintf(stderr, "ERR: failed to open log file");
             return -1;
         }
-        setlinebuf(logfp);
+        setlinebuf(fp); // TODO needed and correct?
+        log_data.outfp = fp;
     }
     // TODO set debug for this application
     if (level == 0) {
@@ -285,12 +355,18 @@ int log_init(void)
 
 void log_cleanup(void)
 {
-    if (!logfp)
+
+    FILE *fp = log_data.outfp;
+    if (!fp)
         return;
-    if ((logfp == stderr) || (logfp == stdout))
+
+    if ((fp == stderr) || (fp == stdout)) {
         return;
-    fclose(logfp);
-    logfp = NULL;
+    }
+
+    fclose(fp);
+
+    log_data.outfp = NULL;
 }
 
 
@@ -304,6 +380,11 @@ static const struct opt_conf log_opts_conf[] = {
         .name = "logfile",
         .dest = &log_opts.file,
         .parse = opt_ap_str,
+    },
+    {
+        .name = "silent",
+        .dest = &log_opts.silent,
+        .parse = opt_ap_flag_true,
     },
 };
 

@@ -28,7 +28,6 @@
 #include <limits.h> 
 
 #ifndef LINE_MAX 
-#include "posixver.h"
 #define LINE_MAX _POSIX2_LINE_MAX
 #endif
 

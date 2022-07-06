@@ -12,7 +12,7 @@
 #define HEX_CHR_LUT_UPPER "0123456789ABCDEF"
 #define HEX_CHR_LUT_LOWER "0123456789abcdef"
 
-#define CTOHEX_DEFAULT_FMT "\\%02x"
+#define CTOHEX_DEFAULT_FMT "\\%02X"
 
 struct ctohex_table_s {
     struct {
