@@ -27,6 +27,7 @@ set(SOURCES
     src/shell_mode_raw.c
     src/str.c
     src/str_split_quoted.c
+    src/strbuf.c
     src/keybind.c
     src/timeout.c
     src/opq.c

@@ -20,7 +20,7 @@
 #define check_printfrc(RC)                                                     \
     do {                                                                       \
         int _rc = (RC);                                                        \
-        if (!(_rc > 0)) {                                                      \
+        if (_rc < 0) {                                                         \
             fprintf(stderr,                                                    \
               "ERR: (sn)printf retval '%d' in log module func:%s at line %d\n",\
                _rc, __func__, __LINE__);                                       \
@@ -234,14 +234,15 @@ void log_vprintf(int level, const char *where, const char *fmt, va_list args)
     FILE *fp1 = log_data.outfp;
     if (!fp1) {
         fp1 = stderr;
+        if (log_opts.silent) {
+            return;
+        }
     }
 
     /* output both to file and stderr in some cases.
      * silent option does not affect output to separate log file */
     FILE *fp2 = NULL;
-
     if (fp1 != stderr && !log_opts.silent && level >= LOG_LEVEL_INF) {
-
         fp2 = stderr;
     }
 

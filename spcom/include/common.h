@@ -2,7 +2,6 @@
 #define COMMON_INCLUDE_H__
 
 
-
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -44,13 +43,6 @@ extern const struct global_opts_s *global_opts;
 
 __attribute__((format(printf, 3, 4)))
 void spcom_exit(int err, const char *where, const char *fmt, ...);
-
-#define SPCOM_PINFO(FMT, ...)                                                  \
-    do {                                                                       \
-        LOG_INF(FMT, ##__VA_ARGS__);                                           \
-        /* extra new line to ensure info message on separate line */           \
-        fprintf(stderr, "\ninfo: " FMT "\n", ##__VA_ARGS__);                   \
-    } while(0)
 
 
 #if 1

@@ -1,5 +1,8 @@
 #ifndef STRBUF_INCLUDE_H_
 #define STRBUF_INCLUDE_H_
+#include <stddef.h>
+#include <stdarg.h>
+
  /* premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for
  * every write to stdout. also fputc is slow...
@@ -10,7 +13,7 @@ struct strbuf {
     char *buf;
     size_t bufsize;
     size_t len;
-    void (*flush_func)(const struct strbuf *sb)
+    void (*flush_func)(const struct strbuf *sb);
 };
 
 #define STRBUF_STATIC_INIT(NAME, SIZE, FLUSH_FUNC)                             \
@@ -20,7 +23,6 @@ static struct strbuf NAME = {                                                  \
     .bufsize = SIZE,                                                           \
     .flush_func = FLUSH_FUNC                                                   \
 }
-
 
 static void strbuf_flush(struct strbuf *sb)
 {
@@ -56,20 +58,7 @@ static inline void strbuf_putc(struct strbuf *sb, char c)
     sb->len++;
 }
 
-static inline void strbuf_write(struct strbuf *sb, const char *src, size_t size)
-{
-#if 1
-    for (size_t i = 0; i < size; i++) {
-        strbuf_putc(sb, *src++);
-    }
-#else
-    if (size > sb->bufsize) {
-       size_t chunk_size =
-        strbuf_flush(sb);
-    }
- strbuf_remains(sb))
-#endif
-}
+void strbuf_write(struct strbuf *sb, const char *src, size_t size);
 
 /**
  * Get end pointer to buffer with at least @param size of space.
@@ -99,33 +88,10 @@ static inline void strbuf_puts(struct strbuf *sb, const char *s)
     }
 }
 
-static inline void strbuf_vprintf(struct strbuf *sb, const char *fmt, va_list args)
-{
-    /* flush first to ensure max space availabe before vsnprint */
-    strbuf_flush(sb);
-
-    char *dst = sb->buf;
-    size_t dstsize = sb->bufsize;
-
-    int rc = vsnprintf(dst, dstsize, fmt, args);
-
-    if (rc < 0) {
-        rc = 0; /* TODO what? */
-        return;
-    }
-
-    if (rc >= dstsize) {
-        /* didn't fit - nothing we can except clamp to max as args might be
-         * invalidated above  */
-        rc = dstsize;
-    }
-
-    sb->len += rc;
-}
-
+void strbuf_vprintf(struct strbuf *sb, const char *fmt, va_list args);
 
 /**
- * Haxor workaround as can not use `va_list` twice.
+ * workaround as can not use `va_list` twice.
  * see: https://stackoverflow.com/questions/55274350
  * args should only be used once as vsnprintf (and vfprintf, vprintf, vsprintf)
  * can invalidate args.  need to use va_copy in that case.

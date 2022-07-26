@@ -12,6 +12,7 @@
 #include "charmap.h"
 #include "strbuf.h"
 #include "outfmt.h"
+#include "assert.h"
 
 static struct outfmt_s 
 {
@@ -72,32 +73,6 @@ static void outfmt_strbuf_flush(const struct strbuf *sb)
  * must ensure a flush after strbuf operation(s).
  */
 STRBUF_STATIC_INIT(outfmt_strbuf, 1024, outfmt_strbuf_flush);
-#if 0
-static inline void strbuf_putc(char c)
-{
-    struct strbuf *sb = &_strbuf;
-    size_t remains = sizeof(sb->data) - sb->len;
-    if (remains < 1)
-        strbuf_flush();
-
-    sb->data[sb->len] = c;
-    sb->len++;
-}
-
-static void strbuf_write(const char *src, size_t size)
-{
-    for (size_t i = 0; i < size; i++) {
-        strbuf_putc(*src++);
-    }
-}
-
-static void strbuf_puts(const char *s)
-{
-    while (*s) {
-        strbuf_putc(*s++);
-    }
-}
-#endif
 
 /* or use ts from moreutils? `apt install moreutils`
  *
@@ -134,35 +109,32 @@ static void print_timestamp(struct strbuf *sb)
 
     //char buf[sizeof("19700101T010203Z.123456789") + 2];
 
-    const size_t size = sizeof("19700101T010203Z.123456789") + 2;
-    char *ep = strbuf_endptr(sb, size);
-    if (!ep) {
-        return; // should never happen
-    }
+    const size_t size_needed = sizeof("19700101T010203Z.123456789") + 2;
 
-    size_t rc = strftime(ep, size, "%Y-%m-%dT%H:%M:%S", &tm);
+    size_t dst_size = strbuf_remains(sb);
+    if (dst_size < size_needed) {
+        strbuf_flush(sb);
+        dst_size = strbuf_remains(sb);
+        assert(dst_size >= size_needed);
+    }
+    char *dst = &sb->buf[sb->len];
+
+    size_t rc = strftime(dst, dst_size, "%Y-%m-%dT%H:%M:%S", &tm);
     if (rc == 0) {
-        // contents of the undefined 
-        *ep = '\0';
+        // content of buf undefined
+        *dst = '\0';
         return;
     }
 
     sb->len += rc;
 
-    // do not have nanosecond precision 
+    // do not have nanosecond precision
     strbuf_printf(sb, ".%03luZ: ", now.tv_nsec / 1000000);
 
 }
 
 static void outfmt_sb_putc(struct strbuf *sb, int c)
 {
-#if 0 // TODO rm
-#warning "remove this"
-    if (!isprint(c) || isspace(c)) {
-        LOG_INF("[%02X]", c);
-    }
-#endif
-
     if (!charmap_rx) {
         strbuf_putc(sb, c);
         return;
@@ -174,14 +146,14 @@ static void outfmt_sb_putc(struct strbuf *sb, int c)
     if (rc < 0) // drop
         return;
 
-    if (rc == 0) // not remapped
+    if (rc == 0) {
+        // not remapped
         strbuf_putc(sb, c);
-
-    if (rc == 1) // remapped to size == 1
-        strbuf_putc(sb, buf[0]);
-
-    // remapped to size == rc.
-    strbuf_write(sb, buf, rc);
+    }
+    else {
+        // remapped to size 1 or more
+        strbuf_write(sb, buf, rc);
+    }
 }
 
 /**

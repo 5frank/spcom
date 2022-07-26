@@ -87,7 +87,6 @@ static int port_exists(void)
 
 static void on_port_discovered(int err)
 {
-    LOG_DBG("wait done");
     port_open();
 }
 

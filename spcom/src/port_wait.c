@@ -12,7 +12,7 @@
 #include "port_wait.h"
 
 struct port_wait_s {
-    bool have_init;
+    bool initialized;
     port_wait_cb *cb;
     // buf_... needed as posix `dirname()` and `basename()` modifies input
     char *buf_dirname;
@@ -85,8 +85,9 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
     if (err)
         LOG_UV_ERR(err, "uv_fs_event_stop");
 
-    LOG_DBG("wait done");
-
+    /* unless someting immediately received from port, user will never know if device (re)connected
+     */
+    LOG_INF("Waiting done. %s found", pw->abspath);
     assert(pw->cb);
     pw->cb(0);
 }
@@ -146,8 +147,7 @@ void port_wait_start(port_wait_cb *cb)
                             0); // UV_FS_EVENT_RECURSIVE);
     assert_uv_z(err, "uv_fs_event_start");
 
-    SPCOM_PINFO("Waiting for %s ...", pw->abspath);
-    //_port.state = PORT_STATE_WAITING;
+    LOG_INF("Waiting for %s ...", pw->abspath);
 }
 
 void port_wait_stop(void)
@@ -172,7 +172,7 @@ void port_wait_cleanup(void)
 {
     struct port_wait_s *pw = &port_wait;
 
-    if (!pw->have_init)
+    if (!pw->initialized)
         return;
 
     port_wait_stop();
@@ -192,7 +192,7 @@ void port_wait_cleanup(void)
         pw->buf_basename = NULL;
     }
 
-    pw->have_init = false;
+    pw->initialized = false;
 }
 
 int port_wait_init(const char *name)
@@ -208,9 +208,10 @@ int port_wait_init(const char *name)
     assert_uv_z(err, "uv_timer_init");
 
     /* posix versions of dirname() and basename() might return a modifed
-     * version of its parameter.  */
-    // TODO cant use realpath on a path that doesnt exist yet
-    //pw->realpath = realpath(name, NULL); // TODO free
+     * version of its parameter.
+     *
+     * note: cant use realpath(name, NULL) on a path that doesnt exist yet
+    */
     pw->abspath = strdup(name);
     assert(pw->abspath);
 
@@ -226,7 +227,7 @@ int port_wait_init(const char *name)
     pw->basename = basename(pw->abspath);
     assert(pw->basename);
 
-    pw->have_init = true;
+    pw->initialized = true;
 
     return 0;
 }

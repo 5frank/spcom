@@ -33,22 +33,88 @@ static void on_uv_walk(uv_handle_t* handle, void* arg)
 {
     uv_close(handle, on_uv_close);
 }
-#if 0
+
+#define CONFIG_USE_BACKTRACE 1
+
+#if CONFIG_USE_BACKTRACE
 #include <execinfo.h>
-static void print_backtrace(void) 
+
+#define BACKTRACE_LEN 10
+
+struct backtrace_data {
+    int nsymbs;
+    /// value must be freed
+    char **symbs;
+};
+
+
+static void _backtrace_save(struct backtrace_data *bt) 
 {
-  void *stackptrs[10];
+  void *stackptrs[BACKTRACE_LEN];
   // get entries from stack
-  size_t size = backtrace(stackptrs, 10);
-  fprintf(stderr, "Backtrace:\n");
-  backtrace_symbols_fd(stackptrs, size, STDERR_FILENO);
+  bt->nsymbs = backtrace(stackptrs, BACKTRACE_LEN);
+  //fprintf(stderr, "Backtrace:\n");
+  //backtrace_symbols_fd(stackptrs, size, STDERR_FILENO);
+  bt->symbs = backtrace_symbols(stackptrs, bt->nsymbs);
 }
-#else
-static void print_backtrace(void) {}
+#if 0
+static void _backtrace_println(int fd, const char *str, size_t len)
+{
+    size_t len = strlen(str);
+    while (len > 0) {
+        ssize_t rc = write(fd, str, len);
+
+        if ((rc == -1) && (errno != EINTR))
+                break;
+
+        str += (size_t) rc;
+        len -= (size_t) rc;
+    }
+}
+#endif
+
+static void _backtrace_print(struct backtrace_data *bt)
+{
+    if (!bt || bt->nsymbs <= 0) {
+        return;
+    }
+
+    fputs("Backtrace:\n", stderr);
+
+    for (int i = 0; i < bt->nsymbs; i++) {
+        char *s = bt->symbs[i];
+        if (!s) {
+            break;
+        }
+        // TODO use log module
+        fputs(s, stderr);
+        fputc('\n', stderr);
+        s++;
+    }
+}
+
+static void _backtrace_free(struct backtrace_data *bt)
+{
+    if (!bt || !bt->symbs) {
+        return;
+    }
+    free(bt->symbs);
+    bt->symbs = NULL;
+}
 #endif
 
 void spcom_exit(int err, const char *where, const char *fmt, ...)
 {
+    /* get backtrace first before we mess with stack */
+#if CONFIG_USE_BACKTRACE
+    struct backtrace_data *bt = NULL;
+    struct backtrace_data bt_data;
+    if (err) {
+        bt = &bt_data;
+        _backtrace_save(bt);
+    }
+#endif
+
     /* ensure exit message(s) on separate line. could use '\r' to clear line 
      * but then some data lost */
     outfmt_endline();
@@ -57,18 +123,16 @@ void spcom_exit(int err, const char *where, const char *fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-
     // write to log first - looks better in case log output to stderr 
     log_vprintf(level, where, fmt, args);
-
-    if (err) {
-        print_backtrace();
-        fputc('\r', stderr);
-        vfprintf(stderr, fmt, args);
-        fputc('\n', stderr);
-    }
-
     va_end(args);
+
+#if CONFIG_USE_BACKTRACE
+    if (bt) {
+        _backtrace_print(bt);
+        _backtrace_free(bt);
+    }
+#endif
 
     _Static_assert(EXIT_SUCCESS == 0, "what platform is this?");
     int status = err;
