@@ -58,8 +58,32 @@ static inline void strbuf_putc(struct strbuf *sb, char c)
     sb->len++;
 }
 
+
 void strbuf_write(struct strbuf *sb, const char *src, size_t size);
 
+void strbuf_vprintf(struct strbuf *sb, const char *fmt, va_list args);
+
+static inline void strbuf_puts(struct strbuf *sb, const char *s)
+{
+#if 1
+    strbuf_write(sb, s, strlen(s));
+#else
+    while (*s) {
+        strbuf_putc(sb, *s++);
+    }
+#endif
+}
+
+__attribute__((format(printf, 2, 3)))
+static inline void strbuf_printf(struct strbuf *sb, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    strbuf_vprintf(sb, fmt, args);
+    va_end(args);
+}
+
+#if 0
 /**
  * Get end pointer to buffer with at least @param size of space.
  * caller should remember to increase `sb->len` if data written
@@ -80,54 +104,6 @@ static inline char *strbuf_endptr(struct strbuf *sb, int size)
     return &sb->buf[0];
 
 }
-
-static inline void strbuf_puts(struct strbuf *sb, const char *s)
-{
-    while (*s) {
-        strbuf_putc(sb, *s++);
-    }
-}
-
-void strbuf_vprintf(struct strbuf *sb, const char *fmt, va_list args);
-
-/**
- * workaround as can not use `va_list` twice.
- * see: https://stackoverflow.com/questions/55274350
- * args should only be used once as vsnprintf (and vfprintf, vprintf, vsprintf)
- * can invalidate args.  need to use va_copy in that case.
- *
-    possible (premature) optimizations: 
-    // FMT lilkley to be compile time constant, if it isnt it doesnt matter
-        size_t _fmtsize = sizeof(FMT); 
-        size_t _vaargc = COUNT_ARGUMENTS(__VA__ARGS__);
-        if (strbuf_remains(sb) < (_fmtsize + 2*_vaargc))
-            strbuf_flush(sb)
- */
-#define strbuf_printf(SB, FMT, ...)  do {                                      \
-                                                                               \
-    struct strbuf *_sb = SB;                                                   \
-                                                                               \
-    for (int _i = 0; _i < 2; _i++) {                                           \
-                                                                               \
-        char *_dst = &_sb->buf[sb->len];                                       \
-        size_t _remains = strbuf_remains(_sb);                                 \
-        int _rc = snprintf(_dst, _remains, FMT, __VA_ARGS__);                  \
-                                                                               \
-        if (_rc < 0) {                                                         \
-            _rc = 0; /* TODO fmt error */                                      \
-            break;                                                             \
-        }                                                                      \
-                                                                               \
-        if (_rc >= _remains) {                                                 \
-            /* didn't fit - try again after flush */                           \
-            strbuf_flush(_sb);                                                 \
-            continue;                                                          \
-        }                                                                      \
-                                                                               \
-        _sb->len += _rc;                                                       \
-        break; /* success if we get here */                                    \
-    }                                                                          \
-                                                                               \
-} while (0)
+#endif
 
 #endif

@@ -13,15 +13,19 @@ static int opt_timeout_sec = 0;
 
 static void _uvcb_on_timeout(uv_timer_t* handle)
 {
-    SPCOM_EXIT(ETIMEDOUT, "Application timeout after %d sec", opt_timeout_sec);
+    /* There is no EX_TIMEOUT in <sysexits.h> but EX_TEMPFAIL documented as
+     * "[...] indicating something that is not really an error." and seems like
+     * the best fit 
+     */
+    SPCOM_EXIT(EX_TEMPFAIL, "Application timeout after %d sec", opt_timeout_sec);
 }
 
-int timeout_init(void)
+void timeout_init(void)
 {
     int err;
 
     if (!opt_timeout_sec)
-        return 0;
+        return;
 
     uv_loop_t *loop = uv_default_loop();
     assert(loop);
@@ -34,8 +38,6 @@ int timeout_init(void)
     assert_uv_z(err, "uv_timer_start");
 
     LOG_DBG("timeout set to %d sec", opt_timeout_sec);
-
-    return 0;
 }
 
 void timeout_stop(void)

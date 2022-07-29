@@ -65,7 +65,7 @@ int opt_error(const struct opt_conf *conf, const char *msg);
 
 int opt_parse_args(int argc, char *argv[]);
 
-int opt_show_help(void);
+void opt_show_help(void);
 
 int opt_ap_int(const struct opt_conf *conf, char *s);
 

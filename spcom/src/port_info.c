@@ -136,7 +136,7 @@ static int port_info_add_phyinfo(struct port_info_s *infos, size_t len)
 
     DIR *dp = opendir(BASE_PATH);
     if (!dp) {
-        LOG_ERR("failed to open %s", BASE_PATH);
+        LOG_DBG("failed to open %s", BASE_PATH);
         return -1;
     }
 

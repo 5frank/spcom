@@ -272,9 +272,9 @@ void shell_cleanup(void)
     shell.initialized = false;
 }
 
-
 static int shell_opts_post_parse(const struct opt_section_entry *entry)
 {
+    // note: do not use LOG here
 
     if (shell_opts.sticky)
         shell_opts.cooked = true;

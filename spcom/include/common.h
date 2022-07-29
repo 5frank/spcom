@@ -1,9 +1,9 @@
 #ifndef COMMON_INCLUDE_H__
 #define COMMON_INCLUDE_H__
 
-
 #include <stdio.h>
 #include <stdbool.h>
+#include <sysexits.h>
 
 #include "assert.h"
 #include "outfmt.h"
@@ -12,6 +12,7 @@
 #include <io.h>
 #define isatty(FD) _isatty(FD)
 #define fileno(F) _fileno(F)
+//define sysexit.h
 // #define STDOUT_FILENO ?
 #else
 #include <unistd.h>
@@ -35,36 +36,18 @@
 
 int version_print(int verbose);
 
-struct global_opts_s {
-    int verbose;
-};
+/// libserialport error to exit status code
+int sp_err_to_ex(int sp_err);
 
-extern const struct global_opts_s *global_opts;
+/// libuv error to exit status code
+int uv_err_to_ex(int uv_err);
+//#define EX_TIMEOUT  EX_TEMPFAIL
 
 __attribute__((format(printf, 3, 4)))
-void spcom_exit(int err, const char *where, const char *fmt, ...);
+void spcom_exit(int exit_code, const char *where, const char *fmt, ...);
 
+#define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                        \
+        spcom_exit(EXIT_CODE, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
 
-#if 1
-
-#define SPCOM_EXIT(ERR, FMT, ...)                                              \
-        spcom_exit(ERR, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
-
-#else
-#define SPCOM_EXIT(ERR, FMT, ...)                                              \
-    do {                                                                       \
-        int _err = (ERR);                                                      \
-        if (_err) {                                                            \
-            /* to log and stderr - possible duplicated messages */             \
-            LOG_ERR("exit %d:" FMT, _err, ##__VA_ARGS__);                      \
-            /* extra new line to ensure error message on separate line */      \
-            fprintf(stderr, "\nerror: %d: " FMT "\n", _err, ##__VA_ARGS__);    \
-        }                                                                      \
-        else {                                                                 \
-            LOG_DBG("exit 0: " FMT, ##__VA_ARGS__);                            \
-        }                                                                      \
-        spcom_exit(_err, LOG_WHERESTR(), ##__VA_ARGS__);                       \
-    } while(0)
-#endif
 
 #endif

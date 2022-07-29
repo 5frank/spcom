@@ -202,6 +202,7 @@ done:
 
 static int eol_opt_post_parse(const struct opt_section_entry *entry)
 {
+    // note: do not use LOG here
     return 0;
 }
 

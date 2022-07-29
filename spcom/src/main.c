@@ -13,6 +13,7 @@
 #include "timeout.h"
 #include "outfmt.h"
 #include "port.h"
+#include "main_opts.h"
 
 struct main_s {
     bool cleanup_done;
@@ -103,13 +104,15 @@ static void _backtrace_free(struct backtrace_data *bt)
 }
 #endif
 
-void spcom_exit(int err, const char *where, const char *fmt, ...)
+void spcom_exit(int exit_code, const char *where, const char *fmt, ...)
 {
+    bool have_bug = (exit_code == EX_SOFTWARE);
+
     /* get backtrace first before we mess with stack */
 #if CONFIG_USE_BACKTRACE
     struct backtrace_data *bt = NULL;
     struct backtrace_data bt_data;
-    if (err) {
+    if (have_bug) {
         bt = &bt_data;
         _backtrace_save(bt);
     }
@@ -119,7 +122,7 @@ void spcom_exit(int err, const char *where, const char *fmt, ...)
      * but then some data lost */
     outfmt_endline();
 
-    int level = err ? LOG_LEVEL_ERR : LOG_LEVEL_DBG;
+    int level = (exit_code == EX_OK) ? LOG_LEVEL_DBG : LOG_LEVEL_ERR;
 
     va_list args;
     va_start(args, fmt);
@@ -134,9 +137,6 @@ void spcom_exit(int err, const char *where, const char *fmt, ...)
     }
 #endif
 
-    _Static_assert(EXIT_SUCCESS == 0, "what platform is this?");
-    int status = err;
-
     uv_loop_t *loop = uv_default_loop();
 #if 1
     int result = uv_loop_close(loop);
@@ -145,7 +145,7 @@ void spcom_exit(int err, const char *where, const char *fmt, ...)
     }
 #else
 
-    g_main.exit_status = status;
+    g_main.exit_status = exit_code;
     if (uv_loop_alive(loop)) {
         LOG_DBG("loop alive - stopping it. exit from callback?");
         uv_stop(g_main.loop);
@@ -157,7 +157,7 @@ void spcom_exit(int err, const char *where, const char *fmt, ...)
 #endif
     //TODO use uv_library_shutdown()!?
     main_cleanup(); 
-    exit(status);
+    exit(exit_code);
 }
 
 
@@ -234,7 +234,7 @@ void uv_loop_delete(uv_loop_t* loop) {
 }
 #endif
 
-int main_init(void)
+static int main_init(void)
 {
     struct main_s *m = &g_main;
     int err = 0;
@@ -258,9 +258,12 @@ int main_init(void)
         err = shell_init();
         assert_z(err, "shell_init");
     }
+    else {
+        SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
+        return -1;
+    }
 
-    err = timeout_init();
-    assert(!err);
+    timeout_init();
 
     // rx callback == outfmt_write
     err = port_init(outfmt_write);
@@ -301,17 +304,47 @@ void main_cleanup(void)
     m->cleanup_done = true;
 }
 
+static bool main_do_early_exit_opts(void)
+{
+    const struct main_opts_s *opts = main_opts_get();
+
+    // implicit priorty order of show_x options here if multiple flags provided
+
+    if (opts->show_help) {
+        opt_show_help();
+        return true;
+    }
+
+    if (opts->show_version) {
+        version_print(opts->verbose);
+        return true;
+    }
+
+    if (opts->show_list) {
+        port_info_print_list(opts->verbose);
+        return true;
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     int err = 0;
 
     err = opt_parse_args(argc, argv);
-    if (err)
+    if (err) {
+        exit(EX_USAGE);
         return err;
+    }
 
-    err = log_init();
-    if (err)
-        return err;
+    log_init();
+
+    bool early_exit = main_do_early_exit_opts();
+    if (early_exit) {
+        log_cleanup();
+        return 0;
+    }
 
     err = main_init();
     if (err) {
@@ -324,12 +357,12 @@ int main(int argc, char *argv[])
     /* log err but must always run SPCOM_EXIT handler for cleanup */
     if (err) {
         LOG_UV_ERR(err, "uv_run");
+        SPCOM_EXIT(EX_SOFTWARE, "main");
     }
 
-    SPCOM_EXIT(err, "main");
 
-    // should never get here!?
-    assert(0);
-    return 0;
+    SPCOM_EXIT(EX_OK, "main");
+    // should never get here
+    return -1;
 }
 

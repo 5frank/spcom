@@ -141,6 +141,8 @@ static int check_valid_hexfmt(const char *fmt)
 /// only initialize table once on post parse
 static int ctohex_opt_post_parse(const struct opt_section_entry *entry)
 {
+    // note: do not use LOG here
+    //
     if (!ctohex_opts.hexfmt[0])
         return 0; // use default
 

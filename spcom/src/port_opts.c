@@ -3,7 +3,6 @@
 #include "port.h"
 #include "port_info.h"
 
-
 struct port_opts_s port_opts = {
     /* assume negative values invalid. -1 used to check if options provided and 
      should be set or untouched. */
@@ -63,6 +62,7 @@ static int parse_flowcontrol(const struct opt_conf *conf, char *sval)
 
 static int port_opts_post_parse(const struct opt_section_entry *entry)
 {
+    // note: do not use LOG here
     // TODO set defaults?
     return 0;
 }
@@ -120,13 +120,14 @@ static const struct opt_conf port_opts_conf[] = {
         .name = "wait",
         .dest = &port_opts.wait,
         .parse = opt_ap_flag_true,
-        .descr = "wait on specified serial port to show up if it do not exists"
+        .descr = "Wait on specified serial port to show up if it do not exists"
     },
     {
         .name = "stay",
         .dest = &port_opts.stay,
         .parse = opt_ap_flag_true,
-        .descr = "Similar to --wait but will never exit if the serial port disappears and wait for it to reappear instead"
+        .descr = "Similar to --wait but will never exit if the serial port "
+                 "disappears and wait for it to reappear instead"
     },
 };
 

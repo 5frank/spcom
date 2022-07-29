@@ -227,6 +227,7 @@ static int parse_bind(const struct opt_conf *conf, char *s)
 static int keybind_post_parse(const struct opt_section_entry *entry)
 {
     int err;
+    // note: do not use LOG here. not initialized yet
 
     struct keybind_map *kbm = &keybind_map;
     err = kb_add_action(kbm, VT_CTRL_KEY('C'), K_ACTION_EXIT);

@@ -54,13 +54,15 @@ static struct port_s {
     struct opq_item *current_op;
     enum port_state_e state;
     port_rx_cb_fn *rx_cb;
-} _port = {0};
+} port_data = {0};
 
 
-static int port_open(void);
+static void port_open(void);
 void port_close(void);
 void port_cleanup(void);
 static void _uvcb_poll_event(uv_poll_t* handle, int status, int events);
+
+
 
 static const char *port_state_to_str(int state)
 {
@@ -91,12 +93,11 @@ static void on_port_discovered(int err)
 }
 
 /// oh no! check port exists, if not wait for it if allowed, else die.
-static void port_panic(const char *msg)
+static void port_panic(int exit_code, const char *msg)
 {
-
     if (!port_opts.stay) {
         // TODO user error
-        SPCOM_EXIT(EXIT_FAILURE, "port error - %s", msg);
+        SPCOM_EXIT(exit_code, "port error - %s", msg);
         return;
     }
     /* if we get here, device probably still "exists" as this process holds a
@@ -112,7 +113,7 @@ static void port_panic(const char *msg)
 
     port_close();
     port_wait_start(on_port_discovered);
-    _port.state = PORT_STATE_WAITING;
+    port_data.state = PORT_STATE_WAITING;
 }
 
 static void _set_event_flags(int flags)
@@ -121,7 +122,7 @@ static void _set_event_flags(int flags)
     flags |= UV_DISCONNECT;
 
     /* calling uv_poll_start() on active handle is ok. will update events mask */
-    int err = uv_poll_start(&_port.poll_handle, flags, _uvcb_poll_event); 
+    int err = uv_poll_start(&port_data.poll_handle, flags, _uvcb_poll_event); 
     assert_uv_z(err, "uv_poll_start");
 }
 
@@ -140,21 +141,21 @@ static inline void _tx_stop(void)
 static void op_done(struct opq_item *op)
 {
     opq_free_head(&opq_rt, op);
-    _port.offset = 0;
-    _port.current_op = NULL;
+    port_data.offset = 0;
+    port_data.current_op = NULL;
 }
 
 static void _on_sleep_done(uv_timer_t* handle)
 {
     LOG_DBG("op d sleep done");
-    assert(_port.current_op);
-    assert(_port.current_op->op_code == OP_SLEEP);
-    op_done(_port.current_op);
+    assert(port_data.current_op);
+    assert(port_data.current_op->op_code == OP_SLEEP);
+    op_done(port_data.current_op);
 }
 
 static bool update_write(const void *buf, size_t bufsize)
 {
-    struct port_s *p = &_port;
+    struct port_s *p = &port_data;
 
     if (!bufsize)
         return true;
@@ -199,7 +200,7 @@ static bool update_write(const void *buf, size_t bufsize)
     }
     else if (rc < 0) {
         LOG_ERR("sp_nb_write size=%zu, rc=%d", size, rc);
-        port_panic("write error");
+        port_panic(EX_IOERR, "write error");
         done = false; // should not get here
     }
     else {
@@ -217,7 +218,7 @@ static bool update_write(const void *buf, size_t bufsize)
  */
 static void _on_prepare(uv_prepare_t* handle)
 {
-    if (_port.current_op)
+    if (port_data.current_op)
         return; // operation not done yet
 
     // TODO single q
@@ -228,7 +229,7 @@ static void _on_prepare(uv_prepare_t* handle)
     }
 
     // load/start operation prior sleep timer start
-    _port.current_op = op;
+    port_data.current_op = op;
     // OP_EXIT is the only accepted op_code when port not ready
     if (op->op_code == OP_EXIT) {
         SPCOM_EXIT(0, "op exit");
@@ -236,20 +237,20 @@ static void _on_prepare(uv_prepare_t* handle)
     }
 
 
-    if (_port.state != PORT_STATE_READY) {
+    if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(_port.state));
+                port_opts.name, port_state_to_str(port_data.state));
 
-        // implicilty set _port.current_op = NULL;
+        // implicilty set port_data.current_op = NULL;
         op_done(op);
         return;
     }
 
     if (op->op_code == OP_SLEEP) {
-        //if (_port.sleep_active) {
+        //if (port_data.sleep_active) {
         //uv_timer_get_due_in
         uint64_t ms = (uint64_t) op->u.si_val * 1000;
-        int err = uv_timer_start(&_port.t_sleep, _on_sleep_done, ms, 0);
+        int err = uv_timer_start(&port_data.t_sleep, _on_sleep_done, ms, 0);
         LOG_DBG("sleeping %d ms", (unsigned int) ms);
         assert_uv_z(err, "uv_timer_start");
         return;
@@ -258,14 +259,13 @@ static void _on_prepare(uv_prepare_t* handle)
     _tx_start(); // enable _on_writable()
 }
 
-
 static void _on_writable(uv_poll_t* handle)
 {
     (void) handle;
     int err = 0;
     char tmpc;
     bool done = true;
-    struct opq_item *op = _port.current_op;
+    struct opq_item *op = port_data.current_op;
     if (!op)  {
         _tx_stop();
         return;
@@ -289,28 +289,28 @@ static void _on_writable(uv_poll_t* handle)
             break;
 
         case OP_PORT_SET_RTS:
-            err = sp_set_rts(_port.port, op->u.si_val);
+            err = sp_set_rts(port_data.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_rts");
             done = true;
             break;
 
         case OP_PORT_SET_CTS:
-            err = sp_set_cts(_port.port, op->u.si_val);
+            err = sp_set_cts(port_data.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_cts");
             done = true;
             break;
 
         case OP_PORT_SET_DTR:
-            err = sp_set_dtr(_port.port, op->u.si_val);
+            err = sp_set_dtr(port_data.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dtr");
             done = true;
             break;
 
         case OP_PORT_SET_DSR:
-            err = sp_set_dsr(_port.port, op->u.si_val);
+            err = sp_set_dsr(port_data.port, op->u.si_val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dsr");
             done = true;
@@ -318,7 +318,7 @@ static void _on_writable(uv_poll_t* handle)
 
         case OP_PORT_DRAIN:
             // TODO is this "safe"? see libserialport doc.
-            err = sp_drain(_port.port);
+            err = sp_drain(port_data.port);
             if (err)
                 LOG_SP_ERR(err, "sp_drain");
             done = true;
@@ -326,7 +326,7 @@ static void _on_writable(uv_poll_t* handle)
 
         case OP_PORT_FLUSH:
             // TODO always flush IO?
-            err = sp_flush(_port.port, SP_BUF_BOTH);
+            err = sp_flush(port_data.port, SP_BUF_BOTH);
             if (err)
                 LOG_SP_ERR(err, "sp_flush");
             done = true;
@@ -342,6 +342,7 @@ static void _on_writable(uv_poll_t* handle)
             done = true;
             break;
     }
+
     if (done) {
         op_done(op);
     }
@@ -351,10 +352,10 @@ static void _on_readable(uv_poll_t* handle)
 {
     // TODO bufsize?
     static char buf[255];
-    int rc = sp_nonblocking_read(_port.port, buf, sizeof(buf));
+    int rc = sp_nonblocking_read(port_data.port, buf, sizeof(buf));
     if (rc < 0) {
         LOG_ERR("sp_nonblocking_read rc=%d", rc);
-        port_panic("read error");
+        port_panic(EX_IOERR, "read error");
         return;
     }
     if (rc == 0) {
@@ -369,7 +370,7 @@ static void _on_readable(uv_poll_t* handle)
 
     size_t size = rc;
     LOG_DBG("read. %zu bytes", size);
-    _port.rx_cb(buf, size);
+    port_data.rx_cb(buf, size);
 }
 
 /*
@@ -386,7 +387,7 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
     // This will typicaly occur if user pulls the cabel for /dev/ttyUSB
     if (status == UV_EBADF) {
         LOG_DBG("poll event EBADF - device disconnected!?");
-        port_panic("EBADF");
+        port_panic(EX_OSFILE, "EBADF");
         return;
     }
     else if (status) {
@@ -403,7 +404,7 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 
     if (events & UV_DISCONNECT) {
         // probaly never
-        port_panic("UV_DISCONNECT");
+        port_panic(EX_UNAVAILABLE, "UV_DISCONNECT");
     }
 }
 
@@ -411,7 +412,7 @@ int port_set_config(void)
 {
     // TODO is user change config in cmd mode it should also be stored for reopen
 #define CONFIG_ERROR(ERR, WHY) (LOG_SP_ERR(ERR, WHY), ERR)
-    struct sp_port *p = _port.port;
+    struct sp_port *p = port_data.port;
     struct port_opts_s *o = &port_opts;
     if (!p)
         return -1;
@@ -462,130 +463,143 @@ int port_set_config(void)
     return 0;
 }
 
-static int port_open(void)
+
+static void port_open(void)
 {
-/* error macros should only be used from open/init as cleanup() called.
- * (could also used goto but less detailed error message. no line number for example)
- */
-#define RET_SP_ERROR(ERR, WHY) (LOG_SP_ERR(ERR, WHY), port_cleanup(), ERR)
-#define RET_UV_ERROR(ERR, WHY) (LOG_UV_ERR(ERR, WHY), port_cleanup(), ERR)
+    /* sorry goto in macros. only used here. also dual evaluation of param */
+
+    int exit_code = 0;
+    const char *errmsg = NULL;
+
+#define CHECK_SP_ERR(ERR, WHY) if (ERR) {                                      \
+    errmsg = WHY;                                                              \
+    exit_code = sp_err_to_ex(ERR);                                             \
+    goto error;                                                                \
+} else
+
+#define CHECK_UV_ERR(ERR, WHY) if (ERR) {                                      \
+    errmsg = WHY;                                                              \
+    exit_code = uv_err_to_ex(ERR);                                             \
+    goto error;                                                                \
+} else
+
     int err = 0;
     const char *devname = port_opts.name;
-    if (!devname) {
-        LOG_ERR("No device name provided");
-        return -1;
-    }
 
     uv_loop_t *loop = uv_default_loop();
     opq_reset(&opq_rt);
 
     LOG_DBG("Opening port '%s'", devname);
-    err = sp_get_port_by_name(devname, &_port.port);
-    if (err)
-        return RET_SP_ERROR(err, "sp_get_port_by_name");
+    err = sp_get_port_by_name(devname, &port_data.port);
+    CHECK_SP_ERR(err, "sp_get_port_by_name");
 
-    struct sp_port *p = _port.port;
+    struct sp_port *p = port_data.port;
     err = sp_open(p, SP_MODE_READ_WRITE);
-    if (err)
-        return RET_SP_ERROR(err, "sp_open");
+    CHECK_SP_ERR(err, "sp_open");
 
     // get os defualts. must be _after_ open
-    err = sp_get_config(p, _port.org_config);
-    if (err)
-        return RET_SP_ERROR(err, "sp_get_config");
-    _port.have_org_config = true;
+    err = sp_get_config(p, port_data.org_config);
+    CHECK_SP_ERR(err, "sp_get_config");
+    port_data.have_org_config = true;
 
     port_set_config();
 
     // get fd on unix a HANDLE on windows
     uv_os_fd_t fd = -1; // or uv_file ?
     err = sp_get_port_handle(p, &fd);
-    if (err)
-        return RET_SP_ERROR(err, "sp_get_port_handle");
+    CHECK_SP_ERR(err, "sp_get_port_handle");
 
     // saftey check
     uv_handle_type htype = uv_guess_handle(fd);
     LOG_DBG("uv_handle_type='%s'=%d",
             log_uv_handle_type_to_str(htype), (int) htype);
 
-    err = uv_prepare_init(loop, &_port.prepare_handle);
-    if (err)
-        return RET_UV_ERROR(err, "uv_prepare_init");
+    err = uv_prepare_init(loop, &port_data.prepare_handle);
+    CHECK_UV_ERR(err, "uv_prepare_init");
 
-    err = uv_prepare_start(&_port.prepare_handle, _on_prepare);
+    err = uv_prepare_start(&port_data.prepare_handle, _on_prepare);
     (void) err; // cant fail according to doc
 
     // use uv_poll_t as custom read write from libserialport
-    err = uv_poll_init(loop, &_port.poll_handle, fd);
-    if (err)
-        return RET_UV_ERROR(err, "uv_poll_init");
+    err = uv_poll_init(loop, &port_data.poll_handle, fd);
+    CHECK_UV_ERR(err, "uv_poll_init");
 
     int events = UV_READABLE | UV_WRITABLE;
-    err = uv_poll_start(&_port.poll_handle, events, _uvcb_poll_event);
-    if (err)
-        return RET_UV_ERROR(err, "uv_poll_start");
+    err = uv_poll_start(&port_data.poll_handle, events, _uvcb_poll_event);
+    CHECK_UV_ERR(err, "uv_poll_start");
 
-    _port.state = PORT_STATE_READY;
+    port_data.state = PORT_STATE_READY;
 
-    return 0;
+    return; // success
+
+error:
+    // TODO clenup not needed here? let exit handler do it!?
+    port_cleanup();
+
+    SPCOM_EXIT(exit_code, "%s", errmsg);
+
+#undef CHECK_SP_ERR
+#undef CHECK_UV_ERR
 }
 
-void port_close(void) 
+void port_close(void)
 {
     int err;
 
-    struct sp_port *p = _port.port;
-    if (!p) 
+    if (!port_data.port) {
         return;
+    }
 
-    err = uv_timer_stop(&_port.t_sleep);
+    err = uv_timer_stop(&port_data.t_sleep);
     (void)err;
     //LOG_UV_ERR(err, "uv_poll_stop");
 
-    err = uv_prepare_stop(&_port.prepare_handle);
+    err = uv_prepare_stop(&port_data.prepare_handle);
     (void) err; // cant fail
 
-    if (uv_is_active((uv_handle_t *) &_port.poll_handle)) {
-        err = uv_poll_stop(&_port.poll_handle);
+    if (uv_is_active((uv_handle_t *) &port_data.poll_handle)) {
+        err = uv_poll_stop(&port_data.poll_handle);
         if (err)
             LOG_UV_ERR(err, "uv_poll_stop");
     }
 
     // TODO ensure error messages for "dumped" commands printed
     opq_free_all(&opq_rt);
-    _port.offset = 0;
-    _port.current_op = NULL;
+    port_data.offset = 0;
+    port_data.current_op = NULL;
 
-    if (_port.have_org_config) {
-        assert(_port.org_config);
+    if (port_data.have_org_config) {
+        assert(port_data.org_config);
         LOG_DBG("Restoring port settings");
-        err = sp_set_config(p, _port.org_config);
+        err = sp_set_config(port_data.port, port_data.org_config);
         // TODO if /dev/ttyUSB0 unplugged, print more usefull message
         //  can not restore. no error message?
-        if (err)
+        if (err) {
             LOG_SP_ERR(err, "sp_set_config");
+        }
+        port_data.have_org_config = false;
     }
 
-    err = sp_close(p);
+    err = sp_close(port_data.port);
     if (err)
         LOG_SP_ERR(err, "sp_close");
 
-    sp_free_port(p);
-    _port.port = NULL;
+    sp_free_port(port_data.port);
+    port_data.port = NULL;
 
 }
 
 void port_cleanup(void)
 {
-    if (_port.org_config) {
-         sp_free_config(_port.org_config);
-        _port.org_config = NULL;
+    if (port_data.org_config) {
+         sp_free_config(port_data.org_config);
+        port_data.org_config = NULL;
     }
 
     port_wait_cleanup();
 }
 
-int port_write(const void *data, size_t size) 
+int port_write(const void *data, size_t size)
 {
 #if 1
     return -1;
@@ -593,12 +607,12 @@ int port_write(const void *data, size_t size)
     /* TODO I think there is a good reason for not
      * calling sp_nonblocking_write() directly here but I forgot if or why */
 
-    if (!_port.port)
+    if (!port_data.port)
         return -1;
 
-    if (_port.state != PORT_STATE_READY) {
+    if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(_port.state));
+                port_opts.name, port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -606,11 +620,11 @@ int port_write(const void *data, size_t size)
     int remains = size;
     const char *p = data;
     while (remains > 0) {
-        int rc = sp_nonblocking_write(_port.port, p, remains);
+        int rc = sp_nonblocking_write(port_data.port, p, remains);
 
         if (rc < 0) {
             LOG_ERR("sp_nb_write rc=%d", rc);
-            port_panic("write error");
+            port_panic(EX_IOERR, "write error");
             return -1;
         }
         if (rc == 0) {
@@ -635,9 +649,9 @@ int port_write(const void *data, size_t size)
 int port_putc(int c)
 {
 #if 1
-    if (_port.state != PORT_STATE_READY) {
+    if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(_port.state));
+                port_opts.name, port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -664,7 +678,7 @@ int port_drain(uint32_t timeout_ms)
      * result of sp_output_waiting()." */
 #if 0 //TODO
     while(1) {
-        int rc = sp_output_waiting(_port.port);
+        int rc = sp_output_waiting(port_data.port);
         if (rc == 0) {
             break;
         }
@@ -685,35 +699,43 @@ int port_drain(uint32_t timeout_ms)
 int port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
-    if (!port_opts.name)
-        return opt_error(NULL, "no serial port device");
+    if (!port_opts.name) {
+        SPCOM_EXIT(EX_USAGE, "No port or device name provided");
+        return -1;
+    }
 
-    _port.rx_cb = rx_cb;
+    port_data.rx_cb = rx_cb;
     // allocate some resources
-    err = sp_new_config(&_port.org_config);
-    assert_sp_z(err, "sp_new_config");
-    assert(_port.org_config);
+    err = sp_new_config(&port_data.org_config);
+    if (err) {
+        LOG_SP_ERR(err, "sp_new_config");
+        return err;
+    }
+    assert(port_data.org_config);
 
     uv_loop_t *loop = uv_default_loop();
 
-    err = uv_timer_init(loop, &_port.t_sleep);
+    err = uv_timer_init(loop, &port_data.t_sleep);
     assert_uv_z(err, "uv_timer_init");
 
-    _port.ts_lastc = uv_now(loop);
+    port_data.ts_lastc = uv_now(loop);
 
-    port_wait_init(port_opts.name);
+    if (port_opts.wait) {
+        port_wait_init(port_opts.name);
+    }
 
     if (!port_exists()) {
-        if (port_opts.wait || port_opts.stay) {
+        if (port_opts.wait) {
             port_wait_start(on_port_discovered);
-            _port.state = PORT_STATE_WAITING;
+            port_data.state = PORT_STATE_WAITING;
             return 0;
         }
         else {
-            LOG_ERR("No such device '%s'", port_opts.name);
+            SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts.name);
             return -EBADF;
         }
     }
 
-    return port_open();
+    port_open();
+    return 0;
 }

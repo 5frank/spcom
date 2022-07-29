@@ -23,7 +23,7 @@
 #define assert(COND)                                                           \
     do {                                                                       \
         if (!(COND)) {                                                         \
-            SPCOM_EXIT(-2, "assert '%s' failed", STRINGIFY(COND));             \
+            SPCOM_EXIT(EX_SOFTWARE, "assert '%s' failed", STRINGIFY(COND));    \
         }                                                                      \
     } while (0)
 
@@ -32,7 +32,7 @@
     do {                                                                       \
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
-            SPCOM_EXIT(-2, "assert failed, "                                   \
+            SPCOM_EXIT(EX_SOFTWARE, "assert failed, "                          \
                        "'%d' is not zero, %s, %s",                             \
                        __val, (MSG), log_errnostr(errno));                     \
         }                                                                      \
@@ -43,20 +43,20 @@
     do {                                                                       \
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
-            SPCOM_EXIT(-3, "assert failed, "                                   \
+            SPCOM_EXIT(EX_SOFTWARE, "assert failed, "                          \
                        "libuv value '%d' is not zero, %s, %s",                 \
                        __val, (MSG), log_libuv_errstr(__val, errno));          \
         }                                                                      \
     } while (0)
 
 /// assert libserialport (sp) zero return code
-#define assert_sp_z(VAL, MSG)                                                  \
+#define assert_sp_ok(RC, MSG)                                                  \
     do {                                                                       \
-        int __val = (VAL);                                                     \
-        if (__val) {                                                           \
-            SPCOM_EXIT(-3, "assert failed, "                                   \
-                       "libsp value '%d' is not zero, %s, %s",                 \
-                       __val, (MSG), log_libsp_errstr(__val, errno));          \
+        int __rc = (RC);                                                       \
+        if (__rc) {                                                            \
+            SPCOM_EXIT(___sp_err_to_ex(__rc), "assert failed, "                \
+                       "libserialport err '%d', %s, %s",                       \
+                       __rc, (MSG), log_libsp_errstr(__val, errno));           \
         }                                                                      \
     } while (0)
 

@@ -495,6 +495,7 @@ done:
 
 static int charmap_opt_post_parse(const struct opt_section_entry *entry)
 {
+    // note: do not use LOG here
 #if 0
     charmap_print_map("tx", charmap_tx);
     charmap_print_map("rx", charmap_rx);

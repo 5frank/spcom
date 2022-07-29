@@ -3,43 +3,21 @@
 #include <stdlib.h>
 
 #include "common.h"
-#include "assert.h"
 #include "opt.h"
-#include "port_info.h"
+#include "main_opts.h"
 
-static struct global_opts_s _global_opts;
+static struct main_opts_s main_opts;
 
-const struct global_opts_s *global_opts = &_global_opts;
-
-static struct main_opts_s {
-    int show_help;
-    int show_version;
-    int show_list;
-} main_oflags;
-
-static int main_opts_post_parse(const struct opt_section_entry *entry)
+const struct main_opts_s *main_opts_get(void)
 {
-    if (main_oflags.show_help) {
-        int err = opt_show_help();
-        exit(err ? EXIT_FAILURE : 0);
-    }
-
-    if (main_oflags.show_version) {
-        version_print(_global_opts.verbose);
-        exit(0);
-    }
-
-    if (main_oflags.show_list) {
-        port_info_print_list(_global_opts.verbose);
-        exit(0);
-    }
-
-    return 0;
+    return &main_opts;
 }
 
 static int parse_autocomplete(const struct opt_conf *conf, char *s)
 {
-    assert(s);
+    if (!s) {
+        exit(-1);
+    }
 
     char *name = s;
     char *start = NULL;
@@ -70,16 +48,22 @@ done:
 
 static const struct opt_conf main_opts_conf[] = {
     {
+        .name = "help",
+        .shortname = 'h',
+        .dest = &main_opts.show_help,
+        .parse = opt_ap_flag_true,
+        .descr = "show help and exit",
+    },
+    {
         .name = "version",
-        .dest = &main_oflags.show_version,
+        .dest = &main_opts.show_version,
         .parse = opt_ap_flag_true,
         .descr = "show version and exit",
     },
     {
-        .name = "ls",
-        .alias = "list",
+        .name = "list",
         .shortname = 'l',
-        .dest = &main_oflags.show_list,
+        .dest = &main_opts.show_list,
         .parse = opt_ap_flag_true,
         .descr = "list serial port devices. "
             "Combine with verbose option for more detailes",
@@ -87,16 +71,9 @@ static const struct opt_conf main_opts_conf[] = {
     {
         .name = "verbose",
         .shortname = 'v',
-        .dest = &_global_opts.verbose,
+        .dest = &main_opts.verbose,
         .parse = opt_ap_flag_count,
         .descr = "verbose output",
-    },
-    {
-        .name = "help",
-        .shortname = 'h',
-        .dest = &main_oflags.show_help,
-        .parse = opt_ap_flag_true,
-        .descr = "show help and exit",
     },
     {
         .name = "autocomplete",
@@ -105,5 +82,5 @@ static const struct opt_conf main_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), main_opts_post_parse);
+OPT_SECTION_ADD(main, main_opts_conf, ARRAY_LEN(main_opts_conf), NULL);
 

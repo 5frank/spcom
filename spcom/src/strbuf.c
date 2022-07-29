@@ -13,20 +13,17 @@ void strbuf_write(struct strbuf *sb, const char *src, size_t size)
     while (1) {
         // max_size likley changed after strbuf_flush()
         size_t max_size = strbuf_remains(sb);
-        size_t chunk_size = size;
-
-        if (chunk_size > max_size) {
-            chunk_size = max_size;
-        }
+        size_t chunk_size = (size <= max_size) ? size : max_size;
 
         memcpy(&sb->buf[sb->len], src, size);
+        sb->len += chunk_size;
+
+        if (chunk_size >= size) {
+            break;
+        }
 
         size -= chunk_size;
         src += chunk_size;
-
-        if (size == 0) {
-            break;
-        }
 
         strbuf_flush(sb);
     }

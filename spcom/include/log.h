@@ -7,19 +7,18 @@
 #ifndef DEBUG
 #define DEBUG 0
 #endif
-/// see magic trick in CMakeList.txt 
+
+/// see magic trick in CMakeList.txt
 #ifdef SOURCE_PATH_SIZE
 #define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
 #else
 #define __FILENAME__ __FILE__
 #endif
 
-enum log_tag_e {
-    LOG_LEVEL_ERR = 1,
-    LOG_LEVEL_WRN = 2,
-    LOG_LEVEL_INF = 3,
-    LOG_LEVEL_DBG = 4
-};
+#define LOG_LEVEL_ERR 1
+#define LOG_LEVEL_WRN 2
+#define LOG_LEVEL_INF 3
+#define LOG_LEVEL_DBG 4
 
 void log_vprintf(int level, const char *where, const char *fmt, va_list args);
 
@@ -45,7 +44,6 @@ const char *log_wherestr(const char *file, unsigned int line, const char *func);
 #define LOG_WHERESTR() \
     ((DEBUG) ? log_wherestr(__FILENAME__, __LINE__, __func__) : NULL)
 
-
 const char *log_errnostr(int eno);
 
 #define LOG_SYS_ERR(RC, MSG) \
@@ -62,6 +60,6 @@ const char *log_libsp_errstr(int sprc, int eno);
 
 const char *log_uv_handle_type_to_str(int n);
 
-int log_init(void);
+void log_init(void);
 void log_cleanup(void);
 #endif

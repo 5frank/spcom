@@ -326,7 +326,6 @@ static int opt_conf_parse(struct opt_context *ctx,
 
 int opt_parse_args(int argc, char *argv[])
 {
-
     int err;
     struct opt_context *ctx = &g_ctx;
     if (!ctx->initialized) {
@@ -406,20 +405,24 @@ static int opt_help_cb(const struct opt_section_entry *entry,
 {
     printf("  %s", opt_conf_str(NULL, conf));
     // TODO pretty print
-    if (conf->metavar)
+    if (conf->metavar) {
         printf(" [%s]", conf->metavar);
+    }
 
-    if (conf->descr)
+    if (conf->descr) {
         printf("  %s", conf->descr);
+    }
 
     printf("\n");
 
     return 0;
 }
 
-int opt_show_help(void)
+void opt_show_help(void)
 {
-    return opt_section_foreach_conf(opt_help_cb, &g_ctx);
+    int err = opt_section_foreach_conf(opt_help_cb, &g_ctx);
+    // only error if callback returns error
+    (void) err;
 }
 
 const char **opt_autocomplete(const char *name, const char *startstr)

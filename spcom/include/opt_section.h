@@ -9,13 +9,16 @@
 struct opt_conf;
 struct opt_section_entry;
 
-/** callback for eacy entry */
+/** callback for each entry */
 typedef int (*opt_section_entry_cb_fn)(const struct opt_section_entry *entry);
 
 struct opt_section_entry {
     const char *name;
     const struct opt_conf *conf;
     unsigned int num_conf;
+    /**
+     * warning: do not rely on possiblie uninitalized resourced as called on
+     * early startup */
     opt_section_entry_cb_fn post_parse;
 };
 

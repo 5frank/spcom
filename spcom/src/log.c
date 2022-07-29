@@ -9,6 +9,7 @@
 #include "strbuf.h"
 #include "opt.h"
 #include "shell.h"
+#include "common.h"
 #include "log.h"
 
 /**
@@ -27,19 +28,20 @@
         }                                                                      \
     } while(0)
 
+#define LOG_OPTS_DEFAULT_LEVEL 3
 struct log_opts_s {
     const char *file;
     int level;
     int silent;
 } log_opts = {
-    .level = 3
+    .level = LOG_OPTS_DEFAULT_LEVEL 
 };
 
 extern const char *errnotostr(int n);
 
 static struct log_data_s {
-    //bool stderr_isatty;
-    FILE *outfp;
+    bool initialized;
+    FILE *filefp;
     char buf[1024];
     unsigned int bufovf;
 } log_data = { 0 };
@@ -225,37 +227,31 @@ static void log_sb_fwrite_nolock(const struct strbuf *sb, FILE *fp)
 
 void log_vprintf(int level, const char *where, const char *fmt, va_list args)
 {
-    if (level > log_opts.level)
+    /* in case some other module uses log module before log is initialized, do it here.
+     * otherwise hard reason about initalization order always correct */
+    if (!log_data.initialized) {
+        log_init();
+    }
+
+    if (level > log_opts.level) {
         return;
+    }
 
     struct strbuf *sb = &log_strbuf;
-
-    // fp1 never NULL;
-    FILE *fp1 = log_data.outfp;
-    if (!fp1) {
-        fp1 = stderr;
-        if (log_opts.silent) {
-            return;
-        }
-    }
-
-    /* output both to file and stderr in some cases.
-     * silent option does not affect output to separate log file */
-    FILE *fp2 = NULL;
-    if (fp1 != stderr && !log_opts.silent && level >= LOG_LEVEL_INF) {
-        fp2 = stderr;
-    }
 
     const char *levelstr = log_levelstr(level);
     log_sb_fmtmsg(sb, levelstr, where, fmt, args);
 
-
     const void *lock = shell_output_lock();
 
-    log_sb_fwrite_nolock(sb, fp1);
+    /* silent option do not apply to separate file output */
+    if (log_data.filefp) {
+        log_sb_fwrite_nolock(sb, log_data.filefp);
+    }
 
-    if (fp2) {
-        log_sb_fwrite_nolock(sb, fp2);
+    /* output both to file and stderr in some cases */
+    if (!log_opts.silent && level <= LOG_LEVEL_INF) {
+        log_sb_fwrite_nolock(sb, stderr);
     }
 
     shell_output_unlock(lock);
@@ -271,8 +267,7 @@ void log_printf(int level, const char *where, const char *fmt, ...)
 
 static void _sp_log_handler(const char *fmt, ...)
 {
-
-    FILE *fp = log_data.outfp;
+    FILE *fp = log_data.filefp;
     if (!fp)
         return;
     va_list args;
@@ -326,23 +321,32 @@ const char *log_uv_handle_type_to_str(int n)
     // clang-format on
 }
 
-int log_init(void) 
+void log_init(void)
 {
+    if (log_data.initialized) {
+        return;
+    }
 
-    const char *path = log_opts.file;
     int level = log_opts.level;
-    if (!path) {
-        log_data.outfp = stderr;
-    }
-    else {
-        FILE *fp = fopen(path, "w");
+
+    log_data.filefp = NULL;
+
+    const char *fpath = log_opts.file;
+    if (fpath) {
+        FILE *fp = fopen(fpath, "w");
         if (!fp) {
-            fprintf(stderr, "ERR: failed to open log file");
-            return -1;
+            /* errnos set are same for fopen and open.
+             * usage error as probably permission erros */
+            int exit_code = (errno == EACCES) ? EX_NOPERM : EX_USAGE;
+            SPCOM_EXIT(exit_code,
+                        "Failed to open log file %s '%s'",
+                        fpath, strerror(errno));
+            return;
         }
-        setlinebuf(fp); // TODO needed and correct?
-        log_data.outfp = fp;
+        //setlinebuf(fp); // TODO needed and correct?
+        log_data.filefp = fp;
     }
+
     // TODO set debug for this application
     if (level == 0) {
         //
@@ -351,23 +355,24 @@ int log_init(void)
         // very verbose
         sp_set_debug_handler(_sp_log_handler);
     }
-    return 0;
+
+    log_data.initialized = true;
 }
 
 void log_cleanup(void)
 {
-
-    FILE *fp = log_data.outfp;
-    if (!fp)
-        return;
-
-    if ((fp == stderr) || (fp == stdout)) {
+    if (!log_data.initialized) {
         return;
     }
 
-    fclose(fp);
+    FILE *fp = log_data.filefp;
+    if ((fp != stderr) && (fp != stdout)) {
+        return;
+        fclose(fp);
+        log_data.filefp = NULL;
+    }
 
-    log_data.outfp = NULL;
+    log_data.initialized = false;
 }
 
 
@@ -376,6 +381,12 @@ static const struct opt_conf log_opts_conf[] = {
         .name = "loglevel",
         .dest = &log_opts.level,
         .parse = opt_ap_int,
+        .descr = "log verbosity level. "
+            "Error: " STRINGIFY(LOG_LEVEL_ERR) ", "
+            "Warn: " STRINGIFY(LOG_LEVEL_WRN) ", "
+            "Info: " STRINGIFY(LOG_LEVEL_INF) ", "
+            "Debug: >=" STRINGIFY(LOG_LEVEL_DBG) ", "
+            "Default: " STRINGIFY(LOG_OPTS_DEFAULT_LEVEL)
     },
     {
         .name = "logfile",
@@ -386,8 +397,14 @@ static const struct opt_conf log_opts_conf[] = {
         .name = "silent",
         .dest = &log_opts.silent,
         .parse = opt_ap_flag_true,
+        .descr = "Only serial port data written to stdout. Error message(s) suppressed"
     },
 };
+
+static int log_opts_post_parse(const struct opt_section_entry *entry)
+{
+    return 0;
+}
 
 OPT_SECTION_ADD(log, log_opts_conf, ARRAY_LEN(log_opts_conf), NULL);
 
