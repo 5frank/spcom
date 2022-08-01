@@ -56,7 +56,7 @@
         if (__rc) {                                                            \
             SPCOM_EXIT(___sp_err_to_ex(__rc), "assert failed, "                \
                        "libserialport err '%d', %s, %s",                       \
-                       __rc, (MSG), log_libsp_errstr(__val, errno));           \
+                       __rc, (MSG), log_libsp_errstr(__rc, errno));            \
         }                                                                      \
     } while (0)
 

@@ -34,14 +34,15 @@ enum op_code_e {
 
 struct opq_item {
     uint16_t op_code;
-    uint16_t size; //<! non-zero if hdata below
-    /// type of data impleied byt op_code
+    uint16_t size; //<! non-zero if u.data not NULL
+    /// type of data impleied by op_code and size
     union {
-        uint32_t ui_val;
-        uint32_t si_val;
-        void *hdata; // heap data freed when done
+        int val;
+        void *data;
     } u;
 };
+
+typedef void (opq_write_done_cb)(const struct opq_item *itm);
 
 /// oo - on open
 extern struct opq opq_oo;
@@ -50,29 +51,34 @@ extern struct opq opq_rt;
 
 void opq_reset(struct opq *q);
 
+void opq_set_write_done_cb(struct opq *q, opq_write_done_cb *cb);
+
 /// enqueue value
 int opq_enqueue_val(struct opq *q, uint16_t op_code, int val);
 
-/// enqueue heap data. freed by consumer
-int opq_enqueue_hdata(struct opq *q,
-                      uint16_t op_code,
+/**
+ * enqueue a write operation. prior call to opq_set_write_done_cb might be
+ * needed */
+int opq_enqueue_write(struct opq *q,
                       void *data,
                       uint16_t size);
 
-/// get tail
-struct opq_item *opq_peek_tail(struct opq *q);
+/**
+ * peek and acquire tail without updating index. Returned item (unless NULL)
+ * could be passed to opq_enqueue_tail() or ignored.  */
+struct opq_item *opq_acquire_tail(struct opq *q);
 
-/// assumes @param itm same as returned by opq_peek_tail()
+/// assumes @param itm same as returned by opq_acquire_tail()
 int opq_enqueue_tail(struct opq *q, struct opq_item *itm);
 
-
-/** peek at head of queue without updating index. 
+/**
+ * peek at head of queue without updating index.
  * assume passed to free_head later */
-struct opq_item *opq_peek_head(struct opq *q);
+struct opq_item *opq_acquire_head(struct opq *q);
 
-/// "free" item retrived with peek_head
-void opq_free_head(struct opq *q, struct opq_item *itm);
+/** free and release item retrived with opq_acquire_head() */
+void opq_release_head(struct opq *q, struct opq_item *itm);
 
-void opq_free_all(struct opq *q);
+void opq_release_all(struct opq *q);
 #endif
 

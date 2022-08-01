@@ -11,7 +11,8 @@
 #include "common.h"
 #include "log.h"
 
-// TODO use async shell print!?
+/* assume this module only used for early exit arguments - i.e. no need to use
+ * shell_lock() and shell_unlock() */
 #define PINDENT(N, FMT, ...) printf("%*c" FMT "\n", N, ' ', ##__VA_ARGS__)
 #define PTOPIC(FMT, ...) printf(FMT "\n", ##__VA_ARGS__)
 

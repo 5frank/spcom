@@ -27,7 +27,7 @@ static void sh_cooked_rl_on_newline(char *line)
 
     size_t len = strlen(line);
     if (len) {
-        opq_enqueue_hdata(&opq_rt, OP_PORT_WRITE, line, len);
+        opq_enqueue_write(&opq_rt, line, len);
         add_history(line);
     }
     else {

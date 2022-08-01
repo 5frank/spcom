@@ -118,11 +118,11 @@ static void port_panic(int exit_code, const char *msg)
 
 static void _set_event_flags(int flags)
 {
-    // will thix ever occur? 
+    // will this ever occur?
     flags |= UV_DISCONNECT;
 
     /* calling uv_poll_start() on active handle is ok. will update events mask */
-    int err = uv_poll_start(&port_data.poll_handle, flags, _uvcb_poll_event); 
+    int err = uv_poll_start(&port_data.poll_handle, flags, _uvcb_poll_event);
     assert_uv_z(err, "uv_poll_start");
 }
 
@@ -140,7 +140,7 @@ static inline void _tx_stop(void)
 
 static void op_done(struct opq_item *op)
 {
-    opq_free_head(&opq_rt, op);
+    opq_release_head(&opq_rt, op);
     port_data.offset = 0;
     port_data.current_op = NULL;
 }
@@ -222,7 +222,7 @@ static void _on_prepare(uv_prepare_t* handle)
         return; // operation not done yet
 
     // TODO single q
-    struct opq_item *op = opq_peek_head(&opq_rt);
+    struct opq_item *op = opq_acquire_head(&opq_rt);
     if (!op) {
         _tx_stop();
         return;
@@ -232,10 +232,9 @@ static void _on_prepare(uv_prepare_t* handle)
     port_data.current_op = op;
     // OP_EXIT is the only accepted op_code when port not ready
     if (op->op_code == OP_EXIT) {
-        SPCOM_EXIT(0, "op exit");
+        SPCOM_EXIT(EX_OK, "op exit");
         return;
     }
-
 
     if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
@@ -249,7 +248,7 @@ static void _on_prepare(uv_prepare_t* handle)
     if (op->op_code == OP_SLEEP) {
         //if (port_data.sleep_active) {
         //uv_timer_get_due_in
-        uint64_t ms = (uint64_t) op->u.si_val * 1000;
+        uint64_t ms = (uint64_t) op->u.val * 1000;
         int err = uv_timer_start(&port_data.t_sleep, _on_sleep_done, ms, 0);
         LOG_DBG("sleeping %d ms", (unsigned int) ms);
         assert_uv_z(err, "uv_timer_start");
@@ -274,11 +273,11 @@ static void _on_writable(uv_poll_t* handle)
     switch(op->op_code) {
 
         case OP_PORT_WRITE:
-            done = update_write(op->u.hdata, op->size);
+            done = update_write(op->u.data, op->size);
             break;
 
         case OP_PORT_PUTC:
-            tmpc = op->u.si_val;
+            tmpc = op->u.val;
             done = update_write(&tmpc, 1);
             break;
 
@@ -289,28 +288,28 @@ static void _on_writable(uv_poll_t* handle)
             break;
 
         case OP_PORT_SET_RTS:
-            err = sp_set_rts(port_data.port, op->u.si_val);
+            err = sp_set_rts(port_data.port, op->u.val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_rts");
             done = true;
             break;
 
         case OP_PORT_SET_CTS:
-            err = sp_set_cts(port_data.port, op->u.si_val);
+            err = sp_set_cts(port_data.port, op->u.val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_cts");
             done = true;
             break;
 
         case OP_PORT_SET_DTR:
-            err = sp_set_dtr(port_data.port, op->u.si_val);
+            err = sp_set_dtr(port_data.port, op->u.val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dtr");
             done = true;
             break;
 
         case OP_PORT_SET_DSR:
-            err = sp_set_dsr(port_data.port, op->u.si_val);
+            err = sp_set_dsr(port_data.port, op->u.val);
             if (err)
                 LOG_SP_ERR(err, "sp_set_dsr");
             done = true;
@@ -564,7 +563,7 @@ void port_close(void)
     }
 
     // TODO ensure error messages for "dumped" commands printed
-    opq_free_all(&opq_rt);
+    opq_release_all(&opq_rt);
     port_data.offset = 0;
     port_data.current_op = NULL;
 

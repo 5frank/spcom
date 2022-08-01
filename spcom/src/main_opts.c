@@ -68,6 +68,16 @@ static const struct opt_conf main_opts_conf[] = {
         .descr = "list serial port devices. "
             "Combine with verbose option for more detailes",
     },
+#if 0
+    {
+        .name = "info",
+        //.shortname = 'i',
+        .dest = &main_opts.show_info,
+        .parse = opt_ap_flag_true,
+        .descr = "show serial port info and exit. "
+            "Will briefly open the port to retrive some info",
+    },
+#endif
     {
         .name = "verbose",
         .shortname = 'v',

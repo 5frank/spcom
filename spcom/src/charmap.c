@@ -426,6 +426,7 @@ static char *str_crop_cpy(const char *str)
 
     return s;
 }
+
 static int charmap_opt_parse_repr(const char *sval, int *reprid)
 {
     int err;

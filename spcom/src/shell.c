@@ -186,9 +186,17 @@ static void _uvcb_stdin_read(uv_stream_t *tty_in, ssize_t nread,
     shell.prev_c = prev_c;
 }
 
+static void shell_opq_write_done_cb(const struct opq_item *itm)
+{
+    assert(itm->u.data);
+    free(itm->u.data);
+}
+
 int shell_init(void)
 {
     int err = 0;
+
+    opq_set_write_done_cb(&opq_rt, shell_opq_write_done_cb);
 
     // always initalize readline even if raw. need it for command mode
     err = rl_initialize();

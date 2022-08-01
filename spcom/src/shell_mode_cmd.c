@@ -26,10 +26,13 @@ static void sh_cmd_rl_on_newline(char *line)
     }
 
     size_t len = strlen(line);
-    if (len)
-        opq_enqueue_hdata(&opq_rt, OP_PORT_WRITE, line, len);
-    else
+    if (len) {
+        opq_enqueue_write(&opq_rt, line, len);
+        // add_history(line); TODO
+    }
+    else {
         free(line);
+    }
 
     opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
     LOG_DBG("'%s'", line);

@@ -23,6 +23,7 @@ struct main_s {
 
 static struct main_s g_main = { 0 };
 
+void ipipe_init(void);
 static void main_cleanup(void);
 
 static void on_uv_close(uv_handle_t* handle)
@@ -105,10 +106,6 @@ static void _backtrace_free(struct backtrace_data *bt)
 }
 #endif
 
-void assert_fail(const char* expr, const char *filename, unsigned int line, const char *assert_func)
-{
-}
-
 int spcom_exit(int exit_code,
                const char *file,
                unsigned int line,
@@ -171,57 +168,9 @@ int spcom_exit(int exit_code,
     return exit_code;
 }
 
-
-
-#if 0
-void _uvcb_stdin_alloc(uv_handle_t *handle, size_t size, uv_buf_t* buf)
-{
-  static char buf[1024];
-  buf->base = buffer;
-  buf->len = sizeof(buffer);
-}
-
-void _sercomcb_on_port_writable(int status)
-{
-
-    int err = uv_read_start(_main, stdin_hande, 
-}
-void _uvcb_stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
-{
-    if (nread < 0) {
-        uv_close((uv_handle_t*)stream, NULL);
-        return;
-    }
-    port_nb_write(buf->data, nread);
-    // stop reading stdin until all data sent to serial port
-    int err = uv_read_stop(stream, 
-
-    char buf[BUFSIZ];
-    fgets(buf, sizeof(buf), stdin);
-    if (buf[strlen(buf)-1] == '\n') {
-        // read full line
-    } else {
-        // line was truncated
-    }
-}
-
-static void main_init_stdin_pipe(void) 
-{
-    uv_pipe_t stdin_pipe;
-    /* Create a stream that reads from the pipe. */
-    r = uv_pipe_init(uv_default_loop(), (uv_pipe_t *)&stdin_pipe, 0);
-    ASSERT(r == 0);
-
-    r = uv_pipe_open((uv_pipe_t *)&stdin_pipe, STDIN_FILENO);
-    ASSERT(r == 0);
-
-    r = uv_read_start((uv_stream_t *)&stdin_pipe, alloc_buffer, read_stdin);
-    ASSERT(r == 0);
-}
-#endif
 void _uvcb_on_signal(uv_signal_t *handle, int signum)
 {
-    printf("Signal received: %d\n", signum);
+    LOG_DBG("Signal received: %d", signum);
     //uv_signal_stop(handle);
     uv_stop(uv_default_loop());
     // spcom_exit(EXIT_SUCCESS); // TODO
@@ -270,8 +219,9 @@ static int main_init(void)
         assert_z(err, "shell_init");
     }
     else {
-        // TODO
-        return SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
+        ipipe_init();
+        assert_z(err, "ipipe_init");
+        //return SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
     }
 
     timeout_init();

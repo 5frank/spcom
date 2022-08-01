@@ -12,6 +12,7 @@ set(SOURCES
     src/btree.c
     src/errnotostr.c
     src/eol.c
+    src/ipipe.c
     src/log.c
     src/opt.c
     src/opt_shortstr.c

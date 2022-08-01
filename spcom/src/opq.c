@@ -11,6 +11,7 @@ struct opq {
     struct opq_item items[64];
     unsigned int wridx;
     unsigned int rdidx;
+    opq_write_done_cb *write_done_cb;
 };
 
 struct opq opq_oo;
@@ -40,6 +41,10 @@ void opq_reset(struct opq *q)
     q->rdidx = 0;
 }
 
+void opq_set_write_done_cb(struct opq *q, opq_write_done_cb *cb)
+{
+    q->write_done_cb = cb;
+}
 /** enqueue/put.
  * updates write index (aka tail) after new item is added. this is where
  * the intentional off by one is from
@@ -63,8 +68,8 @@ int opq_push(struct opq *q, const void *data, size_t size)
 }
 #endif
 
-/// peek on tail
-struct opq_item *opq_peek_tail(struct opq *q)
+/// "peek" on tail
+struct opq_item *opq_acquire_tail(struct opq *q)
 {
     if (opq_isfull(q)) {
         return NULL;
@@ -75,27 +80,26 @@ struct opq_item *opq_peek_tail(struct opq *q)
 
 int opq_enqueue_val(struct opq *q, uint16_t op_code, int val)
 {
-    struct opq_item *itm = opq_peek_tail(q);
+    struct opq_item *itm = opq_acquire_tail(q);
     assert(itm);
     itm->op_code = op_code;
     itm->size = 0;
-    itm->u.si_val = val;
+    itm->u.val = val;
 
     return opq_enqueue_tail(q, itm);
 }
 
-int opq_enqueue_hdata(struct opq *q,
-                      uint16_t op_code,
+int opq_enqueue_write(struct opq *q,
                       void *data,
                       uint16_t size)
 {
-    struct opq_item *itm = opq_peek_tail(q);
+    struct opq_item *itm = opq_acquire_tail(q);
     assert(itm);
     assert(size);
 
-    itm->op_code = op_code;
+    itm->op_code = OP_PORT_WRITE;
     itm->size = size;
-    itm->u.hdata = data;
+    itm->u.data = data;
 
     return opq_enqueue_tail(q, itm);
 }
@@ -129,7 +133,7 @@ static int opq_pop(struct opq *q, struct opq_item *itm)
 /**
  * peek at head of queue without updating index.
  * assume passed to free_head later */
-struct opq_item *opq_peek_head(struct opq *q)
+struct opq_item *opq_acquire_head(struct opq *q)
 {
     if (opq_isempty(q)) {
         return NULL;
@@ -138,14 +142,17 @@ struct opq_item *opq_peek_head(struct opq *q)
     return &q->items[q->rdidx];
 }
 
-/// "free" item retrived with peek_head
-void opq_free_head(struct opq *q, struct opq_item *itm)
+/// release or free item retrived with peek_head
+void opq_release_head(struct opq *q, struct opq_item *itm)
 {
     // enusre itm is same as head
     assert(itm == &q->items[q->rdidx]);
 
     if (itm->size) {
-        free(itm->u.hdata);
+        if (itm->op_code == OP_PORT_WRITE && q->write_done_cb) {
+            q->write_done_cb(itm);
+        }
+
         itm->size = 0;
     }
     itm->op_code = 0;
@@ -156,12 +163,11 @@ void opq_free_head(struct opq *q, struct opq_item *itm)
     //q->totsize -= itm->size;
 }
 
-void opq_free_all(struct opq *q)
+void opq_release_all(struct opq *q)
 {
     while(!opq_isempty(q)) {
-        struct opq_item *itm = opq_peek_head(q);
-        // cast away const
-        opq_free_head(q, itm);
+        struct opq_item *itm = opq_acquire_head(q);
+        opq_release_head(q, itm);
    }
 }
 
