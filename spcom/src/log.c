@@ -42,14 +42,36 @@ extern const char *errnotostr(int n);
 static struct log_data_s {
     bool initialized;
     FILE *filefp;
-    char buf[1024];
-    unsigned int bufovf;
+    int level;
 } log_data = { 0 };
 
-/* should only be called if buf to small */
-static void log_strbuf_flush(const struct strbuf *sb)
+
+static void log_sb_fwrite_nolock(const struct strbuf *sb, FILE *fp)
 {
-    log_data.bufovf++;
+    size_t rc = fwrite(sb->buf, 1, sb->len, fp);
+    if (rc != sb->len) {
+        // TODO do what?
+    }
+}
+
+/* should only be called from strbuf if buf to small */
+static void log_strbuf_flush(struct strbuf *sb)
+{
+    const void *lock = shell_output_lock();
+
+    /* silent option do not apply to separate file output */
+    if (log_data.filefp) {
+        log_sb_fwrite_nolock(sb, log_data.filefp);
+    }
+
+    /* output both to file and stderr in some cases */
+    if (!log_opts.silent && log_data.level <= LOG_LEVEL_INF) {
+        log_sb_fwrite_nolock(sb, stderr);
+    }
+
+    shell_output_unlock(lock);
+
+    sb->len = 0;
 }
 
 STRBUF_STATIC_INIT(log_strbuf, 1024, log_strbuf_flush);
@@ -82,7 +104,8 @@ static const char *log_levelstr(int tag)
 
 static int _snprintf_errno(char *dest, size_t size, int eno) 
 {
-     return snprintf(dest, size, ", errno=%d=%s='%s'", eno, errnotostr(eno), strerror(eno));
+     return snprintf(dest, size, ", errno=%d=%s='%s'",
+                     eno, errnotostr(eno), strerror(eno));
 }
 
 const char *log_errnostr(int eno)
@@ -185,47 +208,11 @@ const char *log_libsp_errstr(int sprc, int eno)
     return buf;
 }
 
-const char *log_wherestr(const char *file, unsigned int line, const char *func)
-{
-    static char buf[128];
-    int n = snprintf(buf, sizeof(buf), "%s:%d:%s", file, line, func);
-    check_printfrc(n);
-    if (n >= sizeof(buf))
-        return _truncate(buf, sizeof(buf));
-    return buf;
-}
-
-static void log_sb_fmtmsg(struct strbuf *sb, const char *levelstr,
-                       const char *where, const char *fmt, va_list args)
-{
-    strbuf_reset(sb);
-
-    if (levelstr) {
-        strbuf_puts(sb, levelstr);
-        strbuf_putc(sb, ':');
-    }
-
-    if (where) {
-        strbuf_puts(sb, where);
-        strbuf_putc(sb, ':');
-    }
-
-    strbuf_putc(sb, ' ');
-
-    strbuf_vprintf(sb, fmt, args);
-
-    strbuf_putc(sb, '\n');
-}
-
-static void log_sb_fwrite_nolock(const struct strbuf *sb, FILE *fp) 
-{
-    size_t rc = fwrite(sb->buf, 1, sb->len, fp);
-    if (rc != sb->len) {
-        // TODO do what?
-    }
-}
-
-void log_vprintf(int level, const char *where, const char *fmt, va_list args)
+void log_vprintf(int level,
+                 const char *file,
+                 unsigned int line,
+                 const char *fmt,
+                 va_list args)
 {
     /* in case some other module uses log module before log is initialized, do it here.
      * otherwise hard reason about initalization order always correct */
@@ -238,30 +225,37 @@ void log_vprintf(int level, const char *where, const char *fmt, va_list args)
     }
 
     struct strbuf *sb = &log_strbuf;
+    strbuf_reset(sb);
+    log_data.level = level; // used in strbuf callback
 
     const char *levelstr = log_levelstr(level);
-    log_sb_fmtmsg(sb, levelstr, where, fmt, args);
-
-    const void *lock = shell_output_lock();
-
-    /* silent option do not apply to separate file output */
-    if (log_data.filefp) {
-        log_sb_fwrite_nolock(sb, log_data.filefp);
+    if (levelstr) {
+        strbuf_puts(sb, levelstr);
+        strbuf_putc(sb, ':');
     }
 
-    /* output both to file and stderr in some cases */
-    if (!log_opts.silent && level <= LOG_LEVEL_INF) {
-        log_sb_fwrite_nolock(sb, stderr);
+    if (file) {
+        strbuf_puts(sb, file);
+        strbuf_putc(sb, ':');
+        strbuf_printf(sb, "%u:", line);
     }
 
-    shell_output_unlock(lock);
+    strbuf_putc(sb, ' ');
+    strbuf_vprintf(sb, fmt, args);
+    strbuf_putc(sb, '\n');
+
+    log_strbuf_flush(sb);
 }
 
-void log_printf(int level, const char *where, const char *fmt, ...)
+void log_printf(int level,
+                const char *file,
+                unsigned int line,
+                const char *fmt,
+                ...)
 {
     va_list args;
     va_start(args, fmt);
-    log_vprintf(level, where, fmt, args);
+    log_vprintf(level, file, line, fmt, args);
     va_end(args);
 }
 

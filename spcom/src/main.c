@@ -23,7 +23,8 @@ struct main_s {
 
 static struct main_s g_main = { 0 };
 
-void main_cleanup(void);
+static void main_cleanup(void);
+
 static void on_uv_close(uv_handle_t* handle)
 {
     if (handle) {
@@ -104,21 +105,29 @@ static void _backtrace_free(struct backtrace_data *bt)
 }
 #endif
 
-void spcom_exit(int exit_code, const char *where, const char *fmt, ...)
+void assert_fail(const char* expr, const char *filename, unsigned int line, const char *assert_func)
 {
-    bool have_bug = (exit_code == EX_SOFTWARE);
+}
 
+int spcom_exit(int exit_code,
+               const char *file,
+               unsigned int line,
+               const char *fmt,
+               ...)
+{
     /* get backtrace first before we mess with stack */
 #if CONFIG_USE_BACKTRACE
     struct backtrace_data *bt = NULL;
     struct backtrace_data bt_data;
-    if (have_bug) {
+    /** EX_SOFTWARE documented as ".. internal software error.." i.e. we
+     * probably have a bug */
+    if (exit_code == EX_SOFTWARE) {
         bt = &bt_data;
         _backtrace_save(bt);
     }
 #endif
 
-    /* ensure exit message(s) on separate line. could use '\r' to clear line 
+    /* ensure exit message(s) on separate line. could use '\r' to clear line
      * but then some data lost */
     outfmt_endline();
 
@@ -126,8 +135,8 @@ void spcom_exit(int exit_code, const char *where, const char *fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-    // write to log first - looks better in case log output to stderr 
-    log_vprintf(level, where, fmt, args);
+    // write to log first - looks better in case log output to stderr
+    log_vprintf(level, file, line, fmt, args);
     va_end(args);
 
 #if CONFIG_USE_BACKTRACE
@@ -156,8 +165,10 @@ void spcom_exit(int exit_code, const char *where, const char *fmt, ...)
     }
 #endif
     //TODO use uv_library_shutdown()!?
-    main_cleanup(); 
+    main_cleanup();
     exit(exit_code);
+    // never gets here
+    return exit_code;
 }
 
 
@@ -259,8 +270,8 @@ static int main_init(void)
         assert_z(err, "shell_init");
     }
     else {
-        SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
-        return -1;
+        // TODO
+        return SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
     }
 
     timeout_init();
@@ -274,7 +285,7 @@ static int main_init(void)
     return 0;
 }
 
-void main_cleanup(void)
+static void main_cleanup(void)
 {
     int err = 0;
     struct main_s *m = &g_main;

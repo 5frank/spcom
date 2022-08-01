@@ -43,11 +43,15 @@ int sp_err_to_ex(int sp_err);
 int uv_err_to_ex(int uv_err);
 //#define EX_TIMEOUT  EX_TEMPFAIL
 
-__attribute__((format(printf, 3, 4)))
-void spcom_exit(int exit_code, const char *where, const char *fmt, ...);
+__attribute__((noreturn, format(printf, 4, 5)))
+int spcom_exit(int exit_code,
+               const char *file,
+               unsigned int line,
+               const char *fmt,
+               ...);
 
-#define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                        \
-        spcom_exit(EXIT_CODE, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
+#define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                       \
+        spcom_exit(EXIT_CODE,  __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
 
 
 #endif

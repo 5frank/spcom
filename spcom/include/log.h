@@ -20,13 +20,21 @@
 #define LOG_LEVEL_INF 3
 #define LOG_LEVEL_DBG 4
 
-void log_vprintf(int level, const char *where, const char *fmt, va_list args);
+void log_vprintf(int level,
+                 const char *file,
+                 unsigned int line,
+                 const char *fmt,
+                 va_list args);
 
-__attribute__((format(printf, 3, 4)))
-void log_printf(int level, const char *where, const char *fmt, ...);
+__attribute__((format(printf, 4, 5)))
+void log_printf(int level,
+                const char *file,
+                unsigned int line,
+                const char *fmt,
+                ...);
 
 #define __LOG(LEVEL, FMT, ...) \
-    log_printf(LEVEL, LOG_WHERESTR(), FMT, ##__VA_ARGS__)
+    log_printf(LEVEL, __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
 
 #define LOG_ERR(FMT, ...)  \
     __LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
@@ -39,10 +47,6 @@ void log_printf(int level, const char *where, const char *fmt, ...);
 
 #define LOG_DBG(FMT, ...) \
     __LOG(LOG_LEVEL_DBG, FMT, ##__VA_ARGS__)
-
-const char *log_wherestr(const char *file, unsigned int line, const char *func);
-#define LOG_WHERESTR() \
-    ((DEBUG) ? log_wherestr(__FILENAME__, __LINE__, __func__) : NULL)
 
 const char *log_errnostr(int eno);
 

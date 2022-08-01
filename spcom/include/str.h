@@ -69,7 +69,6 @@ const char **str_match_flowcontrol(const char *s);
 
 int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
 
-
 char *str_lstrip(char *s);
 char *str_rstrip(char *s);
 char *str_strip(char *s);

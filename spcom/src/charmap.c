@@ -15,18 +15,10 @@
 #include "opt.h"
 #include "charmap.h"
 
-enum char_class_id {
-    CHAR_CLASS_CNTRL = UCHAR_MAX + 1,
-    CHAR_CLASS_NONPRINT,
-    CHAR_CLASS_NONASCII,
-};
-
-enum char_repr_id {
-    CHAR_REPR_BASE = UCHAR_MAX + 1,
-    CHAR_REPR_IGNORE,
-    CHAR_REPR_HEX,
-    CHAR_REPR_CNTRLNAME,
-    CHAR_REPR_STRLIT_BASE,
+enum char_group_id {
+    CHARMAP_GROUP_CNTRL = UCHAR_MAX + 1,
+    CHARMAP_GROUP_NONPRINT,
+    CHARMAP_GROUP_NONASCII,
 };
 
 // clang-format off
@@ -39,11 +31,18 @@ static const char *ascii_cntrl_names[] = {
 };
 // clang-format on
 
-static struct charmap_opts {
-    int use_ascii_name;
-} charmap_opts = {0};
 
-static struct charmap_s {
+struct charmap_s {
+    /**
+     * map[<groupid>] = <reprid>.
+     *
+     * note that both <groupid> can be a single character (byte).
+     * map initalized to its index `map[i] = i` then any remapping applied.
+     * i.e. remapped if `map[i] != i`
+     *
+     * if map[c] < CHARMAP_REPR_BASE - c is remapped to map[x] (single byte value)
+     *  if map[c] ==  CHARMAP_REPR_HEX - c is remapped to hex representation
+     * if map[c] >= CHARMAP_REPR_STRLIT_BASE, it is some string */
     uint16_t map[UCHAR_MAX + 1];
 };
 
@@ -56,7 +55,32 @@ static struct charmap_s _charmap_rx = {0};
 // exposed const pointer. NULL until enabled
 const struct charmap_s *charmap_rx = NULL;
 
-#if 1
+
+int charmap_repr_type(const struct charmap_s *cm, int c)
+{
+    if (!cm) {
+        return CHARMAP_REPR_NONE;
+    }
+
+    uint16_t reprid = cm->map[(unsigned char)c];
+
+    bool is_remapped = ((int) reprid == (int) c) ? false : true;
+
+    if (!is_remapped) {
+        return CHARMAP_REPR_NONE;
+    }
+
+    // clamp ranges to base value
+    if (reprid < CHARMAP_REPR_BASE) {
+        return CHARMAP_REPR_BASE;
+    }
+    if (reprid >= CHARMAP_REPR_STRLIT_BASE) {
+        return CHARMAP_REPR_STRLIT_BASE;
+    }
+
+    return reprid;
+}
+#if 0
 static void charmap_print_map(const char *name, const struct charmap_s *map) 
 {
     if (!map) {
@@ -66,7 +90,8 @@ static void charmap_print_map(const char *name, const struct charmap_s *map)
 
     printf("%s:\n", name);
     for (int i = 0; i < ARRAY_LEN(map->map); i++) {
-        if (!map->map[i]) 
+        uint16_t x = charmap_repr_type(map, c);
+        if (!) 
             continue;
 
         printf("0x%02X ", i);
@@ -76,18 +101,18 @@ static void charmap_print_map(const char *name, const struct charmap_s *map)
         else {
             printf("    ");
         }
-
+        
         switch(map->map[i]) {
-            case CHAR_REPR_IGNORE:
+            case CHARMAP_REPR_IGNORE:
                 printf("ignore");
                 break;
-            case CHAR_REPR_HEX:
+            case CHARMAP_REPR_HEX:
                 printf("hex");
                 break;
-            case CHAR_REPR_CNTRLNAME:
+            case CHARMAP_REPR_CNTRLNAME:
                 printf("cntrlname");
                 break;
-            case CHAR_REPR_STRLIT_BASE:
+            case CHARMAP_REPR_STRLIT_BASE:
                 printf("strlit");
             default:
                 printf("<unknown>%u", (unsigned int)map->map[i]);
@@ -127,64 +152,48 @@ static int cntrl_strtoval(const char *s, int *val)
     return -1;
 }
 
-struct strlits {
+struct charmap_strlits {
     unsigned int count;
     const char *strs[16];
 };
 
-static struct strlits *gp_strlits = NULL;
+static struct charmap_strlits *gp_strlits = NULL;
 
-static const char *_strlit_get(unsigned int x)
+static const char *_strlit_get(int reprid)
 {
     if (!gp_strlits)
         return NULL;
 
-    struct strlits *sl = gp_strlits;
+    struct charmap_strlits *sl = gp_strlits;
 
-    unsigned int i = x - CHAR_REPR_STRLIT_BASE;
+    unsigned int i = reprid - CHARMAP_REPR_STRLIT_BASE;
     if (i >= sl->count)
         return NULL;
 
     return sl->strs[i];
 }
 
-char *str_simple_unquote_cpy(const char *str)
-{
-    int len = strlen(str);
-    str++; // skip leading
-    // skip trailing as len exlcude nul terminator
-    char *s = malloc(len);
-    assert(s);
-    for (int i = 0; i < len; i++) {
-        s[i] = *str++;
-    }
-    s[len] = '\0';
-    return s;
-}
 
-/// assume params str to be within quotes
-static int _strlit_add(const char *str, int *id)
-{
-    char *s = str_simple_unquote_cpy(str);
 
+static int _strlit_add(const char *s, int *id)
+{
     if (strlen(s) >= CHARMAP_REPR_BUF_SIZE) {
-        free(s);
         return E2BIG;
     }
 
     if (!gp_strlits) {
-        gp_strlits = malloc(sizeof(struct strlits));
+        gp_strlits = malloc(sizeof(struct charmap_strlits));
         assert(gp_strlits);
     }
 
-    struct strlits *sl = gp_strlits;
+    struct charmap_strlits *sl = gp_strlits;
     unsigned int i = sl->count;
     assert(i < ARRAY_LEN(sl->strs));
 
     sl->strs[i] = s;
     sl->count++;
 
-    *id = i + CHAR_REPR_STRLIT_BASE;
+    *id = i + CHARMAP_REPR_STRLIT_BASE;
     return 0;
 }
 
@@ -209,35 +218,35 @@ static int bufputs(char *dst, const char *src)
 
 int charmap_remap(const struct charmap_s *cm,
                   char c,
-                  char *buf,
-                  char **color)
+                  char *buf)
 {
-    if (!cm)
-        return 0; // no remap
+    assert(cm);
 
-    unsigned char i = c;
     const char *s;
-    uint16_t x = cm->map[i];
 
-    *color = NULL; // TODO
-    bool is_remapped = ((int) x == (int) c) ? false : true;
+    uint16_t reprid = cm->map[(unsigned char)c];
+
+#if 0
+    bool is_remapped = ((int) reprid == (int) c) ? false : true;
     if (!is_remapped)
-        return 0;
+        return bufputc(buf, c);
+#endif
 
-    if (x < CHAR_REPR_BASE) {
-        return bufputc(buf, x);
+    if (reprid < CHARMAP_REPR_BASE) {
+        return bufputc(buf, reprid);
     }
 
-    if (x == CHAR_REPR_HEX) {
+    if (reprid == CHARMAP_REPR_HEX) {
         _Static_assert(CTOHEX_BUF_SIZE <= CHARMAP_REPR_BUF_SIZE, "");
         return ctohex(c, buf);
     }
 
-    if (x == CHAR_REPR_IGNORE) {
-        return -1;
+    if (reprid == CHARMAP_REPR_IGNORE) {
+        *buf = '\0'; // always nul terminate
+        return 0;
     }
 
-    if (x == CHAR_REPR_CNTRLNAME) {
+    if (reprid == CHARMAP_REPR_CNTRLNAME) {
         s = cntrl_valtostr(c);
         if (s)
             return bufputs(buf, s);
@@ -245,15 +254,14 @@ int charmap_remap(const struct charmap_s *cm,
             return bufputc(buf, c);
     }
 
-    if (x >= CHAR_REPR_STRLIT_BASE) {
-        s = _strlit_get(x);
+    if (reprid >= CHARMAP_REPR_STRLIT_BASE) {
+        s = _strlit_get(reprid);
         if (s)
             return bufputs(buf, s);
         else
             return bufputc(buf, c);
     }
 
-    assert(0); // should not get here
     return bufputc(buf, c);
 }
 
@@ -297,25 +305,25 @@ int mk_hexformater(const char *fmt)
 #endif
 
 // clang-format off
-static const struct str_map cclass_id_strmap[] = {
-    STR_MAP_INT("cntrl",    CHAR_CLASS_CNTRL ),
-    STR_MAP_INT("ctrl",     CHAR_CLASS_CNTRL ),
-    STR_MAP_INT("nonprint", CHAR_CLASS_NONPRINT ),
-    STR_MAP_INT("!isprint", CHAR_CLASS_NONPRINT ),
+static const struct str_map group_id_strmap[] = {
+    STR_MAP_INT("cntrl",    CHARMAP_GROUP_CNTRL ),
+    STR_MAP_INT("ctrl",     CHARMAP_GROUP_CNTRL ),
+    STR_MAP_INT("nonprint", CHARMAP_GROUP_NONPRINT ),
+    STR_MAP_INT("!isprint", CHARMAP_GROUP_NONPRINT ),
 };
 // clang-format on
 
-static int str_to_cclass_id(const char *s, int *id)
+static int str_to_group_id(const char *s, int *id)
 {
-    const size_t nmemb = ARRAY_LEN(cclass_id_strmap);
-    return str_map_to_int(s, cclass_id_strmap, nmemb, id);
+    const size_t nmemb = ARRAY_LEN(group_id_strmap);
+    return str_map_to_int(s, group_id_strmap, nmemb, id);
 }
 
 // clang-format off
 static const struct str_map crepr_id_strmap[] = {
-    STR_MAP_INT("hex",    CHAR_REPR_HEX ),
-    STR_MAP_INT("none",   CHAR_REPR_IGNORE ),
-    STR_MAP_INT("ignore", CHAR_REPR_IGNORE ),
+    STR_MAP_INT("hex",    CHARMAP_REPR_HEX ),
+    STR_MAP_INT("none",   CHARMAP_REPR_IGNORE ),
+    STR_MAP_INT("ignore", CHARMAP_REPR_IGNORE ),
 };
 // clang-format on
 
@@ -336,16 +344,16 @@ static int str_0xhexbytetoi(const char *s, int *res)
         return 0;
 }
 
-static int is_in_cclass(int c, int cclassid)
+static int is_in_group(int c, int groupid)
 {
-    switch(cclassid) {
-        case CHAR_CLASS_CNTRL:
+    switch(groupid) {
+        case CHARMAP_GROUP_CNTRL:
             return iscntrl(c);
 
-        case CHAR_CLASS_NONPRINT:
+        case CHARMAP_GROUP_NONPRINT:
             return !isprint(c);
 
-        case CHAR_CLASS_NONASCII:
+        case CHARMAP_GROUP_NONASCII:
             return !isascii(c);
 
         default:
@@ -353,27 +361,27 @@ static int is_in_cclass(int c, int cclassid)
     }
 }
 
-static int charmap_set_class_repr(struct charmap_s *cm, int x, int creprid)
+static int charmap_set_group_repr(struct charmap_s *cm, int groupid, int reprid)
 {
-    assert(x >= 0);
-    if (x <= UCHAR_MAX) {
-        unsigned char i = x;
-        cm->map[i] = creprid;
+    assert(groupid >= 0);
+    /* group is a single char remapped to the value of `reprid` */
+    if (groupid <= UCHAR_MAX) {
+        unsigned char c = groupid;
+        cm->map[c] = reprid;
         return 0;
     }
 
-    int cclassid = x;
-    for (int c = 0; c <= UCHAR_MAX; c++) {
-        if (!is_in_cclass(c, cclassid))
+    for (unsigned char c = 0; c <= UCHAR_MAX; c++) {
+        if (!is_in_group(c, groupid))
             continue;
 
-        cm->map[x] = creprid;
+        cm->map[c] = reprid;
     }
 
     return 0;
 }
 
-static int charmap_parse_opts_class(const char *skey, int *key)
+static int charmap_opt_parse_group(const char *skey, int *key)
 {
     int err;
     err = str_0xhexbytetoi(skey, key);
@@ -384,7 +392,7 @@ static int charmap_parse_opts_class(const char *skey, int *key)
     if (!err)
         return 0;
 
-    err = str_to_cclass_id(skey, key);
+    err = str_to_group_id(skey, key);
     if (!err)
         return 0;
 
@@ -404,7 +412,21 @@ int str_isquoted(const char *s, char qc)
     return false;
 }
 
-static int charmap_parse_opts_repr(const char *sval, int *reprid)
+/// @return copy of string with first and last char removed
+static char *str_crop_cpy(const char *str)
+{
+    int len = strlen(str);
+    str++; // skip leading
+    char *s = malloc(len);
+
+    // skip trailing as strlen exlcudes nul terminator
+    assert(s);
+    memcpy(s, str, len);
+    s[len] = '\0';
+
+    return s;
+}
+static int charmap_opt_parse_repr(const char *sval, int *reprid)
 {
     int err;
 
@@ -421,11 +443,15 @@ static int charmap_parse_opts_repr(const char *sval, int *reprid)
         return 0;
 
     if (str_isquoted(sval, '"')) {
-        err = _strlit_add(sval, reprid);
-        if (err)
+        char *s = str_crop_cpy(sval);
+
+        err = _strlit_add(s, reprid);
+        if (err) {
+            free(s);
             return err;
-        else
-            return 0;
+        }
+
+        return 0;
     }
 
     return EINVAL;
@@ -448,17 +474,17 @@ static int charmap_set(struct charmap_s *cm, const char *skey, const char *sval)
 {
     int err = 0;
 
-    int classid = 0;
-    err = charmap_parse_opts_class(skey, &classid);
+    int groupid = 0;
+    err = charmap_opt_parse_group(skey, &groupid);
     if (err)
         return err;
 
     int reprid;
-    err = charmap_parse_opts_repr(sval, &reprid);
+    err = charmap_opt_parse_repr(sval, &reprid);
     if (err)
         return err;
 
-    err = charmap_set_class_repr(cm, classid, reprid);
+    err = charmap_set_group_repr(cm, groupid, reprid);
     if (err)
         return err;
 
@@ -493,15 +519,6 @@ done:
     return err;
 }
 
-static int charmap_opt_post_parse(const struct opt_section_entry *entry)
-{
-    // note: do not use LOG here
-#if 0
-    charmap_print_map("tx", charmap_tx);
-    charmap_print_map("rx", charmap_rx);
-#endif
-    return 0;
-}
 
 static int parse_map_txc(const struct opt_conf *conf, char *s)
 {
@@ -521,6 +538,17 @@ static int parse_map_rxc(const struct opt_conf *conf, char *s)
     return err;
 }
 
+static int charmap_opts_post_parse(const struct opt_section_entry *entry)
+{
+    // note: do not use LOG here
+#if 0
+    charmap_print_map("tx", charmap_tx);
+    charmap_print_map("rx", charmap_rx);
+#endif
+
+    return 0;
+}
+
 static const struct opt_conf charmap_opts_conf[] = {
     {
         .name = "map-txc",
@@ -532,17 +560,10 @@ static const struct opt_conf charmap_opts_conf[] = {
         .parse = parse_map_rxc,
         .descr = "map RX (received) character(s)",
     },
-#if 0 // TODO
-    {
-        .name = "hex-color",
-        .parse = parse_hex_color,
-        .descr = "",
-    },
-#endif
 };
 
 OPT_SECTION_ADD(outfmt,
                 charmap_opts_conf,
                 ARRAY_LEN(charmap_opts_conf),
-                charmap_opt_post_parse);
+                charmap_opts_post_parse);
 

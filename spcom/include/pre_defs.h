@@ -37,6 +37,7 @@
 
 /// LINE_MAX might be here
 #include <limits.h>
+#ifndef LINE_MAX
 
 #ifdef _POSIX2_LINE_MAX
     #define LINE_MAX _POSIX2_LINE_MAX
@@ -44,6 +45,7 @@
     /* _POSIX2_LINE_MAX must be at least 2048 */
     #define LINE_MAX    2048
 #endif
+#endif /* LINE_MAX */
 
-#endif
+#endif /* PRE_DEFS_INCLUDE_H_ */
 

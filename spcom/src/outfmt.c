@@ -29,13 +29,13 @@ static struct outfmt_s
 static struct outfmt_opts_s {
     bool color;
     struct {
-        const char *hexesc;
+        const char *remapped;
     } colors;
     int timestamp;
 } outfmt_opts = {
-    .color = true,
+    .color = false,
     .colors = {
-        .hexesc = VT_COLOR_RED
+        .remapped = NULL,
     },
 };
 
@@ -47,14 +47,13 @@ static struct strbuf {
 } _strbuf;
 #endif
 
-static void outfmt_strbuf_flush(const struct strbuf *sb)
+static void outfmt_strbuf_flush(struct strbuf *sb)
 {
     const void *lock = shell_output_lock();
 
     size_t rc = fwrite(sb->buf, sb->len, 1, stdout);
 
     shell_output_unlock(lock);
-
 
     if (rc == 0) {
         // TODO log error. retry?
@@ -64,6 +63,7 @@ static void outfmt_strbuf_flush(const struct strbuf *sb)
     }
 
     outfmt.last_c_flushed = sb->buf[sb->len];
+    sb->len = 0;
 }
 
 /**
@@ -113,7 +113,7 @@ static void print_timestamp(struct strbuf *sb)
 
     size_t dst_size = strbuf_remains(sb);
     if (dst_size < size_needed) {
-        strbuf_flush(sb);
+        outfmt_strbuf_flush(sb);
         dst_size = strbuf_remains(sb);
         assert(dst_size >= size_needed);
     }
@@ -135,24 +135,30 @@ static void print_timestamp(struct strbuf *sb)
 
 static void outfmt_sb_putc(struct strbuf *sb, int c)
 {
-    if (!charmap_rx) {
+    int repr_type = charmap_repr_type(charmap_rx, c);
+
+    if (repr_type == CHARMAP_REPR_NONE) {
         strbuf_putc(sb, c);
         return;
     }
-
-    char buf[CHARMAP_REPR_BUF_SIZE] = { 0 };
-    char *color = NULL;
-    int rc = charmap_remap(charmap_rx, c, buf, &color);
-    if (rc < 0) // drop
+    if (repr_type == CHARMAP_REPR_IGNORE) {
         return;
-
-    if (rc == 0) {
-        // not remapped
-        strbuf_putc(sb, c);
     }
-    else {
-        // remapped to size 1 or more
-        strbuf_write(sb, buf, rc);
+    // TODO add colors here
+    const char *color = outfmt_opts.colors.remapped;
+    if (color) {
+        strbuf_puts(sb, color);
+    }
+
+    char *buf = strbuf_endptr(sb, CHARMAP_REPR_BUF_SIZE);
+
+    int rc = charmap_remap(charmap_rx, c, buf);
+    assert(rc >= 0);
+    // remapped to size 1 or more
+    sb->len += rc;
+
+    if (color) {
+        strbuf_puts(sb, VT_COLOR_OFF);
     }
 }
 
@@ -219,7 +225,7 @@ void outfmt_write(const void *data, size_t size)
         prev_c = c;
     }
 
-    strbuf_flush(sb);
+    outfmt_strbuf_flush(sb);
 
     outfmt.had_eol = had_eol;
     outfmt.prev_c = prev_c;
@@ -230,7 +236,7 @@ void outfmt_endline(void)
     // TODO if color turn it off
     struct strbuf *sb = &outfmt_strbuf;
     // flush in case data remains
-    strbuf_flush(sb);
+    outfmt_strbuf_flush(sb);
 
     if (outfmt.last_c_flushed != '\n') {
         // add newline to avoid text on same line as prompt after exit
@@ -245,6 +251,19 @@ static int parse_timestamp_format(const struct opt_conf *conf, char *sval)
     return -1;
 }
 
+static int outfmt_opts_post_parse(const struct opt_section_entry *entry)
+{
+    // note: do not use LOG here
+#if 0
+    charmap_print_map("tx", charmap_tx);
+    charmap_print_map("rx", charmap_rx);
+#endif
+    if (outfmt_opts.color) {
+        outfmt_opts.colors.remapped = VT_COLOR_RED;
+    }
+
+    return 0;
+}
 static const struct opt_conf outfmt_opts_conf[] = {
     {
         .name = "timestamp",
@@ -268,4 +287,8 @@ static const struct opt_conf outfmt_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(outfmt, outfmt_opts_conf, ARRAY_LEN(outfmt_opts_conf), NULL);
+OPT_SECTION_ADD(outfmt,
+                outfmt_opts_conf,
+                ARRAY_LEN(outfmt_opts_conf),
+                outfmt_opts_post_parse);
+

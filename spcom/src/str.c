@@ -502,9 +502,7 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
     return 0;
 }
 
-
-
-char *str_lstrip(char *s) 
+char *str_lstrip(char *s)
 {
     while(isspace(*s)) s++;
     return s;

@@ -2,40 +2,39 @@
 #define STRBUF_INCLUDE_H_
 #include <stddef.h>
 #include <stdarg.h>
+#include <string.h>
 
  /* premature optimization buffer (mabye) -
  * if shell is async/sticky we need to copy the readline state for
  * every write to stdout. also fputc is slow...
- * must ensure a flush after strbuf operation(s).
  */
 
 struct strbuf {
     char *buf;
     size_t bufsize;
     size_t len;
-    void (*flush_func)(const struct strbuf *sb);
+    /** callback could either write data in buf to file and set len=0 or realloc by N
+     * ans increse bufsize by N */
+    void (*make_space_cb)(struct strbuf *sb);
 };
 
-#define STRBUF_STATIC_INIT(NAME, SIZE, FLUSH_FUNC)                             \
+#define STRBUF_STATIC_INIT(NAME, SIZE, MAKE_SPACE_CB)                          \
 static char ___strbuf_buf_##NAME[SIZE] = {0};                                  \
 static struct strbuf NAME = {                                                  \
     .buf = ___strbuf_buf_##NAME,                                               \
     .bufsize = SIZE,                                                           \
-    .flush_func = FLUSH_FUNC                                                   \
+    .make_space_cb = MAKE_SPACE_CB                                             \
 }
 
-static void strbuf_flush(struct strbuf *sb)
+static void strbuf_make_space(struct strbuf *sb)
 {
     if (!sb->len) {
         return;
     }
 
-    if (sb->flush_func) {
-        sb->flush_func(sb);
+    if (sb->make_space_cb) {
+        sb->make_space_cb(sb);
     }
-
-    // always reset
-    sb->len = 0;
 }
 
 static inline void strbuf_reset(struct strbuf *sb)
@@ -51,13 +50,12 @@ static inline size_t strbuf_remains(const struct strbuf *sb)
 static inline void strbuf_putc(struct strbuf *sb, char c)
 {
     if (strbuf_remains(sb) < 1) {
-        strbuf_flush(sb);
+        strbuf_make_space(sb);
     }
 
     sb->buf[sb->len] = c;
     sb->len++;
 }
-
 
 void strbuf_write(struct strbuf *sb, const char *src, size_t size);
 
@@ -65,25 +63,13 @@ void strbuf_vprintf(struct strbuf *sb, const char *fmt, va_list args);
 
 static inline void strbuf_puts(struct strbuf *sb, const char *s)
 {
-#if 1
     strbuf_write(sb, s, strlen(s));
-#else
-    while (*s) {
-        strbuf_putc(sb, *s++);
-    }
-#endif
 }
 
 __attribute__((format(printf, 2, 3)))
-static inline void strbuf_printf(struct strbuf *sb, const char *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    strbuf_vprintf(sb, fmt, args);
-    va_end(args);
-}
+void strbuf_printf(struct strbuf *sb, const char *fmt, ...);
 
-#if 0
+#if 1
 /**
  * Get end pointer to buffer with at least @param size of space.
  * caller should remember to increase `sb->len` if data written
@@ -91,17 +77,17 @@ static inline void strbuf_printf(struct strbuf *sb, const char *fmt, ...)
  */ 
 static inline char *strbuf_endptr(struct strbuf *sb, int size)
 {
-    if (size > strbuf_remains(sb)) {
+    if (size <= strbuf_remains(sb)) {
         return &sb->buf[sb->len];
     }
 
-    strbuf_flush(sb);
+    strbuf_make_space(sb);
 
-    if (size > strbuf_remains(sb)) {
-        return NULL;
+    if (size <= strbuf_remains(sb)) {
+        return &sb->buf[sb->len];
     }
 
-    return &sb->buf[0];
+    return NULL;
 
 }
 #endif
