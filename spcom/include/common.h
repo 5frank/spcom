@@ -18,6 +18,24 @@
 #include <unistd.h>
 #endif
 
+/// see magic trick in CMakeList.txt
+#ifdef SOURCE_PATH_SIZE
+#define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
+#else
+#define __FILENAME__ __FILE__
+#endif
+
+#ifndef _GNU_SOURCE
+/**
+ * Provide if not _GNU_SOURCE
+ * The strerrorname_np()
+ * returns literal name of errnum.  For example, EPERM argument returns "EPERM".
+ * returns NULL if unknown errnum
+ * */
+const char *strerrorname_np(int errnum);
+
+#endif
+
 
 /** UV_VERSION_HEX "broken" on version 1.24.1 and is 0x011801 i.e. 1.18.01 */
 #define UV_VERSION_GT_OR_EQ(MAJOR, MINOR)                                      \
@@ -34,21 +52,13 @@
 #define STRINGIFY(X) ___STRINGIFY_VIA(X)
 #define ___STRINGIFY_VIA(X) #X
 
-int version_print(int verbose);
-
-/// libserialport error to exit status code
-int sp_err_to_ex(int sp_err);
-
-/// libuv error to exit status code
-int uv_err_to_ex(int uv_err);
-//#define EX_TIMEOUT  EX_TEMPFAIL
 
 __attribute__((noreturn, format(printf, 4, 5)))
-int spcom_exit(int exit_code,
-               const char *file,
-               unsigned int line,
-               const char *fmt,
-               ...);
+void spcom_exit(int exit_code,
+                const char *file,
+                unsigned int line,
+                const char *fmt,
+                ...);
 
 #define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                       \
         spcom_exit(EXIT_CODE,  __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)

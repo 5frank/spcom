@@ -1,18 +1,13 @@
-#ifndef __LOG_INCLUDE_H__
-#define __LOG_INCLUDE_H__
+#ifndef LOG_INCLUDE_H_
+#define LOG_INCLUDE_H_
 
 #include <stdbool.h>
 #include <stdarg.h>
+#include "misc.h"
+#include "common.h"
 
 #ifndef DEBUG
 #define DEBUG 0
-#endif
-
-/// see magic trick in CMakeList.txt
-#ifdef SOURCE_PATH_SIZE
-#define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
-#else
-#define __FILENAME__ __FILE__
 #endif
 
 #define LOG_LEVEL_ERR 1
@@ -33,36 +28,48 @@ void log_printf(int level,
                 const char *fmt,
                 ...);
 
-#define __LOG(LEVEL, FMT, ...) \
+#define ___LOG(LEVEL, FMT, ...)                                                 \
     log_printf(LEVEL, __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
 
-#define LOG_ERR(FMT, ...)  \
-    __LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
+#define LOG_ERR(FMT, ...) ___LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
 
-#define LOG_WRN(FMT, ...) \
-    __LOG(LOG_LEVEL_WRN, FMT, ##__VA_ARGS__)
+#define LOG_WRN(FMT, ...) ___LOG(LOG_LEVEL_WRN, FMT, ##__VA_ARGS__)
 
-#define LOG_INF(FMT, ...) \
-    __LOG(LOG_LEVEL_INF, FMT, ##__VA_ARGS__)
+#define LOG_INF(FMT, ...) ___LOG(LOG_LEVEL_INF, FMT, ##__VA_ARGS__)
 
-#define LOG_DBG(FMT, ...) \
-    __LOG(LOG_LEVEL_DBG, FMT, ##__VA_ARGS__)
+#define LOG_DBG(FMT, ...) ___LOG(LOG_LEVEL_DBG, FMT, ##__VA_ARGS__)
 
-const char *log_errnostr(int eno);
 
-#define LOG_SYS_ERR(RC, MSG) \
-    LOG_ERR("%s rc=%d - %s", MSG, (int)(RC), log_errnostr(errno))
+static inline void ___log_int(int level,
+                              const char *file,
+                              unsigned int line,
+                              const char *msg,
+                              int num,
+                              const char *(*num_to_str)(int num))
+{
+    const char *num_str = num_to_str(num);
+    num_str = num_str ? num_str : "";
 
-const char *log_libuv_errstr(int uvrc, int eno);
-#define LOG_UV_ERR(VAL, MSG) \
-    LOG_ERR("%s - %s", MSG, log_libuv_errstr(VAL, errno))
+    log_printf(level, file, line, "%s - %d (%s)",
+               msg, num, num_str);
+}
+
+#define ___LOG_INT(LEVEL, MSG, NUM, NUM_TO_STR) \
+    ___log_int(LEVEL, __FILENAME__, __LINE__, MSG, NUM, NUM_TO_STR)
+
+#define LOG_ERRNO(MSG) \
+    __LOG_INT(LOG_LEVEL_ERR, MSG, errno, strerrorname_np)
+
+/// libuv (uv)
+#define LOG_UV_ERR(UV_ERR, MSG) \
+    ___LOG_INT(LOG_LEVEL_ERR, MSG, UV_ERR, misc_uv_err_to_str)
 
 /// libserialport (sp)
-const char *log_libsp_errstr(int sprc, int eno);
-#define LOG_SP_ERR(VAL, MSG) \
-    LOG_ERR("%s - %s", MSG, log_libsp_errstr(VAL, errno))
+#define LOG_SP_ERR(SP_ERR, MSG) \
+    ___LOG_INT(LOG_LEVEL_ERR, MSG, SP_ERR, misc_sp_err_to_str)
 
-const char *log_uv_handle_type_to_str(int n);
+
+
 
 void log_init(void);
 void log_cleanup(void);

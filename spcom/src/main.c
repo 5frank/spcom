@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "common.h"
+#include "misc.h"
 #include "assert.h"
 #include "opt.h"
 #include "shell.h"
@@ -23,7 +24,8 @@ struct main_s {
 
 static struct main_s g_main = { 0 };
 
-void ipipe_init(void);
+int ipipe_init(void);
+
 static void main_cleanup(void);
 
 static void on_uv_close(uv_handle_t* handle)
@@ -37,93 +39,12 @@ static void on_uv_walk(uv_handle_t* handle, void* arg)
     uv_close(handle, on_uv_close);
 }
 
-#define CONFIG_USE_BACKTRACE 1
-
-#if CONFIG_USE_BACKTRACE
-#include <execinfo.h>
-
-#define BACKTRACE_LEN 10
-
-struct backtrace_data {
-    int nsymbs;
-    /// value must be freed
-    char **symbs;
-};
-
-
-static void _backtrace_save(struct backtrace_data *bt) 
+void spcom_exit(int exit_code,
+                const char *file,
+                unsigned int line,
+                const char *fmt,
+                ...)
 {
-  void *stackptrs[BACKTRACE_LEN];
-  // get entries from stack
-  bt->nsymbs = backtrace(stackptrs, BACKTRACE_LEN);
-  //fprintf(stderr, "Backtrace:\n");
-  //backtrace_symbols_fd(stackptrs, size, STDERR_FILENO);
-  bt->symbs = backtrace_symbols(stackptrs, bt->nsymbs);
-}
-#if 0
-static void _backtrace_println(int fd, const char *str, size_t len)
-{
-    size_t len = strlen(str);
-    while (len > 0) {
-        ssize_t rc = write(fd, str, len);
-
-        if ((rc == -1) && (errno != EINTR))
-                break;
-
-        str += (size_t) rc;
-        len -= (size_t) rc;
-    }
-}
-#endif
-
-static void _backtrace_print(struct backtrace_data *bt)
-{
-    if (!bt || bt->nsymbs <= 0) {
-        return;
-    }
-
-    fputs("Backtrace:\n", stderr);
-
-    for (int i = 0; i < bt->nsymbs; i++) {
-        char *s = bt->symbs[i];
-        if (!s) {
-            break;
-        }
-        // TODO use log module
-        fputs(s, stderr);
-        fputc('\n', stderr);
-        s++;
-    }
-}
-
-static void _backtrace_free(struct backtrace_data *bt)
-{
-    if (!bt || !bt->symbs) {
-        return;
-    }
-    free(bt->symbs);
-    bt->symbs = NULL;
-}
-#endif
-
-int spcom_exit(int exit_code,
-               const char *file,
-               unsigned int line,
-               const char *fmt,
-               ...)
-{
-    /* get backtrace first before we mess with stack */
-#if CONFIG_USE_BACKTRACE
-    struct backtrace_data *bt = NULL;
-    struct backtrace_data bt_data;
-    /** EX_SOFTWARE documented as ".. internal software error.." i.e. we
-     * probably have a bug */
-    if (exit_code == EX_SOFTWARE) {
-        bt = &bt_data;
-        _backtrace_save(bt);
-    }
-#endif
-
     /* ensure exit message(s) on separate line. could use '\r' to clear line
      * but then some data lost */
     outfmt_endline();
@@ -135,13 +56,6 @@ int spcom_exit(int exit_code,
     // write to log first - looks better in case log output to stderr
     log_vprintf(level, file, line, fmt, args);
     va_end(args);
-
-#if CONFIG_USE_BACKTRACE
-    if (bt) {
-        _backtrace_print(bt);
-        _backtrace_free(bt);
-    }
-#endif
 
     uv_loop_t *loop = uv_default_loop();
 #if 1
@@ -164,8 +78,6 @@ int spcom_exit(int exit_code,
     //TODO use uv_library_shutdown()!?
     main_cleanup();
     exit(exit_code);
-    // never gets here
-    return exit_code;
 }
 
 void _uvcb_on_signal(uv_signal_t *handle, int signum)
@@ -201,25 +113,25 @@ static int main_init(void)
     uv_loop_t *loop = uv_default_loop();
 
     err = uv_loop_init(loop);
-    assert_uv_z(err, "uv_loop_init");
+    assert_uv_ok(err, "uv_loop_init");
 
     err = uv_signal_init(loop, &m->ev_sigint);
-    assert_uv_z(err, "uv_signal_init");
+    assert_uv_ok(err, "uv_signal_init");
     // SIGINT callback will not run on ctrl-c if tty in raw mode
     err = uv_signal_start(&m->ev_sigint, _uvcb_on_signal, SIGINT);
-    assert_uv_z(err, "uv_signal_start");
+    assert_uv_ok(err, "uv_signal_start");
 
     err = uv_signal_init(loop, &m->ev_sigterm);
-    assert_uv_z(err, "uv_signal_init");
+    assert_uv_ok(err, "uv_signal_init");
     err = uv_signal_start(&m->ev_sigterm, _uvcb_on_signal, SIGTERM);
-    assert_uv_z(err, "uv_signal_start");
+    assert_uv_ok(err, "uv_signal_start");
 
     if (isatty(STDIN_FILENO)) {
         err = shell_init();
         assert_z(err, "shell_init");
     }
     else {
-        ipipe_init();
+        err = ipipe_init();
         assert_z(err, "ipipe_init");
         //return SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
     }
@@ -255,7 +167,7 @@ static void main_cleanup(void)
         err = uv_loop_close(loop);
         // only log debug on error as going to exit
         if (err) {
-            LOG_DBG("uv_loop_close err. %s", log_libuv_errstr(err, errno));
+            LOG_DBG("uv_loop_close err. %s", misc_uv_err_to_str(err));
         }
     }
 
@@ -277,7 +189,7 @@ static bool main_do_early_exit_opts(void)
     }
 
     if (opts->show_version) {
-        version_print(opts->verbose);
+        misc_print_version(opts->verbose);
         return true;
     }
 

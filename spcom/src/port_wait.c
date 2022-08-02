@@ -41,7 +41,7 @@ static void _start_rw_timeout(unsigned int ms)
 {
     struct port_wait_s *pw = &port_wait;
     int err = uv_timer_start(&pw->rw_timer, _on_rw_access_timeout, ms, 0);
-    assert_uv_z(err, "uv_timer_start");
+    assert_uv_ok(err, "uv_timer_start");
 }
 
 /**
@@ -92,48 +92,6 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
     pw->cb(0);
 }
 
-
-#if 0
-// after device close, need to wait on it to be removed
-static int _wait_no_such_path(int timeout_sec)
-{
-    struct port_wait_s *pw = &port_wait;
-
-    const int ms_inter = 10;
-    struct timespec ts = {
-        .tv_sec = 0,
-        .tv_nsec = (long int) ms_inter * 1000000
-    };
-
-    int ms_timeout = timeout_sec * 1000;
-    for (int n = 0; n <= ms_timeout; n += ms_inter) {
-
-        if (access(pw->abspath, F_OK)) {
-            // i.e. no such path 
-            if (!errno) {
-               LOG_WRN("access did not set errno?");
-            }
-            else if (errno != EACCES) {
-                // indicates bad path or other error
-                LOG_WRN("unexpected errno set by access '%d'!=EACCES", errno);
-                return -errno;
-            }
-            return 0;
-        } 
-
-        int err = nanosleep(&ts, NULL);
-        if (err) {
-            // this should not occur in a single threaded application
-            LOG_SYS_ERR(err, "nanosleep");
-            return err;
-        }
-    }
-
-    LOG_ERR("Timeout waiting for access(\"%s\", F_OK)!=0", pw->abspath);
-    return -1;
-}
-#endif
-
 void port_wait_start(port_wait_cb *cb)
 {
     assert(cb);
@@ -145,7 +103,7 @@ void port_wait_start(port_wait_cb *cb)
                             _on_dir_entry_change,
                             pw->dirname,
                             0); // UV_FS_EVENT_RECURSIVE);
-    assert_uv_z(err, "uv_fs_event_start");
+    assert_uv_ok(err, "uv_fs_event_start");
 
     LOG_INF("Waiting for %s ...", pw->abspath);
 }
@@ -202,10 +160,10 @@ int port_wait_init(const char *name)
     uv_loop_t *loop = uv_default_loop();
 
     err = uv_fs_event_init(loop, &pw->fsevent_handle);
-    assert_uv_z(err, "uv_fs_event_init");
+    assert_uv_ok(err, "uv_fs_event_init");
 
     err = uv_timer_init(loop, &pw->rw_timer);
-    assert_uv_z(err, "uv_timer_init");
+    assert_uv_ok(err, "uv_timer_init");
 
     /* posix versions of dirname() and basename() might return a modifed
      * version of its parameter.

@@ -3,14 +3,14 @@ cmake_minimum_required(VERSION 3.13)
 project (spcom)
 
 set(SOURCES
+    src/assert.c
     src/main.c
     src/main_opts.c
+    src/misc.c
     src/charmap.c
     src/cmd.c
-    src/common.c
     src/ctohex.c
     src/btree.c
-    src/errnotostr.c
     src/eol.c
     src/ipipe.c
     src/log.c
@@ -30,10 +30,10 @@ set(SOURCES
     src/str.c
     src/str_split_quoted.c
     src/strbuf.c
+    src/strerrorname_np.c
     src/keybind.c
     src/timeout.c
     src/opq.c
-    src/version.c
 )
 # TODO use gcc `-I` to include pre_defs.h before any other headers'
 #add_compile_options ( -Wno-reorder )

@@ -1,7 +1,11 @@
 #include <errno.h>
-const char *errnotostr(int n)
+#include "common.h"
+
+#ifndef _GNU_SOURCE
+
+const char *strerrorname_np(int errnum)
 {
-    switch(n) {
+    switch(errnum) {
 #ifdef E2BIG
     case E2BIG:
         return "E2BIG";
@@ -507,7 +511,8 @@ const char *errnotostr(int n)
         return "EXFULL";
 #endif
     default:
-        return "<unknown>";
+        return NULL;
     }
 }
 
+#endif // _GNU_SOURCE

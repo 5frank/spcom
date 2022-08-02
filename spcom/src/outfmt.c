@@ -181,7 +181,7 @@ void outfmt_write(const void *data, size_t size)
         print_timestamp(sb);
 
     bool had_eol = outfmt.had_eol;
-    char cfwd[2];
+    char cfwd[EOL_MAX_LEN];
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;

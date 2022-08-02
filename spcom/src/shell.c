@@ -222,17 +222,17 @@ int shell_init(void)
     uv_tty_t *p_tty = &shell.stdin_tty;
 
     err = uv_tty_init(loop, p_tty, STDIN_FILENO, 0);
-    assert_uv_z(err, "uv_tty_init");
+    assert_uv_ok(err, "uv_tty_init");
 
     err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
-    assert_uv_z(err, "uv_tty_set_mode raw");
+    assert_uv_ok(err, "uv_tty_set_mode raw");
 
     assert(uv_is_readable((uv_stream_t *)p_tty));
 
     err = uv_read_start((uv_stream_t *)p_tty,
                         _uvcb_stdin_stalloc,
                         _uvcb_stdin_read);
-    assert_uv_z(err, "uv_read_start");
+    assert_uv_ok(err, "uv_read_start");
 
 #if UV_VERSION_GT_OR_EQ(1, 33)
     // enable ansi escape sequence(s) on some windows shells

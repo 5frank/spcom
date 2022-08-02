@@ -4,6 +4,8 @@
 
 #include <stdint.h>
 
+#define EOL_MAX_LEN 2
+
 enum eol_c_e {
     EOL_C_NONE = 0,
     EOL_C_FWD1,
@@ -20,7 +22,7 @@ struct eol_seq {
     eol_eval_fn *handler;
     uint8_t index;
     uint8_t len;
-    char seq[2];
+    char seq[EOL_MAX_LEN];
 };
 
 extern struct eol_seq *eol_rx;

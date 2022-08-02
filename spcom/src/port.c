@@ -9,6 +9,7 @@
 #include <unistd.h> // access
 
 #include "common.h"
+#include "misc.h"
 #include "assert.h"
 #include "opt.h"
 #include "eol.h"
@@ -123,7 +124,7 @@ static void _set_event_flags(int flags)
 
     /* calling uv_poll_start() on active handle is ok. will update events mask */
     int err = uv_poll_start(&port_data.poll_handle, flags, _uvcb_poll_event);
-    assert_uv_z(err, "uv_poll_start");
+    assert_uv_ok(err, "uv_poll_start");
 }
 
 static inline void _tx_start(void)
@@ -251,7 +252,7 @@ static void _on_prepare(uv_prepare_t* handle)
         uint64_t ms = (uint64_t) op->u.val * 1000;
         int err = uv_timer_start(&port_data.t_sleep, _on_sleep_done, ms, 0);
         LOG_DBG("sleeping %d ms", (unsigned int) ms);
-        assert_uv_z(err, "uv_timer_start");
+        assert_uv_ok(err, "uv_timer_start");
         return;
     }
 
@@ -465,40 +466,25 @@ int port_set_config(void)
 
 static void port_open(void)
 {
-    /* sorry goto in macros. only used here. also dual evaluation of param */
-
-    int exit_code = 0;
-    const char *errmsg = NULL;
-
-#define CHECK_SP_ERR(ERR, WHY) if (ERR) {                                      \
-    errmsg = WHY;                                                              \
-    exit_code = sp_err_to_ex(ERR);                                             \
-    goto error;                                                                \
-} else
-
-#define CHECK_UV_ERR(ERR, WHY) if (ERR) {                                      \
-    errmsg = WHY;                                                              \
-    exit_code = uv_err_to_ex(ERR);                                             \
-    goto error;                                                                \
-} else
+    /* any assert failure will trigger cleanup - no need to do it here */
 
     int err = 0;
-    const char *devname = port_opts.name;
 
     uv_loop_t *loop = uv_default_loop();
-    opq_reset(&opq_rt);
+    // TODO when, if ever, should operation queue be cleares/reseted? not here!!!
 
-    LOG_DBG("Opening port '%s'", devname);
-    err = sp_get_port_by_name(devname, &port_data.port);
-    CHECK_SP_ERR(err, "sp_get_port_by_name");
+    LOG_DBG("Opening port '%s'", port_opts.name);
+
+    err = sp_get_port_by_name(port_opts.name, &port_data.port);
+    assert_sp_ok(err, "sp_get_port_by_name");
 
     struct sp_port *p = port_data.port;
     err = sp_open(p, SP_MODE_READ_WRITE);
-    CHECK_SP_ERR(err, "sp_open");
+    assert_sp_ok(err, "sp_open");
 
     // get os defualts. must be _after_ open
     err = sp_get_config(p, port_data.org_config);
-    CHECK_SP_ERR(err, "sp_get_config");
+    assert_sp_ok(err, "sp_get_config");
     port_data.have_org_config = true;
 
     port_set_config();
@@ -506,39 +492,29 @@ static void port_open(void)
     // get fd on unix a HANDLE on windows
     uv_os_fd_t fd = -1; // or uv_file ?
     err = sp_get_port_handle(p, &fd);
-    CHECK_SP_ERR(err, "sp_get_port_handle");
+    assert_sp_ok(err, "sp_get_port_handle");
 
     // saftey check
     uv_handle_type htype = uv_guess_handle(fd);
     LOG_DBG("uv_handle_type='%s'=%d",
-            log_uv_handle_type_to_str(htype), (int) htype);
+            misc_uv_handle_type_to_str(htype), (int) htype);
 
     err = uv_prepare_init(loop, &port_data.prepare_handle);
-    CHECK_UV_ERR(err, "uv_prepare_init");
+    assert_uv_ok(err, "uv_prepare_init");
 
     err = uv_prepare_start(&port_data.prepare_handle, _on_prepare);
     (void) err; // cant fail according to doc
 
     // use uv_poll_t as custom read write from libserialport
     err = uv_poll_init(loop, &port_data.poll_handle, fd);
-    CHECK_UV_ERR(err, "uv_poll_init");
+    assert_uv_ok(err, "uv_poll_init");
 
     int events = UV_READABLE | UV_WRITABLE;
     err = uv_poll_start(&port_data.poll_handle, events, _uvcb_poll_event);
-    CHECK_UV_ERR(err, "uv_poll_start");
+    assert_uv_ok(err, "uv_poll_start");
 
     port_data.state = PORT_STATE_READY;
 
-    return; // success
-
-error:
-    // TODO clenup not needed here? let exit handler do it!?
-    port_cleanup();
-
-    SPCOM_EXIT(exit_code, "%s", errmsg);
-
-#undef CHECK_SP_ERR
-#undef CHECK_UV_ERR
 }
 
 void port_close(void)
@@ -715,7 +691,7 @@ int port_init(port_rx_cb_fn *rx_cb)
     uv_loop_t *loop = uv_default_loop();
 
     err = uv_timer_init(loop, &port_data.t_sleep);
-    assert_uv_z(err, "uv_timer_init");
+    assert_uv_ok(err, "uv_timer_init");
 
     port_data.ts_lastc = uv_now(loop);
 

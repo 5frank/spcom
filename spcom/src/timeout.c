@@ -31,11 +31,11 @@ void timeout_init(void)
     assert(loop);
 
     err = uv_timer_init(loop, &uvt_timeout);
-    assert_uv_z(err, "uv_timer_init");
+    assert_uv_ok(err, "uv_timer_init");
 
     uint64_t ms = (uint64_t) opt_timeout_sec * 1000;
     err = uv_timer_start(&uvt_timeout, _uvcb_on_timeout, ms, 0);
-    assert_uv_z(err, "uv_timer_start");
+    assert_uv_ok(err, "uv_timer_start");
 
     LOG_DBG("timeout set to %d sec", opt_timeout_sec);
 }

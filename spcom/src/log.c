@@ -29,15 +29,14 @@
     } while(0)
 
 #define LOG_OPTS_DEFAULT_LEVEL 3
+
 struct log_opts_s {
     const char *file;
     int level;
     int silent;
 } log_opts = {
-    .level = LOG_OPTS_DEFAULT_LEVEL 
+    .level = LOG_OPTS_DEFAULT_LEVEL
 };
-
-extern const char *errnotostr(int n);
 
 static struct log_data_s {
     bool initialized;
@@ -76,19 +75,9 @@ static void log_strbuf_flush(struct strbuf *sb)
 
 STRBUF_STATIC_INIT(log_strbuf, 1024, log_strbuf_flush);
 
-static char *_truncate(char *buf, size_t size) 
+static const char *log_level_to_str(int level)
 {
-    char *p = &buf[size - 4];
-    *p++ = '.';
-    *p++ = '.';
-    *p++ = '.';
-    *p = '\0';
-    return buf;
-}
-
-static const char *log_levelstr(int tag) 
-{
-    switch (tag) {
+    switch (level) {
         case LOG_LEVEL_ERR:
             return "ERR";
         case LOG_LEVEL_WRN:
@@ -100,112 +89,6 @@ static const char *log_levelstr(int tag)
         default:
             return "";
     }
-}
-
-static int _snprintf_errno(char *dest, size_t size, int eno) 
-{
-     return snprintf(dest, size, ", errno=%d=%s='%s'",
-                     eno, errnotostr(eno), strerror(eno));
-}
-
-const char *log_errnostr(int eno)
-{
-    static char buf[64];
-    if (!eno) 
-        return "";
-
-    int n = _snprintf_errno(buf, sizeof(buf), eno);
-    check_printfrc(n);
-    if (n >= sizeof(buf))
-        return _truncate(buf, sizeof(buf));
-
-    return buf;
-}
-
-const char *log_libuv_errstr(int uvrc, int eno)
-{
-    static char buf[128];
-    buf[0] = '\0';
-    int size = sizeof(buf);
-    char *dest = &buf[0];
-
-    static char uvstr[64];
-    uv_err_name_r(uvrc, uvstr, sizeof(uvstr));
-
-    int n = 0;
-    n = snprintf(dest, size, "uv_err=%d='%s'", uvrc, uvstr);
-    check_printfrc(n);
-    dest += n;
-    size -= n;
-    if (size <= 0)
-        return _truncate(buf, sizeof(buf));
-
-    if (eno) {
-        n = _snprintf_errno(dest, size, eno);
-        check_printfrc(n);
-        dest += n;
-        size -= n;
-        if (size <= 0)
-            return _truncate(buf, sizeof(buf));
-    }
-
-    return buf;
-}
-
-const char *log_libsp_errstr(int sprc, int eno)
-{
-    static char buf[128];
-    buf[0] = '\0';
-    char *dest = &buf[0];
-    int size = sizeof(buf);
-    int n = 0;
-
-    n = snprintf(dest, size, "sp_err=%d=", sprc);
-    check_printfrc(n);
-    dest += n;
-    size -= n;
-    if (size <= 0)
-        return _truncate(buf, sizeof(buf));
-
-    char *tmp;
-    switch (sprc) {
-        case SP_ERR_ARG:
-            n = snprintf(dest, size, "'invalid argument'");
-            break;
-        case SP_ERR_FAIL:
-            tmp = sp_last_error_message();
-            n = snprintf(dest, size, "'%s''", tmp);
-            sp_free_error_message(tmp);
-            break;
-        case SP_ERR_SUPP:
-            n = snprintf(dest, size, "'not supported'");
-            break;
-        case SP_ERR_MEM:
-            n = snprintf(dest, size, "'malloc failed'");
-            break;
-        case SP_OK:
-            n = snprintf(dest, size, "'OK''");
-        default:
-            n = snprintf(dest, size, "'unknown''");
-            break;
-    }
-    check_printfrc(n);
-    dest += n;
-    size -= n;
-    if (size <= 0)
-        return _truncate(buf, sizeof(buf));
-
-
-    if (eno) {
-        n = _snprintf_errno(dest, size, eno);
-        check_printfrc(n);
-        dest += n;
-        size -= n;
-        if (size <= 0)
-            return _truncate(buf, sizeof(buf));
-    }
-
-    return buf;
 }
 
 void log_vprintf(int level,
@@ -228,7 +111,7 @@ void log_vprintf(int level,
     strbuf_reset(sb);
     log_data.level = level; // used in strbuf callback
 
-    const char *levelstr = log_levelstr(level);
+    const char *levelstr = log_level_to_str(level);
     if (levelstr) {
         strbuf_puts(sb, levelstr);
         strbuf_putc(sb, ':');
@@ -286,33 +169,6 @@ void log_set_debug(int verbose)
     if (verbose > 3) {
         sp_set_debug_handler(_sp_log_handler);
     }
-}
-
-const char *log_uv_handle_type_to_str(int n)
-{
-    // clang-format off
-    switch (n) {
-        case UV_UNKNOWN_HANDLE: return "UNKNOWN_HANDLE";
-        case UV_ASYNC:          return "ASYNC";
-        case UV_CHECK:          return "CHECK";
-        case UV_FS_EVENT:       return "FS_EVENT";
-        case UV_FS_POLL:        return "FS_POLL";
-        case UV_HANDLE:         return "HANDLE";
-        case UV_IDLE:           return "IDLE";
-        case UV_NAMED_PIPE:     return "NAMED_PIPE";
-        case UV_POLL:           return "POLL";
-        case UV_STREAM:         return "STREAM";
-        case UV_FILE:           return "FILE";
-        case UV_PREPARE:        return "PREPARE";
-        case UV_PROCESS:        return "PROCESS";
-        case UV_TCP:            return "TCP";
-        case UV_TIMER:          return "TIMER";
-        case UV_TTY:            return "TTY";
-        case UV_UDP:            return "UDP";
-        case UV_SIGNAL:         return "SIGNAL";
-        default:                return "<unknown>";
-    }
-    // clang-format on
 }
 
 void log_init(void)

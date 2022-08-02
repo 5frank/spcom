@@ -78,7 +78,7 @@ static int eol_eval_or(struct eol_seq *es, char c, char *cfwd)
 }
 
 static struct eol_seq eol_seq_tx = {
-    .handler = eol_eval_sz1, // should never be used
+    .handler = eol_eval_sz1,
     .seq = { '\n' },
     .len = 1,
 };
@@ -126,7 +126,7 @@ static const struct str_map eol_aliases[] = {
     STR_MAP_STR("LF",     "\n" ),
 };
 
-static int parse_modify_str_seq(struct eol_seq *es, char *s)
+static int eol_opt_parse_modify_str_seq(struct eol_seq *es, char *s)
 {
     int err = 0;
 
@@ -177,7 +177,7 @@ static int parse_modify_str_seq(struct eol_seq *es, char *s)
     return 0;
 }
 
-static int parse_str_seq(int flags, const char *s)
+static int eol_opt_parse_str_seq(int flags, const char *s)
 {
     int err = 0;
     struct eol_seq tmp;
@@ -185,7 +185,7 @@ static int parse_str_seq(int flags, const char *s)
     char *sdup = strdup(s);
     assert(sdup);
 
-    err = parse_modify_str_seq(&tmp, sdup);
+    err = eol_opt_parse_modify_str_seq(&tmp, sdup);
     if (err)
         goto done;
 
@@ -206,35 +206,35 @@ static int eol_opt_post_parse(const struct opt_section_entry *entry)
     return 0;
 }
 
-static int parse_eol(const struct opt_conf *conf, char *s)
+static int eol_opt_parse_txrx(const struct opt_conf *conf, char *s)
 {
-    return parse_str_seq(EOL_TX | EOL_RX, s);
+    return eol_opt_parse_str_seq(EOL_TX | EOL_RX, s);
 }
 
-static int parse_eol_tx(const struct opt_conf *conf, char *s)
+static int eol_opt_parse_tx(const struct opt_conf *conf, char *s)
 {
-    return parse_str_seq(EOL_TX, s);
+    return eol_opt_parse_str_seq(EOL_TX, s);
 }
 
-static int parse_eol_rx(const struct opt_conf *conf, char *s)
+static int eol_opt_parse_rx(const struct opt_conf *conf, char *s)
 {
-    return parse_str_seq(EOL_RX, s);
+    return eol_opt_parse_str_seq(EOL_RX, s);
 }
 
 static const struct opt_conf eol_opts_conf[] = {
     {
         .name = "eol",
-        .parse = parse_eol,
+        .parse = eol_opt_parse_txrx,
         .descr = "end of line crlf", // TODO
     },
     {
         .name = "eol-tx",
-        .parse = parse_eol_tx,
+        .parse = eol_opt_parse_tx,
         .descr = "end of line crlf", // TODO
     },
     {
         .name = "eol-rx",
-        .parse = parse_eol_rx,
+        .parse = eol_opt_parse_rx,
         .descr = "end of line crlf", // TODO
     },
 };

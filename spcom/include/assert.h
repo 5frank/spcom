@@ -7,19 +7,14 @@
  * Note that this assert is not affected by NDEBUG but the verbosity of error
  * messages generated might.
  */
-#ifndef ASSERT_INCLUDE_H__
-#define ASSERT_INCLUDE_H__
+#ifndef ASSERT_INCLUDE_H_
+#define ASSERT_INCLUDE_H_
 
 #include <errno.h>
 #include "common.h"
+#include "misc.h"
 #include "log.h"
 
-#ifndef STRINGIFY
-#define STRINGIFY(X) ___STRINGIFY_VIA(X)
-#define ___STRINGIFY_VIA(X) #X
-#endif
-
-/// might look like dual evaluation but it is not
 #define assert(COND)                                                           \
     do {                                                                       \
         if (!(COND)) {                                                         \
@@ -33,30 +28,40 @@
         int __val = (VAL);                                                     \
         if (__val) {                                                           \
             SPCOM_EXIT(EX_SOFTWARE, "assert failed, "                          \
-                       "'%d' is not zero, %s, %s",                             \
-                       __val, (MSG), log_errnostr(errno));                     \
+                       "'%d' is not zero, %s",                                 \
+                       __val, (MSG));                                          \
         }                                                                      \
     } while (0)
 
-/// assert libuv zero return code
-#define assert_uv_z(VAL, MSG)                                                  \
+__attribute__((noreturn))
+void ___assert_uv_fail(const char *file,
+                       unsigned int line,
+                       const char *func,
+                       const char *msg,
+                       int uv_err);
+
+/// assert libuv succesful return code
+#define assert_uv_ok(ERR, MSG)                                                 \
     do {                                                                       \
-        int __val = (VAL);                                                     \
-        if (__val) {                                                           \
-            SPCOM_EXIT(EX_SOFTWARE, "assert failed, "                          \
-                       "libuv value '%d' is not zero, %s, %s",                 \
-                       __val, (MSG), log_libuv_errstr(__val, errno));          \
+        int _err = (ERR);                                                      \
+        if (_err) {                                                            \
+            ___assert_uv_fail(__FILENAME__, __LINE__, __func__, MSG, _err);    \
         }                                                                      \
     } while (0)
 
-/// assert libserialport (sp) zero return code
-#define assert_sp_ok(RC, MSG)                                                  \
+__attribute__((noreturn))
+void ___assert_sp_fail(const char *file,
+                       unsigned int line,
+                       const char *func,
+                       const char *msg,
+                       int sp_err);
+
+/// assert libserialport (sp) succesful return code
+#define assert_sp_ok(ERR, MSG)                                                 \
     do {                                                                       \
-        int __rc = (RC);                                                       \
-        if (__rc) {                                                            \
-            SPCOM_EXIT(___sp_err_to_ex(__rc), "assert failed, "                \
-                       "libserialport err '%d', %s, %s",                       \
-                       __rc, (MSG), log_libsp_errstr(__rc, errno));            \
+        int _err = (ERR);                                                      \
+        if (_err) {                                                            \
+            ___assert_sp_fail(__FILENAME__, __LINE__, __func__, MSG, _err);    \
         }                                                                      \
     } while (0)
 
