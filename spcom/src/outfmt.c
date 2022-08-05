@@ -237,7 +237,9 @@ void outfmt_endline(void)
     struct strbuf *sb = &outfmt_strbuf;
     // flush in case data remains
     outfmt_strbuf_flush(sb);
-
+    if (outfmt.last_c_flushed == '\0') {
+        return;
+    }
     if (outfmt.last_c_flushed != '\n') {
         // add newline to avoid text on same line as prompt after exit
         fputc('\n', stdout);

@@ -14,6 +14,7 @@
 #include "timeout.h"
 #include "outfmt.h"
 #include "port.h"
+#include "port_info.h"
 #include "main_opts.h"
 
 struct main_s {

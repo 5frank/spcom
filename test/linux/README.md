@@ -11,4 +11,5 @@ but moved to  https://github.com/lcgamboa/tty0tty  (what looks to be the same ma
 As of 2022Q3, seems like there is more activity in this fork:
  https://github.com/freemed/tty0tty
 
+note that tty0tty devices might not be listed by libserialport or pyserial.
 

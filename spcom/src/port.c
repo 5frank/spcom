@@ -93,29 +93,34 @@ static void on_port_discovered(int err)
     port_open();
 }
 
-/// oh no! check port exists, if not wait for it if allowed, else die.
-static void port_panic(int exit_code, const char *msg)
+/// assume port_opts.stay is true
+static void _port_panic_recover(void)
 {
-    if (!port_opts.stay) {
-        // TODO user error
-        SPCOM_EXIT(exit_code, "port error - %s", msg);
-        return;
-    }
-    /* if we get here, device probably still "exists" as this process holds a
-     * open file descriptor to it . i.e. device not "gone" until after close.
-     */ 
-    LOG_DBG("port panic - %s", msg);
-
     /* trying to recover from a error that mostly likley caused errno to be
      * set. clearing it just in case... */
     if (errno) {
+        LOG_DBG("errno cleared from %s", strerrorname_np(errno));
         errno = 0;
     }
 
+    /* if we get here, device probably still "exists" as this process holds a
+     * open file descriptor to it . i.e. device not "gone" until after close.
+     */
     port_close();
     port_wait_start(on_port_discovered);
     port_data.state = PORT_STATE_WAITING;
 }
+
+/// oh no! check port exists, if not wait for it if allowed, else die.
+#define PORT_PANIC(EXIT_CODE, FMT, ...) do { \
+    if (port_opts.stay) { \
+        LOG_DBG(FMT, ##__VA_ARGS__); \
+        _port_panic_recover(); \
+    } \
+    else { \
+        SPCOM_EXIT(EXIT_CODE, FMT, ##__VA_ARGS__); \
+    } \
+} while (0)
 
 static void _set_event_flags(int flags)
 {
@@ -164,54 +169,54 @@ static bool update_write(const void *buf, size_t bufsize)
     // TODO check nbytes = sp_output_waiting > N and drain!?
 
     assert(p->offset < bufsize);
-    size_t size = bufsize - p->offset;
+
+    size_t remains = bufsize - p->offset;
     const char *src = ((const char *)buf) + p->offset;
-
     int rc;
-
+    size_t size;
+    uint64_t ts_now = 0;
     const int chardelay = port_opts.chardelay;
+
     if (chardelay) {
-        uint64_t ts_now = uv_now(uv_default_loop());
+        ts_now = uv_now(uv_default_loop());
         uint64_t dt = ts_now - p->ts_lastc;
 
-        if (dt < chardelay)
+        if (dt < chardelay) {
             return false; // try on next loop iteration
+        }
 
-        // done false below as rc not equal to size until last char
-        rc = sp_nonblocking_write(p->port, src, 1);
-
-        // no delay on EAGIAN rc == 0
-        if (rc != 0)
-            p->ts_lastc = ts_now;
+        size = 1;
     }
     else {
-        rc = sp_nonblocking_write(p->port, src, size);
+        size = remains;
     }
 
+    rc = sp_nonblocking_write(p->port, src, size);
 
-    bool done;
-    if (rc == size) {
-        LOG_DBG("sp_nb_write %d/%zu", rc, size);
-        done = true;
+    if (rc < 0) {
+        PORT_PANIC(EX_IOERR, "sp_nonblocking_write size=%zu, rc=%d", size, rc);
+        return false; // should not get here
     }
-    else if (rc == 0) {
+
+    if (rc == 0) {
         // i.e. EAGAIN retry on next writable event
-        LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
-        done = false;
-    }
-    else if (rc < 0) {
-        LOG_ERR("sp_nb_write size=%zu, rc=%d", size, rc);
-        port_panic(EX_IOERR, "write error");
-        done = false; // should not get here
-    }
-    else {
-        // incomplete write. try write remaining on next writable event
-        LOG_DBG("sp_nb_write %d/%zu", rc, size);
-        p->offset += rc;
-        done = false;
+        LOG_DBG("sp_nonblocking_write rc=0 (EAGAIN?");
+        return false;
     }
 
-    return done;
+    if (chardelay) {
+        p->ts_lastc = ts_now;
+    }
+
+    if (rc < remains) {
+        // incomplete write. try write remaining on next writable event
+        //LOG_DBG("sp_nonblocking_write %d/%zu", rc, size);
+        p->offset += rc;
+        return false;
+    }
+
+    // success complete write
+    return true; // done!
 }
 /** called before poll/select/whatever in event loop
  * check if there is read/write operations to be executed and
@@ -354,8 +359,7 @@ static void _on_readable(uv_poll_t* handle)
     static char buf[255];
     int rc = sp_nonblocking_read(port_data.port, buf, sizeof(buf));
     if (rc < 0) {
-        LOG_ERR("sp_nonblocking_read rc=%d", rc);
-        port_panic(EX_IOERR, "read error");
+        PORT_PANIC(EX_IOERR, "sp_nonblocking_read rc=%d", rc);
         return;
     }
     if (rc == 0) {
@@ -386,12 +390,11 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 {
     // This will typicaly occur if user pulls the cabel for /dev/ttyUSB
     if (status == UV_EBADF) {
-        LOG_DBG("poll event EBADF - device disconnected!?");
-        port_panic(EX_OSFILE, "EBADF");
+        PORT_PANIC(EX_OSFILE, "poll event EBADF - device disconnected!?");
         return;
     }
     else if (status) {
-        LOG_ERR("unexpected uv poll status %d", status);
+        LOG_WRN("unexpected uv poll status %d", status);
     }
     //LOG_DBG("port event. status=%d, event_flags=0x%x", status, events);
     if (events & UV_READABLE) {
@@ -404,7 +407,7 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 
     if (events & UV_DISCONNECT) {
         // probaly never
-        port_panic(EX_UNAVAILABLE, "UV_DISCONNECT");
+        PORT_PANIC(EX_UNAVAILABLE, "UV_DISCONNECT");
     }
 }
 
