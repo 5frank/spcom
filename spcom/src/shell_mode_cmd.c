@@ -104,19 +104,19 @@ static void sh_cmd_leave(void)
     shell_rl_mode_leave(&sh_cmd.rlstate);
 }
 
-static int sh_cmd_input_putc(char c)
+static int sh_cmd_insert(char c)
 {
     shell_rl_putc(c);
     return 0;
 }
 
 static const struct shell_mode_s sh_mode_cmd = {
-    .init         = sh_cmd_init,
-    .lock         = sh_cmd_lock,
-    .unlock       = sh_cmd_unlock,
-    .enter        = sh_cmd_enter,
-    .leave        = sh_cmd_leave,
-    .input_putc   = sh_cmd_input_putc,
+    .init    = sh_cmd_init,
+    .lock    = sh_cmd_lock,
+    .unlock  = sh_cmd_unlock,
+    .enter   = sh_cmd_enter,
+    .leave   = sh_cmd_leave,
+    .insert  = sh_cmd_insert,
 };
 
 /// exposed const pointer

@@ -6,11 +6,14 @@
 struct shell_opts_s {
     int cooked;
     int sticky;
+    int local_echo;
 };
+extern struct shell_opts_s shell_opts;
 
 struct shell_mode_s {
+    //struct readline_state *rlstate;
     /// init mode
-    int (*init)(const struct shell_opts_s *opts);
+    int (*init)(void);
     /// technically not a lock. used to keep prompts in some states
     void (*lock)(void);
     /// technically not a lock. used to keep prompts in some states
@@ -19,8 +22,10 @@ struct shell_mode_s {
     void (*enter)(void);
     /// save mode state and leave it cleanly
     void (*leave)(void);
+    /// read a char from stdin
+    int (*getchar)(void);
     /// process char from stdin
-    int (*input_putc)(char c);
+    void (*insert)(int c);
 };
 
 int shell_init(void);

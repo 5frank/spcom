@@ -20,61 +20,43 @@
 #include "keybind.h"
 #include "vt_defs.h"
 #include "shell.h"
+#include "shell_rl.h"
 
+extern void shell_raw_cleanup(void);
 extern const struct shell_mode_s *shell_mode_raw;
 extern const struct shell_mode_s *shell_mode_cooked;
-extern const struct shell_mode_s *shell_mode_cmd;
+//extern const struct shell_mode_s *shell_mode_cmd;
 
-static struct shell_opts_s shell_opts = {
+struct shell_opts_s shell_opts = {
     .cooked = false,
 };
 
 static struct shell_s {
     bool initialized;
+    uv_poll_t poll_handle;
+
     //char history[256];
     const struct shell_mode_s *current_mode;
     const struct shell_mode_s *default_mode;
     struct keybind_state kb_state;
 
-    uv_tty_t stdin_tty;
-    char stdin_rd_buf[32];
+    //uv_tty_t stdin_tty;
 
-    uv_tty_t stdout_tty;
-    uv_tty_t stderr_tty;
-    int prev_c;
-
-} shell = { 0 };
+} shell_data = { 0 };
 
 const void *shell_output_lock(void)
 {
-    const struct shell_mode_s *shm = shell.current_mode;
-    if (!shm)
-        return NULL; // shell not initialized yet
-
-    if (shm->lock)
-        shm->lock();
-
-    return shm;
+    return shell_rl_save();
 }
 
 void shell_output_unlock(const void *x)
 {
-    const struct shell_mode_s *shm_x = x;
-    if (!shm_x)
-        return; // shell not initialized yet
-
-    if (shm_x != shell.current_mode)
-        LOG_WRN("shell mode changed during output lock");
-
-    // unlock anyways
-    const struct shell_mode_s *shm = shell.current_mode;
-    if (shm->unlock)
-        shm->unlock();
+    shell_rl_restore(x);
 }
 
 static void shell_set_mode(const struct shell_mode_s *new_m)
 {
-    const struct shell_mode_s *old_m = shell.current_mode;
+    const struct shell_mode_s *old_m = shell_data.current_mode;
     if (new_m == old_m)
         return;
 
@@ -82,63 +64,27 @@ static void shell_set_mode(const struct shell_mode_s *new_m)
         old_m->leave();
 
     new_m->enter();
-    shell.current_mode = new_m;
+    shell_data.current_mode = new_m;
 }
 
-static void shell_tog_cmd_mode(void)
+static void shell_toggle_cmd_mode(void)
 {
     const struct shell_mode_s *new_m;
-    if (shell.current_mode == shell_mode_cmd)
-        new_m = shell.default_mode;
-    else
+#if 1
+#warning "not cmd mode"
+    if (shell_data.current_mode == shell_mode_cooked)
+        new_m = shell_data.default_mode;
+    else 
+        new_m = shell_mode_cooked;
+#else
+    if (shell_data.current_mode == shell_mode_cmd)
+        new_m = shell_data.default_mode;
+    else 
         new_m = shell_mode_cmd;
+#endif
 
     shell_set_mode(new_m);
-}
 
-static void shell_input_putc(int prev_c, int c)
-{
-    // need to catch ctrl keys before libreadline
-
-    /* capture input before readline as it will make it's own iterpretation. also
-     * not possible to bind the escape */
-    // TODO forward some ctrl:s
-    /** UP: 91 65
-     * DOWN: 91, 66
-     */
-    const struct shell_mode_s *shm = shell.current_mode;
-    struct keybind_state *kb_state = &shell.kb_state;
-
-    int action = keybind_eval(kb_state, c);
-
-    //LOG_DBG("input: %d, action: %d", (int)c, action);
-
-    switch (action) {
-        case K_ACTION_CACHE:
-            kb_state->cache[0] = c;
-            break;
-
-        case K_ACTION_PUTC:
-            shm->input_putc(c);
-            break;
-
-        case K_ACTION_UNCACHE:
-            shm->input_putc(kb_state->cache[0]);
-            shm->input_putc(c);
-            break;
-
-        case K_ACTION_EXIT:
-            SPCOM_EXIT(0, "user key");
-            break;
-
-        case K_ACTION_TOG_CMD_MODE:
-            shell_tog_cmd_mode();
-            break;
-
-        default:
-            LOG_ERR("unkown action %d", action);
-            break;
-    }
 }
 
 void shell_printf(int fd, const char *fmt, ...)
@@ -152,38 +98,92 @@ void shell_printf(int fd, const char *fmt, ...)
     shell_output_unlock(lock);
 }
 
-/** as unbuffered stdin and single threaded - use single small static buffer */
-static void _uvcb_stdin_stalloc(uv_handle_t *handle, size_t size, uv_buf_t *buf)
+static void _raw_insert_char(char c)
 {
-    buf->base = shell.stdin_rd_buf;
-    buf->len  = sizeof(shell.stdin_rd_buf);
+    opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
+
+    if (shell_opts.local_echo)
+        putc(c, stdout);
 }
 
-static void _uvcb_stdin_read(uv_stream_t *tty_in, ssize_t nread,
-                         const uv_buf_t *buf)
+static void _stdin_read_char(void)
 {
-    if (nread < 0) {
-        LOG_ERR("stdin read %zi", nread); // TODO exit application?
-        // uv_close((uv_handle_t*) tty_in, NULL);
-        return;
-    }
-    else if (nread == 0) {
-        /* not an error.  nread might be 0, which does not indicate an error or
-         * EOF. This is equivalent to EAGAIN or EWOULDBLOCK under read(2). this
-         * callback will run again automagicaly */
+
+    const struct shell_mode_s *shm = shell_data.current_mode;
+    assert(shm);
+
+    /* it seems that if libreadline initalized in any way, stdin should _only_ be read
+     * by libreadline. i.e. must use `rl_getc()`
+     * 
+     * libreadline "remaps" '\n' to '\r'. this is done through some
+     * tty settings, so even if `fgetc(stdin)` "normaly" returns '\n' for enter
+     * key - after libreadline internaly have called rl_prep_term(), the return
+     * value will be '\r'.
+     * */
+    int c = shm->getchar();
+
+    if (c == EOF) {
+        SPCOM_EXIT(EX_IOERR, "stdin EOF");
         return;
     }
 
-    const char *sp = buf->base;
-    size_t size = nread;
-    int prev_c = shell.prev_c;
-    for (size_t i = 0; i < size; i++) {
-        int c = *sp++;
-        shell_input_putc(prev_c, c);
-        prev_c = c;
+    // need to catch ctrl keys before libreadline
+
+    /* capture input before readline as it will make it's own iterpretation. 
+     * rl_bind_key() could also be used
+     * */
+    struct keybind_state *kb_state = &shell_data.kb_state;
+
+    int action = keybind_eval(kb_state, c);
+
+    //LOG_DBG("input: %d, action: %d", (int)c, action);
+
+    switch (action) {
+        case K_ACTION_CACHE:
+            kb_state->cache[0] = c;
+            break;
+
+        case K_ACTION_PUTC:
+            shm->insert(c);
+
+        case K_ACTION_UNCACHE:
+            shm->insert(kb_state->cache[0]);
+            shm->insert(c);
+            break;
+
+        case K_ACTION_EXIT:
+            SPCOM_EXIT(0, "user key");
+            break;
+
+        case K_ACTION_TOG_CMD_MODE:
+            shell_toggle_cmd_mode();
+            break;
+
+        default:
+            LOG_WRN("unkown action %d for c: %d", action, c);
+            break;
+    }
+}
+
+static void _on_stdin_data_avail(uv_poll_t* handle, int status, int events)
+{
+    if (status == UV_EBADF) {
+        SPCOM_EXIT(EX_IOERR, "stdin EBADF");
+        return;
     }
 
-    shell.prev_c = prev_c;
+    if (status) {
+        LOG_ERR("unexpected uv poll status %d", status);
+        return;
+    }
+
+    if (!(events & UV_READABLE)) {
+        LOG_WRN("unexpected events 0x%X", events);
+        return;
+    }
+
+    // this callback will be called again if more data availabe
+    _stdin_read_char();
 }
 
 static void shell_opq_write_done_cb(const struct opq_item *itm)
@@ -196,88 +196,45 @@ int shell_init(void)
 {
     int err = 0;
 
-    opq_set_write_done_cb(&opq_rt, shell_opq_write_done_cb);
-
-    // always initalize readline even if raw. need it for command mode
-    err = rl_initialize();
-    assert_z(err, "rl_initialize");
-
-    shell.default_mode = (shell_opts.cooked)
-        ? shell_mode_cooked
-        : shell_mode_raw;
-
-    err = shell.default_mode->init(&shell_opts);
-    if (err)
-        return err;
-
-    err = shell_mode_cmd->init(&shell_opts);
-    if (err)
-        return err;
-
     _Static_assert(STDIN_FILENO == 0, "conflicting stdin fileno w libuv");
 
     assert(isatty(STDIN_FILENO)); // should already be checked
 
+    opq_set_write_done_cb(&opq_rt, shell_opq_write_done_cb);
+
+
+    shell_data.default_mode = (shell_opts.cooked)
+        ? shell_mode_cooked
+        : shell_mode_raw;
+
+    shell_set_mode(shell_data.default_mode);
+
     uv_loop_t *loop = uv_default_loop();
-    uv_tty_t *p_tty = &shell.stdin_tty;
 
-    err = uv_tty_init(loop, p_tty, STDIN_FILENO, 0);
-    assert_uv_ok(err, "uv_tty_init");
+    err = uv_poll_init(loop, &shell_data.poll_handle, STDIN_FILENO);
+    assert_uv_ok(err, "uv_poll_init");
 
-    err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
-    assert_uv_ok(err, "uv_tty_set_mode raw");
+    err = uv_poll_start(&shell_data.poll_handle, UV_READABLE, _on_stdin_data_avail);
+    assert_uv_ok(err, "uv_poll_start");
 
-    assert(uv_is_readable((uv_stream_t *)p_tty));
-
-    err = uv_read_start((uv_stream_t *)p_tty,
-                        _uvcb_stdin_stalloc,
-                        _uvcb_stdin_read);
-    assert_uv_ok(err, "uv_read_start");
-
-#if UV_VERSION_GT_OR_EQ(1, 33)
-    // enable ansi escape sequence(s) on some windows shells
-    uv_tty_set_vterm_state(UV_TTY_SUPPORTED);
-    uv_tty_vtermstate_t vtermstate;
-    uv_tty_get_vterm_state(&vtermstate);
-    (void) vtermstate;
-    // fallback to SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING);?
-#endif
-
-    shell_set_mode(shell.default_mode);
-
-    shell.initialized = true;
+    shell_data.initialized = true;
     return 0;
 }
 
+
 void shell_cleanup(void)
 {
-    if (!shell.initialized)
+    if (!shell_data.initialized)
         return;
 
     int err = 0;
-    // if (shell.history[0] != '\0')
-    //write_history(shell.history);
+    // if (shell_data.history[0] != '\0')
+    //write_history(shell_data.history);
 
-#if 0
-    // this returns EBADF if tty(s) already closed
-    err = uv_tty_reset_mode();
-    if (err)
-        LOG_UV_ERR(err, "tty mode reset");
+    shell_raw_cleanup();
+    shell_rl_cleanup();
 
-#else
-    uv_tty_t *p_tty = &shell.stdin_tty;
-    if (uv_is_active((uv_handle_t *)p_tty)) {
-        err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
-        if (err)
-            LOG_UV_ERR(err, "tty mode normal stdin");
-        uv_close((uv_handle_t*) p_tty, NULL);
-    }
-#endif
-
-    rl_message("");
-    rl_callback_handler_remove();
-
-    shell.initialized = false;
+    shell_data.initialized = false;
 }
 
 static int shell_opts_post_parse(const struct opt_section_entry *entry)
@@ -310,15 +267,14 @@ static const struct opt_conf shell_opts_conf[] = {
         .descr = "sticky promt that keep input characters on same line."
             "This option will implicitly set cooked (canonical) mode"
     },
-#if 0 // TODO
     {
         .name = "echo",
         .alias = "lecho",
-        .dest = &shell_opts.echo,
+        .dest = &shell_opts.local_echo,
         .parse = opt_ap_flag_true,
         .descr = "local echo input characters on stdout"
     },
-#endif
+
 };
 
 OPT_SECTION_ADD(shell,
