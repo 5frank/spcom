@@ -9,6 +9,10 @@
 #include "shell.h"
 #include "shell_rl.h"
 #include "opq.h"
+#include "port.h"
+
+#define TERMIOS_DEBUG_ENABLE 0
+#include "termios_debug.h"
 
 struct shell_rl {
     bool initialized;
@@ -72,9 +76,8 @@ const void *shell_rl_save(void)
 {
     struct shell_rl *data = &shell_rl_data;
 
-    if (!data->enabled) {
+    if (!data->enabled)
         return NULL;
-    }
 
     if (!shell_opts.sticky)
         return NULL;
@@ -96,18 +99,23 @@ void shell_rl_restore(const void *x)
 {
     struct shell_rl *data = &shell_rl_data;
 
+
     const struct readline_state *rlstate_x = x;
     if (!rlstate_x)
         return; // shell not initialized yet or lock not needed in this mode
 
     struct readline_state *rlstate = &data->rlstate;
-    assert(rlstate_x == rlstate);
+#if 0
 
+    if (rlstate_x != rlstate) {
+        LOG_WRN("rl state lock from unexpected source");
+    }
+#endif
     rl_restore_state(rlstate);
     rl_forced_update_display();
 }
-
-static void shell_rl_init(void)
+#if 0
+void shell_rl_init(void)
 {
     struct shell_rl *data = &shell_rl_data;
     // save some rl defaults before anything else
@@ -126,40 +134,59 @@ static void shell_rl_init(void)
     rl_catch_sigwinch = 0;
     rl_erase_empty_line = 1;
 
-    rl_save_state(&data->rlstate);
-
     data->initialized = true;
 }
+#endif
 
 void shell_rl_enable(void)
 {
     struct shell_rl *data = &shell_rl_data;
 
-    if (!data->initialized)
-        shell_rl_init();
+    /** TODO? prompt not supported as libreadline have trouble to display it
+     * correctly (somtimes on previous line, somtimes not shown until first key
+     * press etc)
+     */
+    const char *prompt = NULL; // port_opts.name;
 
     if (data->enabled)
         return;
 
-    const char *prompt = ""; // TODO
+    /* first use of libreadline */
+    if (!data->initialized) {
 
-    if (!prompt)
-        prompt = "";
+        /* most rl_<globals> will be copied to `rlstate` when calling
+         * `rl_save_state(rlstate)` */
+        rl_catch_signals = 0;
+        rl_catch_sigwinch = 0;
+        rl_erase_empty_line = 1;
+
+        data->initialized = true;
+    }
+    else {
+
+        // restore whatever was there when last enabled
+        rl_restore_state(&data->rlstate);
+    }
 
     /* rl_callback_handler_install will call rl_initalize and a bunch of other
-     * functions to confiugre the tty */
+     * functions to confiugre the tty.
+     * note these changes will also be copied to on later when rl_state_save() called
+     */
+    ___TERMIOS_DEBUG_BEFORE();
     rl_callback_handler_install(prompt, _on_rl_line);
+    ___TERMIOS_DEBUG_AFTER("rl_callback_handler_install");
 
-    rl_on_new_line();
-#if 0
-    rl_restore_state(rlstate);
+
     // clear. needed?
-    rl_replace_line("", 0);
-    rl_redisplay();
-    //rl_reset_line_state();
-    rl_set_prompt(prompt);
-    rl_redisplay();
-#endif
+    //rl_replace_line("", 0);
+    //rl_redisplay();
+    rl_reset_line_state();
+    //rl_set_prompt(prompt);
+    //rl_on_new_line();
+
+    rl_redisplay(); // promt not shown if not redisplayed
+
+    data->enabled = true;
 }
 
 void shell_rl_disable(void)
@@ -171,13 +198,14 @@ void shell_rl_disable(void)
 
     /// save globals
     rl_save_state(&data->rlstate);
-#if 0
+
     // clear
     rl_replace_line("", 0);
     rl_redisplay();
-#endif
+
     rl_message("");
     rl_callback_handler_remove();
+    data->enabled = false;
 
 }
 
@@ -188,8 +216,16 @@ void shell_rl_cleanup(void)
     if (!data->initialized)
         return;
 
+    /* TODO 
+     * if (shell_rl_data.history[0] != '\0')
+     *      write_history(shell_rl_data.history);
+     */ 
+
     rl_message("");
+
+    ___TERMIOS_DEBUG_BEFORE();
     rl_callback_handler_remove();
+    ___TERMIOS_DEBUG_AFTER("rl_callback_handler_remove");
 }
 
 /** it seems that if libreadline initalized in any way, stdin should _only_ be read

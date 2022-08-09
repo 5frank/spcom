@@ -15,9 +15,9 @@ struct shell_mode_s {
     /// init mode
     int (*init)(void);
     /// technically not a lock. used to keep prompts in some states
-    void (*lock)(void);
+    const void *(*lock)(void);
     /// technically not a lock. used to keep prompts in some states
-    void (*unlock)(void);
+    void (*unlock)(const void *);
     /// load (enter) mode
     void (*enter)(void);
     /// save mode state and leave it cleanly
@@ -30,9 +30,6 @@ struct shell_mode_s {
 
 int shell_init(void);
 void shell_cleanup(void);
-
-void shell_printf(int fd, const char *fmt, ...)
-    __attribute__((format(printf, 2, 3)));
 
 /// technically not a lock. used to keep prompts in some states
 const void *shell_output_lock(void);

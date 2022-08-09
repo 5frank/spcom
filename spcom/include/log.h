@@ -57,8 +57,8 @@ static inline void ___log_int(int level,
 #define ___LOG_INT(LEVEL, MSG, NUM, NUM_TO_STR) \
     ___log_int(LEVEL, __FILENAME__, __LINE__, MSG, NUM, NUM_TO_STR)
 
-#define LOG_ERRNO(MSG) \
-    __LOG_INT(LOG_LEVEL_ERR, MSG, errno, strerrorname_np)
+#define LOG_ERRNO(ERRNUM, MSG) \
+    ___LOG_INT(LOG_LEVEL_ERR, MSG, ERRNUM, strerrorname_np)
 
 /// libuv (uv)
 #define LOG_UV_ERR(UV_ERR, MSG) \

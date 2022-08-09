@@ -6,16 +6,21 @@
 #include "shell.h"
 #include "opq.h"
 
+#define TERMIOS_DEBUG_ENABLE 0
+#include "termios_debug.h"
+
 struct {
     bool initialized;
     uv_tty_t stdin_tty;
 } shell_raw;;
 
-
 static void sh_raw_init(void)
 {
     int err;
     uv_tty_t *p_tty = &shell_raw.stdin_tty;
+
+    err = uv_tty_init(uv_default_loop(), p_tty, STDIN_FILENO, 0);
+    assert_uv_ok(err, "uv_tty_init");
 
 #if UV_VERSION_GT_OR_EQ(1, 33)
     // enable ansi escape sequence(s) on some windows shells
@@ -26,20 +31,29 @@ static void sh_raw_init(void)
     // fallback to SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING);?
 #endif
 
-    err = uv_tty_init(uv_default_loop(), p_tty, STDIN_FILENO, 0);
-    assert_uv_ok(err, "uv_tty_init");
-
-   shell_raw.initialized = true;
+    shell_raw.initialized = true;
 }
 
 static void sh_raw_enter(void)
 {
+    int err;
+
     if (!shell_raw.initialized) {
         sh_raw_init();
     }
+#if 0
+    // readline messes with this
+    err = uv_tty_reset_mode();
+    if (err)
+        LOG_UV_ERR(err, "uv_tty_reset_mode");
+#endif
 
     uv_tty_t *p_tty = &shell_raw.stdin_tty;
-    int err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
+
+    ___TERMIOS_DEBUG_BEFORE();
+    err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
+    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_RAW");
+
     if (err)
         LOG_UV_ERR(err, "uv_tty_set_mode raw");
 
@@ -74,19 +88,34 @@ static int sh_raw_getchar(void)
 
 void shell_raw_cleanup(void)
 {
+    int err;
+
+    if (!shell_raw.initialized)
+        return;
+
+#if 1
     uv_tty_t *p_tty = &shell_raw.stdin_tty;
     if (!uv_is_active((uv_handle_t *)p_tty)) {
         return;
     }
 
-#if 1
-    // this returns EBADF if tty(s) already closed
-    err = uv_tty_reset_mode();
+    ___TERMIOS_DEBUG_BEFORE();
+    err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
+    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_NORMAL");
+
     if (err)
-        LOG_UV_ERR(err, "tty mode reset");
+        LOG_UV_ERR(err, "uv_tty_set_mode normal");
+#else
+    // this returns EBADF if tty(s) already closed
+    ___TERMIOS_DEBUG_BEFORE();
+    err = uv_tty_reset_mode();
+    ___TERMIOS_DEBUG_AFTER("uv_tty_reset_mode");
+
+    if (err)
+        LOG_UV_ERR(err, "uv_tty_reset_mode");
 #endif
 
-    uv_close((uv_handle_t*) p_tty, NULL);
+    //uv_close((uv_handle_t*) p_tty, NULL);
 }
 
 static const struct shell_mode_s sh_mode_raw = {

@@ -11,6 +11,7 @@ void shell_rl_enable(void);
 void shell_rl_disable(void);
 
 void shell_rl_cleanup(void);
+void shell_rl_init(void);
 
 void shell_rl_insertchar(int c);
 int shell_rl_getchar(void);

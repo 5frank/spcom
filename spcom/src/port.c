@@ -40,7 +40,6 @@ enum port_state_e {
     PORT_STATE_READY
 };
 
-extern struct port_opts_s port_opts;
 
 static struct port_s {
     struct sp_port *port;

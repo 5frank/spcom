@@ -1,11 +1,11 @@
-
-#define _GNU_SOURCE
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#include <termios.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -35,6 +35,7 @@ static struct shell_s {
     bool initialized;
     uv_poll_t poll_handle;
 
+    struct termios term_attr;
     //char history[256];
     const struct shell_mode_s *current_mode;
     const struct shell_mode_s *default_mode;
@@ -46,12 +47,24 @@ static struct shell_s {
 
 const void *shell_output_lock(void)
 {
-    return shell_rl_save();
+    const struct shell_mode_s *shm = shell_data.current_mode;
+    if (!shm)
+        return NULL; // shell not initialized yet
+
+    if (!shm->lock)
+        return NULL;
+
+    return shm->lock();
 }
 
 void shell_output_unlock(const void *x)
 {
-    shell_rl_restore(x);
+    const struct shell_mode_s *shm = shell_data.current_mode;
+    if (!shm)
+        return NULL; // shell not initialized yet
+
+    if (shm->unlock)
+        shm->unlock(x);
 }
 
 static void shell_set_mode(const struct shell_mode_s *new_m)
@@ -86,7 +99,7 @@ static void shell_toggle_cmd_mode(void)
     shell_set_mode(new_m);
 
 }
-
+#if 0
 void shell_printf(int fd, const char *fmt, ...)
 {
     va_list args;
@@ -97,14 +110,7 @@ void shell_printf(int fd, const char *fmt, ...)
 
     shell_output_unlock(lock);
 }
-
-static void _raw_insert_char(char c)
-{
-    opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
-
-    if (shell_opts.local_echo)
-        putc(c, stdout);
-}
+#endif
 
 static void _stdin_read_char(void)
 {
@@ -112,14 +118,6 @@ static void _stdin_read_char(void)
     const struct shell_mode_s *shm = shell_data.current_mode;
     assert(shm);
 
-    /* it seems that if libreadline initalized in any way, stdin should _only_ be read
-     * by libreadline. i.e. must use `rl_getc()`
-     * 
-     * libreadline "remaps" '\n' to '\r'. this is done through some
-     * tty settings, so even if `fgetc(stdin)` "normaly" returns '\n' for enter
-     * key - after libreadline internaly have called rl_prep_term(), the return
-     * value will be '\r'.
-     * */
     int c = shm->getchar();
 
     if (c == EOF) {
@@ -127,10 +125,8 @@ static void _stdin_read_char(void)
         return;
     }
 
-    // need to catch ctrl keys before libreadline
-
-    /* capture input before readline as it will make it's own iterpretation. 
-     * rl_bind_key() could also be used
+    /* capture input before readline as it will make it's own iterpretation.
+     * rl_bind_key() could also be used but will not work in raw mode
      * */
     struct keybind_state *kb_state = &shell_data.kb_state;
 
@@ -145,6 +141,7 @@ static void _stdin_read_char(void)
 
         case K_ACTION_PUTC:
             shm->insert(c);
+            break;
 
         case K_ACTION_UNCACHE:
             shm->insert(kb_state->cache[0]);
@@ -202,12 +199,16 @@ int shell_init(void)
 
     opq_set_write_done_cb(&opq_rt, shell_opq_write_done_cb);
 
+    err = tcgetattr(STDIN_FILENO, &shell_data.term_attr);
+    if (err) {
+        LOG_ERRNO(errno, "tcgetattr");
+        return err;
+    }
 
     shell_data.default_mode = (shell_opts.cooked)
         ? shell_mode_cooked
         : shell_mode_raw;
 
-    shell_set_mode(shell_data.default_mode);
 
     uv_loop_t *loop = uv_default_loop();
 
@@ -217,10 +218,42 @@ int shell_init(void)
     err = uv_poll_start(&shell_data.poll_handle, UV_READABLE, _on_stdin_data_avail);
     assert_uv_ok(err, "uv_poll_start");
 
+    shell_set_mode(shell_data.default_mode);
+
     shell_data.initialized = true;
     return 0;
 }
 
+/**
+ * neither libuv nor libreadline seems to be able to restore the terminal
+ * correctly (or they might be conlficting with each other). */
+static int shell_restore_term(void)
+{
+    int err;
+
+    /* From man page: "Note that tcsetattr() returns success if any of the
+       requested changes could be successfully carried out" */
+    err = tcsetattr(STDIN_FILENO, TCSANOW, &shell_data.term_attr);
+    if (err) {
+        LOG_ERRNO(errno, "tcsetattr");
+        return err;
+    }
+
+    struct termios tmp = {0};
+    err = tcgetattr(STDIN_FILENO, &tmp);
+    if (err) {
+        LOG_ERRNO(errno, "tcgetattr");
+        return err;
+    }
+
+    bool success = !memcmp(&tmp, &shell_data.term_attr, sizeof(struct termios));
+    if (!success) {
+        LOG_ERR("some terminal settings not restored"); 
+        return -1;
+    }
+
+    return 0;
+}
 
 void shell_cleanup(void)
 {
@@ -228,11 +261,11 @@ void shell_cleanup(void)
         return;
 
     int err = 0;
-    // if (shell_data.history[0] != '\0')
-    //write_history(shell_data.history);
 
     shell_raw_cleanup();
     shell_rl_cleanup();
+
+    shell_restore_term();
 
     shell_data.initialized = false;
 }
