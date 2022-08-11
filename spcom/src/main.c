@@ -17,14 +17,14 @@
 #include "port_info.h"
 #include "main_opts.h"
 
-struct main_s {
+struct main_data {
     bool cleanup_done;
     uv_signal_t ev_sigint;
     uv_signal_t ev_sigterm;
     int signum;
 };
 
-static struct main_s g_main = { 0 };
+static struct main_data main_data = { 0 };
 
 int ipipe_init(void);
 
@@ -34,7 +34,7 @@ static void main_cleanup(void);
 static void on_uv_close(uv_handle_t* handle)
 {
     if (handle) {
-        // TODO? free handle resources
+        // TODO? free handle resources?
     }
 }
 static void on_uv_walk(uv_handle_t* handle, void* arg)
@@ -61,7 +61,7 @@ static void main_uv_cleanup(void)
         }
     }
 
-    /* TODO mabye use uv_library_shutdown() only or not at all? */
+    /* TODO? mabye use uv_library_shutdown() only or not at all? */
 
 #if 0 && UV_VERSION_GT_OR_EQ(1, 38)
     /*
@@ -113,21 +113,30 @@ void spcom_exit(int exit_code,
     exit(exit_code);
 }
 
-/** SIGINT callback will not run on ctrl-c if tty in raw mode */
+/** note: SIGINT callback will not run on ctrl-c if tty in raw mode */
 void _uvcb_on_signal(uv_signal_t *handle, int signum)
 {
     LOG_DBG("Signal received: %d", signum);
-    // TODO cleaner way? can not call SPCOM_EXIT here. why?
-    // calling uv_stop will make uv_run return unkown error
-    g_main.signum = signum;
-    //uv_signal_stop(handle);
-    uv_stop(uv_default_loop()); 
-    // spcom_exit(EXIT_SUCCESS); // TODO
+    /** TODO? is there a prettier way to exit from signal handler?
+     * can not call SPCOM_EXIT here as it runs from "interrupt context"?  */
+
+    /* store first signal received. (might not be needed when uv_signal_stop
+     * used?)  */
+    if (!main_data.signum) {
+        main_data.signum = signum;
+    }
+
+    /* uv_signal_stop - callback will no longer be called. */
+    uv_signal_stop(handle);
+
+    /* calling uv_stop should/will cause uv_run to exit with return unkown
+     * error code */
+    uv_stop(uv_default_loop());
 }
 
 static void main_init(void)
 {
-    struct main_s *m = &g_main;
+    struct main_data *m = &main_data;
     int err = 0;
 
     uv_loop_t *loop = uv_default_loop();
@@ -137,7 +146,7 @@ static void main_init(void)
 
     err = uv_signal_init(loop, &m->ev_sigint);
     assert_uv_ok(err, "uv_signal_init");
-    // SIGINT callback will not run on ctrl-c if tty in raw mode
+
     err = uv_signal_start(&m->ev_sigint, _uvcb_on_signal, SIGINT);
     assert_uv_ok(err, "uv_signal_start");
 
@@ -153,7 +162,6 @@ static void main_init(void)
     else {
         err = ipipe_init();
         assert_z(err, "ipipe_init");
-        //return SPCOM_EXIT(EX_UNAVAILABLE, "pipe input not supported yet");
     }
 
     timeout_init();
@@ -164,7 +172,7 @@ static void main_init(void)
 
 static void main_cleanup(void)
 {
-    struct main_s *m = &g_main;
+    struct main_data *m = &main_data;
     LOG_DBG("cleaning up...");
 
     if (m->cleanup_done) {
@@ -177,7 +185,7 @@ static void main_cleanup(void)
     shell_cleanup();
     port_cleanup();
 
-    // uv handles might be closed here. shoul be made after modules that uses them
+    /* uv handles might be closed here. must be after modules that uses them!*/
     main_uv_cleanup();
 
     outfmt_endline();
@@ -234,12 +242,12 @@ int main(int argc, char *argv[])
     err = uv_run(loop, UV_RUN_DEFAULT);
     /* log err but must always run SPCOM_EXIT handler for cleanup */
     if (err) {
-        if (g_main.signum) {
-            SPCOM_EXIT(EX_OK, "Signal received: %d", g_main.signum);
+        if (main_data.signum) {
+            SPCOM_EXIT(EX_OK, "Signal received: %d", main_data.signum);
         }
         else {
-            LOG_UV_ERR(err, "uv_run");
-            SPCOM_EXIT(EX_SOFTWARE, "uv_run unhandled error");
+            SPCOM_EXIT(EX_SOFTWARE, "uv_run unhandled error %s",
+                       misc_uv_err_to_str(err));
         }
     }
 
