@@ -72,11 +72,11 @@ static int sh_cooked_init(const struct shell_opts_s *opts)
 #endif
 
 static const struct shell_mode_s sh_mode_cooked = {
-    .lock   = shell_rl_save,
-    .unlock = shell_rl_restore,
-    .enter  = shell_rl_enable,
-    .leave  = shell_rl_disable,
-    .insert = shell_rl_insertchar,
+    .lock    = shell_rl_save,
+    .unlock  = shell_rl_restore,
+    .enter   = shell_rl_enable,
+    .leave   = shell_rl_disable,
+    .insert  = shell_rl_insertchar,
     .getchar = shell_rl_getchar
 };
 

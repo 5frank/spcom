@@ -6,9 +6,6 @@
 #include "shell.h"
 #include "opq.h"
 
-#define TERMIOS_DEBUG_ENABLE 0
-#include "termios_debug.h"
-
 struct {
     bool initialized;
     uv_tty_t stdin_tty;
@@ -93,12 +90,14 @@ void shell_raw_cleanup(void)
     if (!shell_raw.initialized)
         return;
 
-#if 1
+#if 0
     uv_tty_t *p_tty = &shell_raw.stdin_tty;
     if (!uv_is_active((uv_handle_t *)p_tty)) {
         return;
     }
+#endif
 
+#if 0
     ___TERMIOS_DEBUG_BEFORE();
     err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
     ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_NORMAL");

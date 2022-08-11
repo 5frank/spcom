@@ -34,6 +34,7 @@ set(SOURCES
     src/strerrorname_np.c
     src/keybind.c
     src/timeout.c
+    src/termios_debug.c
     src/opq.c
 )
 # TODO use gcc `-I` to include pre_defs.h before any other headers'
@@ -56,6 +57,7 @@ add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
 #TODO configurable target
 add_definitions("-DDEBUG=1")
 
+add_compile_definitions(CONFIG_TERMIOS_DEBUG=1)
 
 add_executable(spcom ${SOURCES})
 

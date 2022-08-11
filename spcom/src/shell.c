@@ -34,7 +34,7 @@ struct shell_opts_s shell_opts = {
 static struct shell_s {
     bool initialized;
     uv_poll_t poll_handle;
-
+    bool have_term_attr;
     struct termios term_attr;
     //char history[256];
     const struct shell_mode_s *current_mode;
@@ -61,7 +61,7 @@ void shell_output_unlock(const void *x)
 {
     const struct shell_mode_s *shm = shell_data.current_mode;
     if (!shm)
-        return NULL; // shell not initialized yet
+        return; // shell not initialized yet
 
     if (shm->unlock)
         shm->unlock(x);
@@ -204,11 +204,7 @@ int shell_init(void)
         LOG_ERRNO(errno, "tcgetattr");
         return err;
     }
-
-    shell_data.default_mode = (shell_opts.cooked)
-        ? shell_mode_cooked
-        : shell_mode_raw;
-
+    shell_data.have_term_attr = true;
 
     uv_loop_t *loop = uv_default_loop();
 
@@ -218,6 +214,9 @@ int shell_init(void)
     err = uv_poll_start(&shell_data.poll_handle, UV_READABLE, _on_stdin_data_avail);
     assert_uv_ok(err, "uv_poll_start");
 
+    shell_data.default_mode = (shell_opts.cooked)
+        ? shell_mode_cooked
+        : shell_mode_raw;
     shell_set_mode(shell_data.default_mode);
 
     shell_data.initialized = true;
@@ -226,14 +225,15 @@ int shell_init(void)
 
 /**
  * neither libuv nor libreadline seems to be able to restore the terminal
- * correctly (or they might be conlficting with each other). */
+ * correctly (or they might be in conlfict with each other?). */
 static int shell_restore_term(void)
 {
     int err;
 
+    const struct termios *org = &shell_data.term_attr;
     /* From man page: "Note that tcsetattr() returns success if any of the
        requested changes could be successfully carried out" */
-    err = tcsetattr(STDIN_FILENO, TCSANOW, &shell_data.term_attr);
+    err = tcsetattr(STDIN_FILENO, TCSANOW, org);
     if (err) {
         LOG_ERRNO(errno, "tcsetattr");
         return err;
@@ -246,9 +246,9 @@ static int shell_restore_term(void)
         return err;
     }
 
-    bool success = !memcmp(&tmp, &shell_data.term_attr, sizeof(struct termios));
+    bool success = !memcmp(&tmp, org, sizeof(struct termios));
     if (!success) {
-        LOG_ERR("some terminal settings not restored"); 
+        LOG_ERR("some terminal settings not restored");
         return -1;
     }
 
@@ -257,25 +257,21 @@ static int shell_restore_term(void)
 
 void shell_cleanup(void)
 {
-    if (!shell_data.initialized)
-        return;
+    if (shell_data.initialized) {
+        shell_raw_cleanup();
+        shell_rl_cleanup();
+        shell_data.initialized = false;
+    }
 
-    int err = 0;
-
-    shell_raw_cleanup();
-    shell_rl_cleanup();
-
-    shell_restore_term();
-
-    shell_data.initialized = false;
+    // always restore if possible. last!
+    if (shell_data.have_term_attr) {
+        shell_restore_term();
+    }
 }
 
 static int shell_opts_post_parse(const struct opt_section_entry *entry)
 {
     // note: do not use LOG here
-
-    if (shell_opts.sticky)
-        shell_opts.cooked = true;
 
     return 0;
 }
@@ -298,7 +294,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .dest = &shell_opts.sticky,
         .parse = opt_ap_flag_true,
         .descr = "sticky promt that keep input characters on same line."
-            "This option will implicitly set cooked (canonical) mode"
+            "Only applies when in coocked mode"
     },
     {
         .name = "echo",

@@ -13,7 +13,7 @@ extern struct shell_opts_s shell_opts;
 struct shell_mode_s {
     //struct readline_state *rlstate;
     /// init mode
-    int (*init)(void);
+    //int (*init)(void);
     /// technically not a lock. used to keep prompts in some states
     const void *(*lock)(void);
     /// technically not a lock. used to keep prompts in some states

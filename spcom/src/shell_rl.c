@@ -11,26 +11,19 @@
 #include "opq.h"
 #include "port.h"
 
-#define TERMIOS_DEBUG_ENABLE 0
-#include "termios_debug.h"
-
 struct shell_rl {
     bool initialized;
     bool enabled;
     struct readline_state rlstate;
-#if 0
-    struct {
-        rl_vintfunc_t *prep_term_function;
-        rl_voidfunc_t *deprep_term_function;
-    } org;
-#endif
+    const char *prompt;
 };
 
-static struct shell_rl shell_rl_data;
+static struct shell_rl shell_rl_data = { 0 };
 /**
- * called by libreadline when line completed. seems like only one
- * callback should be used(?) as `rl_linefunc` is only accessible through 
- * `rl_callback_handler_install` that also does other things
+ * called by libreadline when line completed. only one
+ * callback should be used as `rl_linefunc` is only accessible through 
+ * `rl_callback_handler_install` that also does other things and we do not want
+ * to change the callback from the callback (causes some problems side effects).
  */
 static void _on_rl_line(char *line)
 {
@@ -51,9 +44,10 @@ static void _on_rl_line(char *line)
     }
     // always send EOL on enter
     opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
-    LOG_DBG("'%s'", line);
+    //LOG_DBG("'%s'", line);
     // no free!
 }
+
 /**
  * insert char when in libreadline "callback mode" (RL_STATE_CALLBACK set).
  * note that the following will _not_ work with RL_STATE_CALLBACK as enter key
@@ -88,6 +82,10 @@ const void *shell_rl_save(void)
     struct readline_state *rlstate = &data->rlstate;
 
     rl_save_state(rlstate);
+
+    /* note: using `rl_clear_visible_line()` here causes some charachters
+     * printed to stdout elsewhere to be lost */
+
     rl_set_prompt("");
     rl_replace_line("", 0);
     rl_redisplay();
@@ -114,56 +112,39 @@ void shell_rl_restore(const void *x)
     rl_restore_state(rlstate);
     rl_forced_update_display();
 }
-#if 0
-void shell_rl_init(void)
+
+static void _rl_init(void)
 {
     struct shell_rl *data = &shell_rl_data;
-    // save some rl defaults before anything else
-#if 0
-    assert(rl_prep_term_function);
-    assert(rl_deprep_term_function);
-
-    data->org.prep_term_function = rl_prep_term_function;
-    data->org.deprep_term_function = rl_deprep_term_function;
-#endif
-
     /* most rl_<globals> will be copied to `rlstate` when calling
-     * `rl_save_state(rlstate)` */
-
+     * `rl_save_state(rlstate)` 
+     * i.e. this will implicitly initalize rlstate */
     rl_catch_signals = 0;
     rl_catch_sigwinch = 0;
     rl_erase_empty_line = 1;
 
+    data->prompt = "> "; // TODO port_opts.name;
+
     data->initialized = true;
 }
-#endif
 
 void shell_rl_enable(void)
 {
     struct shell_rl *data = &shell_rl_data;
 
-    /** TODO? prompt not supported as libreadline have trouble to display it
+    /** TODO? prompt not displayed 
      * correctly (somtimes on previous line, somtimes not shown until first key
      * press etc)
      */
-    const char *prompt = NULL; // port_opts.name;
 
     if (data->enabled)
         return;
 
     /* first use of libreadline */
     if (!data->initialized) {
-
-        /* most rl_<globals> will be copied to `rlstate` when calling
-         * `rl_save_state(rlstate)` */
-        rl_catch_signals = 0;
-        rl_catch_sigwinch = 0;
-        rl_erase_empty_line = 1;
-
-        data->initialized = true;
+        _rl_init();
     }
     else {
-
         // restore whatever was there when last enabled
         rl_restore_state(&data->rlstate);
     }
@@ -173,16 +154,16 @@ void shell_rl_enable(void)
      * note these changes will also be copied to on later when rl_state_save() called
      */
     ___TERMIOS_DEBUG_BEFORE();
-    rl_callback_handler_install(prompt, _on_rl_line);
+    rl_callback_handler_install(NULL, _on_rl_line);
     ___TERMIOS_DEBUG_AFTER("rl_callback_handler_install");
 
 
     // clear. needed?
     //rl_replace_line("", 0);
     //rl_redisplay();
-    rl_reset_line_state();
-    //rl_set_prompt(prompt);
-    //rl_on_new_line();
+    //rl_reset_line_state();
+    rl_set_prompt(data->prompt);
+    rl_on_new_line();
 
     rl_redisplay(); // promt not shown if not redisplayed
 
@@ -204,7 +185,11 @@ void shell_rl_disable(void)
     rl_redisplay();
 
     rl_message("");
+
+    ___TERMIOS_DEBUG_BEFORE();
     rl_callback_handler_remove();
+    ___TERMIOS_DEBUG_AFTER("rl_callback_handler_remove");
+
     data->enabled = false;
 
 }
@@ -218,8 +203,7 @@ void shell_rl_cleanup(void)
 
     /* TODO 
      * if (shell_rl_data.history[0] != '\0')
-     *      write_history(shell_rl_data.history);
-     */ 
+     *      write_history(shell_rl_data.history); */
 
     rl_message("");
 
@@ -228,9 +212,10 @@ void shell_rl_cleanup(void)
     ___TERMIOS_DEBUG_AFTER("rl_callback_handler_remove");
 }
 
-/** it seems that if libreadline initalized in any way, stdin should _only_ be read
- * by libreadline. i.e. must use `rl_getc()`
- * 
+/**
+ * it seems that if libreadline initalized in any way, stdin should _only_ be
+ * read by libreadline. i.e. must use `rl_getc()`
+ *
  * libreadline "remaps" '\n' to '\r'. this is done through some
  * tty settings, so even if `fgetc(stdin)` "normaly" returns '\n' for enter
  * key - after libreadline internaly have called rl_prep_term(), the return

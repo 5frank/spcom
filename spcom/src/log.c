@@ -193,14 +193,10 @@ void log_init(void)
                         fpath, strerror(errno));
             return;
         }
-        //setlinebuf(fp); // TODO needed and correct?
+        setlinebuf(fp); // easier debug on `tail -F spcom.log`
         log_data.filefp = fp;
     }
 
-    // TODO set debug for this application
-    if (level == 0) {
-        //
-    }
     if (level > LOG_LEVEL_DBG) {
         // very verbose
         sp_set_debug_handler(_sp_log_handler);
@@ -224,7 +220,6 @@ void log_cleanup(void)
 
     log_data.initialized = false;
 }
-
 
 static const struct opt_conf log_opts_conf[] = {
     {
