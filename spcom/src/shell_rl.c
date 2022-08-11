@@ -191,7 +191,6 @@ void shell_rl_disable(void)
     ___TERMIOS_DEBUG_AFTER("rl_callback_handler_remove");
 
     data->enabled = false;
-
 }
 
 void shell_rl_cleanup(void)

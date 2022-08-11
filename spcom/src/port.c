@@ -673,21 +673,18 @@ int port_drain(uint32_t timeout_ms)
 }
 
 
-int port_init(port_rx_cb_fn *rx_cb)
+void port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
+
     if (!port_opts.name) {
         SPCOM_EXIT(EX_USAGE, "No port or device name provided");
-        return -1;
     }
 
     port_data.rx_cb = rx_cb;
     // allocate some resources
     err = sp_new_config(&port_data.org_config);
-    if (err) {
-        LOG_SP_ERR(err, "sp_new_config");
-        return err;
-    }
+    assert_sp_ok(err, "sp_new_config");
     assert(port_data.org_config);
 
     uv_loop_t *loop = uv_default_loop();
@@ -701,18 +698,16 @@ int port_init(port_rx_cb_fn *rx_cb)
         port_wait_init(port_opts.name);
     }
 
-    if (!port_exists()) {
+    if (port_exists()) {
+        port_open();
+    }
+    else {
         if (port_opts.wait) {
             port_wait_start(on_port_discovered);
             port_data.state = PORT_STATE_WAITING;
-            return 0;
         }
         else {
             SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts.name);
-            return -EBADF;
         }
     }
-
-    port_open();
-    return 0;
 }

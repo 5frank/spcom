@@ -38,7 +38,7 @@ static void sh_raw_enter(void)
     if (!shell_raw.initialized) {
         sh_raw_init();
     }
-#if 0
+#if 1
     // readline messes with this
     err = uv_tty_reset_mode();
     if (err)
@@ -90,9 +90,10 @@ void shell_raw_cleanup(void)
     if (!shell_raw.initialized)
         return;
 
-#if 0
     uv_tty_t *p_tty = &shell_raw.stdin_tty;
+#if 0
     if (!uv_is_active((uv_handle_t *)p_tty)) {
+        LOG_DBG("uv_tty_t stdint not active");
         return;
     }
 #endif
@@ -109,12 +110,14 @@ void shell_raw_cleanup(void)
     ___TERMIOS_DEBUG_BEFORE();
     err = uv_tty_reset_mode();
     ___TERMIOS_DEBUG_AFTER("uv_tty_reset_mode");
-
     if (err)
         LOG_UV_ERR(err, "uv_tty_reset_mode");
+
 #endif
 
-    //uv_close((uv_handle_t*) p_tty, NULL);
+    /* no need to close stdin
+     * `uv_close((uv_handle_t*) p_tty, NULL);`
+     */
 }
 
 static const struct shell_mode_s sh_mode_raw = {

@@ -76,7 +76,7 @@ const char *misc_sp_err_to_str(int sp_err)
                 return "fail system error";
             }
 
-            snprintf(buf, sizeof(buf), "%s", tmp);
+            snprintf(buf, sizeof(buf), "fail '%s'", tmp);
             sp_free_error_message(tmp);
 
             return buf;
