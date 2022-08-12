@@ -45,7 +45,7 @@ void ___assert_uv_fail(const char *file,
     do {                                                                       \
         int _err = (ERR);                                                      \
         if (_err) {                                                            \
-            ___assert_uv_fail(__FILENAME__, __LINE__, __func__, MSG, _err);    \
+            ___assert_uv_fail(FILEBASENAME(), __LINE__, __func__, MSG, _err);  \
         }                                                                      \
     } while (0)
 
@@ -61,7 +61,7 @@ void ___assert_sp_fail(const char *file,
     do {                                                                       \
         int _err = (ERR);                                                      \
         if (_err) {                                                            \
-            ___assert_sp_fail(__FILENAME__, __LINE__, __func__, MSG, _err);    \
+            ___assert_sp_fail(FILEBASENAME(), __LINE__, __func__, MSG, _err);  \
         }                                                                      \
     } while (0)
 

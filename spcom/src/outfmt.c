@@ -47,22 +47,13 @@ static struct strbuf {
 } _strbuf;
 #endif
 
+
 static void outfmt_strbuf_flush(struct strbuf *sb)
 {
-    const void *lock = shell_output_lock();
-
-    size_t rc = fwrite(sb->buf, sb->len, 1, stdout);
-
-    shell_output_unlock(lock);
-
-    if (rc == 0) {
-        // TODO log error. retry?
-    }
-    else if (rc != sb->len) {
-        // TODO log error. retry?
-    }
+    shell_write(0, sb->buf, sb->len);
 
     outfmt.last_c_flushed = sb->buf[sb->len];
+
     sb->len = 0;
 }
 
@@ -164,7 +155,6 @@ static void outfmt_sb_putc(struct strbuf *sb, int c)
 
 /**
  * handle seq crlf:
- * -always replace with \n on stdout
  */
 void outfmt_write(const void *data, size_t size)
 {

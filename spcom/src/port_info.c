@@ -330,13 +330,14 @@ int port_info_print_list(int verbose)
         if (show_phyinfo && info->phyinfo) {
             PINDENT(2, "Phyinfo: %s", info->phyinfo);
         }
-
+#if 0
         if (verbose > 2) {
             PINDENT(2, "OS Settings:");
             err = port_info_print_osconfig(info->devname);
             if (err)
                 continue;
         }
+#endif
     }
 
 cleanup:

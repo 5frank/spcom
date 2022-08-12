@@ -146,4 +146,6 @@ int str_split_kv_list(char *s, struct str_kv *kvlist, int *n);
 
 int str_split_quoted(char *s, int *argc, char *argv[], int argvmax);
 
+int str_escape_nonprint(char *dst, size_t dstsize,
+                       const char *src, size_t srcsize);
 #endif

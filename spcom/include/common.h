@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <sysexits.h>
+#include <string.h>
 
 #include "assert.h"
 #include "outfmt.h"
@@ -25,7 +26,15 @@
 #define __FILENAME__ __FILE__
 #endif
 
-#ifndef _GNU_SOURCE
+static inline const char *___filebasename(const char *strrchr_res, const char *file)
+{
+    return strrchr_res ? (strrchr_res  + 1) : file;
+}
+
+/** evaluate strrchr once - should be optimized at compile time */
+#define FILEBASENAME() ___filebasename(strrchr(__FILENAME__, '/'), __FILENAME__)
+
+#ifndef _GNU_SOURCE // TODO proper test macro!!!
 /**
  * Provide if not _GNU_SOURCE
  * The strerrorname_np()
@@ -62,6 +71,18 @@ void spcom_exit(int exit_code,
 
 #define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                       \
         spcom_exit(EXIT_CODE,  __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
+
+
+#if CONFIG_TERMIOS_DEBUG
+void ___termios_debug_before(void);
+void ___termios_debug_after(const char *what);
+
+#define ___TERMIOS_DEBUG_BEFORE()    ___termios_debug_before()
+#define ___TERMIOS_DEBUG_AFTER(WHAT) ___termios_debug_after(WHAT)
+#else
+#define ___TERMIOS_DEBUG_BEFORE()    do { } while (0)
+#define ___TERMIOS_DEBUG_AFTER(WHAT) do { } while (0)
+#endif /* CONFIG_TERMIOS_DEBUG */
 
 
 #endif

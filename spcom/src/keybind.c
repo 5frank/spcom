@@ -195,7 +195,7 @@ static int _parse_vtkey(const char *s, uint8_t *vtkey)
             if (!islower(*s))
                 return -EINVAL;
 
-            vtkey_tmp = VT_CTRL_KEY(*s);
+            vtkey_tmp = VT_C_TO_CTRL_KEY(*s);
 
             s++;
             if (*s != '\0')
@@ -230,16 +230,16 @@ static int keybind_post_parse(const struct opt_section_entry *entry)
     // note: do not use LOG here. not initialized yet
 
     struct keybind_map *kbm = &keybind_map;
-    err = kb_add_action(kbm, VT_CTRL_KEY('C'), K_ACTION_EXIT);
+    err = kb_add_action(kbm, VT_C_TO_CTRL_KEY('C'), K_ACTION_EXIT);
     assert(!err);
 
-    err = kb_add_action(kbm, VT_CTRL_KEY('D'), K_ACTION_EXIT);
+    err = kb_add_action(kbm, VT_C_TO_CTRL_KEY('D'), K_ACTION_EXIT);
     assert(!err);
 
-    err = kb_add_action(kbm, VT_CTRL_KEY('B'), K_ACTION_TOG_CMD_MODE);
+    err = kb_add_action(kbm, VT_C_TO_CTRL_KEY('B'), K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
-    err = kb_seq_add_action(kbm, VT_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
+    err = kb_seq_add_action(kbm, VT_C_TO_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
     return 0;

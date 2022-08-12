@@ -20,6 +20,18 @@
 #include "port_wait.h"
 #include "port.h"
 
+#if 1
+static char __log_txrx_data[64];
+
+#define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { \
+    unsigned int _size = SIZE; \
+    str_escape_nonprint(__log_txrx_data, \
+            sizeof(__log_txrx_data), DATA, _size); \
+    LOG_DBG("%s (%u) \"%s\"", TX_OR_RX, _size, __log_txrx_data); \
+} while(0)
+#else
+#define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { } while (0)
+#endif
 /**
 On windows only sockets can be polled with poll handles. On Unix any file
 descriptor that would be accepted by poll(2) can be used.  
@@ -30,6 +42,7 @@ https://stackoverflow.com/questions/19955617/win32-read-from-stdin-with-timeout
 #ifdef _WIN32
 #error "libuv poll do not work with `HANDLE`, only on sockets"
 #endif
+
 enum port_state_e {
     PORT_STATE_UNKNOWN = 0,
     /// waiting on port to be connected
@@ -39,8 +52,6 @@ enum port_state_e {
     /// TXRX ready
     PORT_STATE_READY
 };
-
-extern struct port_opts_s port_opts;
 
 static struct port_s {
     struct sp_port *port;
@@ -208,6 +219,8 @@ static bool update_write(const void *buf, size_t bufsize)
         p->ts_lastc = ts_now;
     }
 
+    __LOG_TXRX("TX", src, size);
+
     if (rc < remains) {
         // incomplete write. try write remaining on next writable event
         //LOG_DBG("sp_nonblocking_write %d/%zu", rc, size);
@@ -373,7 +386,7 @@ static void _on_readable(uv_poll_t* handle)
     }
 
     size_t size = rc;
-    LOG_DBG("read. %zu bytes", size);
+    __LOG_TXRX("RX", buf, size);
     port_data.rx_cb(buf, size);
 }
 
@@ -674,21 +687,18 @@ int port_drain(uint32_t timeout_ms)
 }
 
 
-int port_init(port_rx_cb_fn *rx_cb)
+void port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
+
     if (!port_opts.name) {
         SPCOM_EXIT(EX_USAGE, "No port or device name provided");
-        return -1;
     }
 
     port_data.rx_cb = rx_cb;
     // allocate some resources
     err = sp_new_config(&port_data.org_config);
-    if (err) {
-        LOG_SP_ERR(err, "sp_new_config");
-        return err;
-    }
+    assert_sp_ok(err, "sp_new_config");
     assert(port_data.org_config);
 
     uv_loop_t *loop = uv_default_loop();
@@ -702,18 +712,16 @@ int port_init(port_rx_cb_fn *rx_cb)
         port_wait_init(port_opts.name);
     }
 
-    if (!port_exists()) {
+    if (port_exists()) {
+        port_open();
+    }
+    else {
         if (port_opts.wait) {
             port_wait_start(on_port_discovered);
             port_data.state = PORT_STATE_WAITING;
-            return 0;
         }
         else {
             SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts.name);
-            return -EBADF;
         }
     }
-
-    port_open();
-    return 0;
 }

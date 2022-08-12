@@ -1,9 +1,13 @@
 #include <stdlib.h>
+
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "assert.h"
 #include "log.h"
 #include "opq.h"
 #include "shell.h"
-#include "shell_rl_utils.h"
+#include "shell_rl.h"
 
 static struct {
     char *prompt;
@@ -37,7 +41,6 @@ static void sh_cooked_rl_on_newline(char *line)
     opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
     LOG_DBG("'%s'", line);
     // no free!
-
 }
 
 /// completer called in cooked mode
@@ -48,7 +51,7 @@ static char **sh_cooked_complete(const char *text, int start, int end)
     // TODO get complete from cache/history/config/somewhere
     return NULL;
 }
-
+#if 0
 static int sh_cooked_init(const struct shell_opts_s *opts)
 {
     sh_cooked_opts.sticky = opts->sticky;
@@ -66,46 +69,15 @@ static int sh_cooked_init(const struct shell_opts_s *opts)
 
     return 0;
 }
-
-static void sh_cooked_lock(void)
-{
-    if (!sh_cooked_opts.sticky)
-        return;
-
-    shell_rl_state_save(&sh_cooked.rlstate);
-}
-
-static void sh_cooked_unlock(void)
-{
-    if (!sh_cooked_opts.sticky)
-        return;
-
-    shell_rl_state_restore(&sh_cooked.rlstate);
-}
-
-static void sh_cooked_enter(void)
-{
-    shell_rl_mode_enter(&sh_cooked.rlstate, sh_cooked_opts.prompt);
-}
-
-static void sh_cooked_leave(void)
-{
-    shell_rl_mode_leave(&sh_cooked.rlstate);
-}
-
-static int sh_cooked_input_putc(char c)
-{
-    shell_rl_putc(c);
-    return 0;
-}
+#endif
 
 static const struct shell_mode_s sh_mode_cooked = {
-    .init         = sh_cooked_init,
-    .lock         = sh_cooked_lock,
-    .unlock       = sh_cooked_unlock,
-    .leave        = sh_cooked_leave,
-    .enter        = sh_cooked_enter,
-    .input_putc   = sh_cooked_input_putc,
+    .lock    = shell_rl_save,
+    .unlock  = shell_rl_restore,
+    .enter   = shell_rl_enable,
+    .leave   = shell_rl_disable,
+    .insert  = shell_rl_insertchar,
+    .getchar = shell_rl_getchar
 };
 
 /// exposed const pointer

@@ -7,6 +7,7 @@ _show_installation_status()
 {
     lsmod | grep tty0tty
     ls /etc/udev/rules.d/*tty0tty*
+    ls /dev/tnt*
 }
 
 _install_lcgamboa_tty0tty_module()
@@ -18,4 +19,24 @@ _install_lcgamboa_tty0tty_module()
     sudo make install
 
 }
-_install_lcgamboa_tty0tty_module
+
+_tty0tty_load_module()
+{
+    sudo depmod
+    sudo modprobe tty0tty
+}
+
+case "$1" in
+   "install")
+       _install_lcgamboa_tty0tty_module
+       ;;
+   "status")
+       _show_installation_status
+       ;;
+   "load")
+       _tty0tty_load_module
+       ;;
+   *)
+       echo "args neeeded"
+       ;;
+esac

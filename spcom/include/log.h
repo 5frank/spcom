@@ -29,7 +29,7 @@ void log_printf(int level,
                 ...);
 
 #define ___LOG(LEVEL, FMT, ...)                                                 \
-    log_printf(LEVEL, __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
+    log_printf(LEVEL, FILEBASENAME(), __LINE__, FMT, ##__VA_ARGS__)
 
 #define LOG_ERR(FMT, ...) ___LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
 
@@ -48,27 +48,28 @@ static inline void ___log_int(int level,
                               const char *(*num_to_str)(int num))
 {
     const char *num_str = num_to_str(num);
-    num_str = num_str ? num_str : "";
+    num_str = num_str ? num_str : "<unknown>";
 
-    log_printf(level, file, line, "%s - %d (%s)",
+    log_printf(level, file, line, "%s: %d (%s)",
                msg, num, num_str);
 }
 
 #define ___LOG_INT(LEVEL, MSG, NUM, NUM_TO_STR) \
-    ___log_int(LEVEL, __FILENAME__, __LINE__, MSG, NUM, NUM_TO_STR)
+    ___log_int(LEVEL, FILEBASENAME(), __LINE__, MSG, NUM, NUM_TO_STR)
 
-#define LOG_ERRNO(MSG) \
-    __LOG_INT(LOG_LEVEL_ERR, MSG, errno, strerrorname_np)
+#define LOG_ERRNO(ERRNUM, MSG) \
+    ___LOG_INT(LOG_LEVEL_ERR, MSG, ERRNUM, strerrorname_np)
 
 /// libuv (uv)
 #define LOG_UV_ERR(UV_ERR, MSG) \
     ___LOG_INT(LOG_LEVEL_ERR, MSG, UV_ERR, misc_uv_err_to_str)
 
+#define LOG_UV_DBG(UV_ERR, MSG) \
+    ___LOG_INT(LOG_LEVEL_DBG, MSG, UV_ERR, misc_uv_err_to_str)
+
 /// libserialport (sp)
 #define LOG_SP_ERR(SP_ERR, MSG) \
     ___LOG_INT(LOG_LEVEL_ERR, MSG, SP_ERR, misc_sp_err_to_str)
-
-
 
 
 void log_init(void);

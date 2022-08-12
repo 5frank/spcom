@@ -24,8 +24,6 @@ static inline void shell_rl_state_init_default(struct readline_state *rlstate)
 
 /**
  * TODO would one of these work?:
- *    extern int rl_read_key (void);
- *    extern int rl_getc (FILE *);
  *    extern int rl_stuff_char (int);
  *    extern int rl_execute_next (int
  *
