@@ -16,6 +16,14 @@ enum eol_type_e {
     EOL_RX = 1 << 1
 };
 
+#define EOL_RX_TIMEOUT_DEFAULT 1
+
+static struct eol_opts {
+    int eol_rx_timeout_ms;
+} eol_opts = {
+    .eol_rx_timeout_ms = 1000 * EOL_RX_TIMEOUT_DEFAULT
+};
+
 static int eol_eval_sz1(struct eol_seq *es, char c, char *cfwd)
 {
     if (es->seq[0] == c) {
@@ -237,6 +245,19 @@ static const struct opt_conf eol_opts_conf[] = {
         .parse = eol_opt_parse_rx,
         .descr = "end of line crlf", // TODO
     },
+#if 0 // TODO implement
+    {
+        .name  = "--eol-rx-timeout",
+        .parse = opt_ap_int,
+        .dest  = &eol_opts.eol_rx_timeout,
+        .descr = "Float in seconds. "\
+                 "If some data received but no eol received within given time, "\
+                 "the buffered data is written output anywas."\
+                 "Default: " STRINGIFY(EOL_RX_TIMEOUT_DEFAULT) ". "\
+                 "Applies in coocked (line buffered) mode only otherwise ignored. "\
+
+    },
+#endif
 };
 
 OPT_SECTION_ADD(main,

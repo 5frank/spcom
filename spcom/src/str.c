@@ -645,3 +645,85 @@ const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int n
 
     return NULL;
 }
+
+/// note: does not nul terminate
+static int _escape_nonprint_char(char c, char *buf)
+{
+    static const char * hexlut = "0123456789ABCDEF";
+
+    char *p = &buf[0];
+
+    if (isprint(c) && c != '\\') {
+        *p++ = c;
+        return 1;
+    }
+
+    switch (c) {
+        case '\a':
+            *p++ = '\\';
+            *p++ = 'a';
+            return 2;
+        case '\b':
+            *p++ = '\\';
+            *p++ = 'b';
+            return 2;
+        case '\t':
+            *p++ = '\\';
+            *p++ = 't';
+            return 2;
+        case '\n':
+            *p++ = '\\';
+            *p++ = 'n';
+            return 2;
+        case '\v':
+            *p++ = '\\';
+            *p++ = 'v';
+            return 2;
+        case '\f':
+            *p++ = '\\';
+            *p++ = 'f';
+            return 2;
+        case '\r':
+            *p++ = '\\';
+            *p++ = 'r';
+            return 2;
+        case '\\':
+            *p++ = '\\';
+            *p++ = '\\';
+            return 2;
+    }
+
+    unsigned char byte = c;
+    *p++ = '\\';
+    *p++ = hexlut[(byte >> 4) & 0x0F];
+    *p++ = hexlut[(byte >> 0) & 0x0F];
+    return 3;
+}
+
+int str_escape_nonprint(char *dst, size_t dstsize,
+                        const char *src, size_t srcsize)
+{
+    int totlen = 0;
+    while (1) {
+
+        if (!srcsize)
+            break;
+
+        if (dstsize < 4)
+            break;
+
+        int len = _escape_nonprint_char(*src, dst);
+        dst += len;
+        dstsize -= len;
+
+        src += 1;
+        srcsize -= 1;
+
+        totlen += len;
+
+    }
+
+    *dst = '\0';
+    return totlen;
+}
+

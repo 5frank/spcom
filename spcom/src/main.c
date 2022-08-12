@@ -1,21 +1,21 @@
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <uv.h>
-#include <stdbool.h>
 
-#include "common.h"
-#include "misc.h"
 #include "assert.h"
-#include "opt.h"
-#include "shell.h"
 #include "cmd.h"
-#include "timeout.h"
+#include "common.h"
+#include "main_opts.h"
+#include "misc.h"
+#include "opt.h"
 #include "outfmt.h"
 #include "port.h"
 #include "port_info.h"
-#include "main_opts.h"
+#include "shell.h"
+#include "timeout.h"
 
 struct main_data {
     bool cleanup_done;
@@ -30,14 +30,13 @@ int ipipe_init(void);
 
 static void main_cleanup(void);
 
-
-static void on_uv_close(uv_handle_t* handle)
+static void on_uv_close(uv_handle_t *handle)
 {
     if (handle) {
         // TODO? free handle resources?
     }
 }
-static void on_uv_walk(uv_handle_t* handle, void* arg)
+static void on_uv_walk(uv_handle_t *handle, void *arg)
 {
     uv_close(handle, on_uv_close);
 }
@@ -73,14 +72,10 @@ static void main_uv_cleanup(void)
     */
     uv_library_shutdown();
 #endif
-
 }
 
-void spcom_exit(int exit_code,
-                const char *file,
-                unsigned int line,
-                const char *fmt,
-                ...)
+void spcom_exit(int exit_code, const char *file, unsigned int line,
+                const char *fmt, ...)
 {
     /* ensure exit message(s) on separate line. could use '\r' to clear line
      * but then some data lost */
@@ -97,8 +92,7 @@ void spcom_exit(int exit_code,
 
     if (rc < 0) {
         msg[0] = '\0';
-    }
-    else if (rc >= sizeof(msg)) {
+    } else if (rc >= sizeof(msg)) {
         char *p = &msg[sizeof(msg) - 1];
         *p-- = '\0';
         *p-- = '.';
@@ -158,8 +152,7 @@ static void main_init(void)
     if (isatty(STDIN_FILENO)) {
         err = shell_init();
         assert_z(err, "shell_init");
-    }
-    else {
+    } else {
         err = ipipe_init();
         assert_z(err, "ipipe_init");
     }
@@ -244,8 +237,7 @@ int main(int argc, char *argv[])
     if (err) {
         if (main_data.signum) {
             SPCOM_EXIT(EX_OK, "Signal received: %d", main_data.signum);
-        }
-        else {
+        } else {
             SPCOM_EXIT(EX_SOFTWARE, "uv_run unhandled error %s",
                        misc_uv_err_to_str(err));
         }
@@ -255,4 +247,3 @@ int main(int argc, char *argv[])
     // should never get here
     return -1;
 }
-

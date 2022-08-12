@@ -45,30 +45,23 @@ static struct log_data_s {
 } log_data = { 0 };
 
 
-static void log_sb_fwrite_nolock(const struct strbuf *sb, FILE *fp)
-{
-    size_t rc = fwrite(sb->buf, 1, sb->len, fp);
-    if (rc != sb->len) {
-        // TODO do what?
-    }
-}
-
 /* should only be called from strbuf if buf to small */
 static void log_strbuf_flush(struct strbuf *sb)
 {
-    const void *lock = shell_output_lock();
 
     /* silent option do not apply to separate file output */
     if (log_data.filefp) {
-        log_sb_fwrite_nolock(sb, log_data.filefp);
+        size_t rc = fwrite(sb->buf, 1, sb->len, log_data.filefp);
+        if (rc != sb->len) {
+            // TODO do what?
+        }
     }
 
     /* output both to file and stderr in some cases */
     if (!log_opts.silent && log_data.level <= LOG_LEVEL_INF) {
-        log_sb_fwrite_nolock(sb, stderr);
+        shell_write(STDERR_FILENO, sb->buf, sb->len);
     }
 
-    shell_output_unlock(lock);
 
     sb->len = 0;
 }
@@ -147,17 +140,14 @@ static void _sp_log_handler(const char *fmt, ...)
     FILE *fp = log_data.filefp;
     if (!fp)
         return;
-    va_list args;
 
-    const void *lock = shell_output_lock();
+    va_list args;
 
     fputs("DBG:SP:", fp);
     va_start(args, fmt);
     int rc = vfprintf(fp, fmt, args);
     va_end(args);
     (void) rc;
-
-    shell_output_unlock(lock);
 }
 
 void log_set_debug(int verbose) 
@@ -207,13 +197,9 @@ void log_init(void)
 
 void log_cleanup(void)
 {
-    if (!log_data.initialized) {
-        return;
-    }
-
     FILE *fp = log_data.filefp;
-    if ((fp != stderr) && (fp != stdout)) {
-        return;
+    //if ((fp != stderr) && (fp != stdout)) {
+    if (fp) {
         fclose(fp);
         log_data.filefp = NULL;
     }
@@ -242,7 +228,8 @@ static const struct opt_conf log_opts_conf[] = {
         .name = "silent",
         .dest = &log_opts.silent,
         .parse = opt_ap_flag_true,
-        .descr = "Only serial port data written to stdout. Error message(s) suppressed"
+        .descr = "Only serial port data written to stdout. "\
+                 "Error or information message(s) to stderr are suppressed"
     },
 };
 

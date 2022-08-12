@@ -86,7 +86,7 @@ static void shell_toggle_cmd_mode(void)
 #if 1
 #warning "not cmd mode"
     if (shell_data.current_mode == shell_mode_cooked)
-        new_m = shell_data.default_mode;
+        new_m = shell_mode_raw;
     else 
         new_m = shell_mode_cooked;
 #else
@@ -97,20 +97,51 @@ static void shell_toggle_cmd_mode(void)
 #endif
 
     shell_set_mode(new_m);
-
 }
-#if 0
+
+static int _write_all(int fd, const void *data, size_t size)
+{
+    const char *p = data;
+
+    while (1) {
+        int rc = write(fd, p, size);
+        if (rc < 0 ) {
+            if (errno == EINTR || errno == EAGAIN) {
+                continue;
+            }
+
+            return -errno;
+        }
+
+        if (rc >= size) {
+            return 0;
+        }
+
+        p += rc;
+        size -= rc;
+    }
+}
+
+void shell_write(int fd, const void *data, size_t size)
+{
+    const void *state = shell_rl_save();
+    int err = _write_all(fd, data, size);
+    shell_rl_restore(state);
+
+    assert(!err);
+}
+
 void shell_printf(int fd, const char *fmt, ...)
 {
     va_list args;
-    const void *lock = shell_output_lock();
+    const void *state = shell_rl_save();
+
     va_start(args, fmt);
     vdprintf(fd, fmt, args);
     va_end(args);
 
-    shell_output_unlock(lock);
+    shell_rl_restore(state);
 }
-#endif
 
 static void _stdin_read_char(void)
 {
@@ -118,6 +149,7 @@ static void _stdin_read_char(void)
     const struct shell_mode_s *shm = shell_data.current_mode;
     assert(shm);
 
+    // TODO should be safe to use getchar() here
     int c = shm->getchar();
 
     if (c == EOF) {

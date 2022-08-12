@@ -20,6 +20,18 @@
 #include "port_wait.h"
 #include "port.h"
 
+#if 1
+static char __log_txrx_data[64];
+
+#define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { \
+    unsigned int _size = SIZE; \
+    str_escape_nonprint(__log_txrx_data, \
+            sizeof(__log_txrx_data), DATA, _size); \
+    LOG_DBG("%s (%u) \"%s\"", TX_OR_RX, _size, __log_txrx_data); \
+} while(0)
+#else
+#define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { } while (0)
+#endif
 /**
 On windows only sockets can be polled with poll handles. On Unix any file
 descriptor that would be accepted by poll(2) can be used.  
@@ -30,6 +42,7 @@ https://stackoverflow.com/questions/19955617/win32-read-from-stdin-with-timeout
 #ifdef _WIN32
 #error "libuv poll do not work with `HANDLE`, only on sockets"
 #endif
+
 enum port_state_e {
     PORT_STATE_UNKNOWN = 0,
     /// waiting on port to be connected
@@ -39,7 +52,6 @@ enum port_state_e {
     /// TXRX ready
     PORT_STATE_READY
 };
-
 
 static struct port_s {
     struct sp_port *port;
@@ -207,6 +219,8 @@ static bool update_write(const void *buf, size_t bufsize)
         p->ts_lastc = ts_now;
     }
 
+    __LOG_TXRX("TX", src, size);
+
     if (rc < remains) {
         // incomplete write. try write remaining on next writable event
         //LOG_DBG("sp_nonblocking_write %d/%zu", rc, size);
@@ -372,7 +386,7 @@ static void _on_readable(uv_poll_t* handle)
     }
 
     size_t size = rc;
-    LOG_DBG("read. %zu bytes", size);
+    __LOG_TXRX("RX", buf, size);
     port_data.rx_cb(buf, size);
 }
 

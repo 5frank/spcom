@@ -31,10 +31,9 @@ struct shell_mode_s {
 int shell_init(void);
 void shell_cleanup(void);
 
-/// technically not a lock. used to keep prompts in some states
-const void *shell_output_lock(void);
+__attribute__((format(printf, 2, 3)))
+void shell_printf(int fd, const char *fmt, ...);
 
-/// technically not a lock. used to keep prompts in some states
-void shell_output_unlock(const void *x);
+void shell_write(int fd, const void *data, size_t size);
 
 #endif

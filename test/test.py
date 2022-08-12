@@ -60,11 +60,11 @@ class SpcomTestServer:
     def _read_thread_worker(self, ser, rxq):
 
         while ser.is_open:
-            #line = ser.readline()
             #rxline = bytearray(line)
             #logger.debug("RX: %s", rxline.hex())
             #rxq.put_nowait(line)
-            data = ser.read()
+            data = ser.readline()
+            #data = ser.read()
             logger.debug(data)
             ser.write(data)
 

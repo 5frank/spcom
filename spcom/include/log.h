@@ -29,7 +29,7 @@ void log_printf(int level,
                 ...);
 
 #define ___LOG(LEVEL, FMT, ...)                                                 \
-    log_printf(LEVEL, __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
+    log_printf(LEVEL, FILEBASENAME(), __LINE__, FMT, ##__VA_ARGS__)
 
 #define LOG_ERR(FMT, ...) ___LOG(LOG_LEVEL_ERR, FMT, ##__VA_ARGS__)
 
@@ -55,7 +55,7 @@ static inline void ___log_int(int level,
 }
 
 #define ___LOG_INT(LEVEL, MSG, NUM, NUM_TO_STR) \
-    ___log_int(LEVEL, __FILENAME__, __LINE__, MSG, NUM, NUM_TO_STR)
+    ___log_int(LEVEL, FILEBASENAME(), __LINE__, MSG, NUM, NUM_TO_STR)
 
 #define LOG_ERRNO(ERRNUM, MSG) \
     ___LOG_INT(LOG_LEVEL_ERR, MSG, ERRNUM, strerrorname_np)

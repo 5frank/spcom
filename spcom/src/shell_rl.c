@@ -16,6 +16,12 @@ struct shell_rl {
     bool enabled;
     struct readline_state rlstate;
     const char *prompt;
+
+    struct shell_rl_state {
+        int restore;
+        int point;
+        char *line;
+    } rl_state;
 };
 
 static struct shell_rl shell_rl_data = { 0 };
@@ -62,12 +68,15 @@ static void _on_rl_line(char *line)
 void shell_rl_insertchar(int c)
 {
     rl_pending_input = c;
-    // will read pending and call rl_redisplay();
+    // will read pending 
     rl_callback_read_char();
 }
 
+
 const void *shell_rl_save(void)
 {
+    // warning can not use log module here - recursion
+
     struct shell_rl *data = &shell_rl_data;
 
     if (!data->enabled)
@@ -79,38 +88,38 @@ const void *shell_rl_save(void)
     if (RL_ISSTATE(RL_STATE_DONE))
         return NULL;
 
-    struct readline_state *rlstate = &data->rlstate;
+    struct shell_rl_state *state = &data->rl_state;
 
-    rl_save_state(rlstate);
+    state->point = rl_point;
+    state->line = rl_copy_text(0, rl_end);
 
     /* note: using `rl_clear_visible_line()` here causes some charachters
      * printed to stdout elsewhere to be lost */
 
-    rl_set_prompt("");
+    rl_save_prompt();
     rl_replace_line("", 0);
     rl_redisplay();
 
-    return rlstate;
+    return state;
 }
 
 void shell_rl_restore(const void *x)
 {
+    // warning can not use log module here - recursion
+
     struct shell_rl *data = &shell_rl_data;
 
-
-    const struct readline_state *rlstate_x = x;
-    if (!rlstate_x)
+    if (!x)
         return; // shell not initialized yet or lock not needed in this mode
 
-    struct readline_state *rlstate = &data->rlstate;
-#if 0
+    struct shell_rl_state *state = &data->rl_state;
 
-    if (rlstate_x != rlstate) {
-        LOG_WRN("rl state lock from unexpected source");
-    }
-#endif
-    rl_restore_state(rlstate);
+    rl_restore_prompt();
+    rl_replace_line(state->line, 0);
+    rl_point = state->point;
     rl_forced_update_display();
+    free(state->line);
+    state->line = NULL;
 }
 
 static void _rl_init(void)
@@ -154,7 +163,7 @@ void shell_rl_enable(void)
      * note these changes will also be copied to on later when rl_state_save() called
      */
     ___TERMIOS_DEBUG_BEFORE();
-    rl_callback_handler_install(NULL, _on_rl_line);
+    rl_callback_handler_install(data->prompt, _on_rl_line);
     ___TERMIOS_DEBUG_AFTER("rl_callback_handler_install");
 
 
@@ -162,11 +171,12 @@ void shell_rl_enable(void)
     //rl_replace_line("", 0);
     //rl_redisplay();
     //rl_reset_line_state();
-    rl_set_prompt(data->prompt);
-    rl_on_new_line();
+    //rl_set_prompt(data->prompt);
 
-    rl_redisplay(); // promt not shown if not redisplayed
+    //rl_redisplay(); // promt not shown if not redisplayed
+    //rl_on_new_line(); // must be last!
 
+    LOG_DBG("rl enabled");
     data->enabled = true;
 }
 
@@ -190,6 +200,7 @@ void shell_rl_disable(void)
     rl_callback_handler_remove();
     ___TERMIOS_DEBUG_AFTER("rl_callback_handler_remove");
 
+    LOG_DBG("rl disabled");
     data->enabled = false;
 }
 
