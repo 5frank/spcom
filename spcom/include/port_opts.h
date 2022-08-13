@@ -1,6 +1,27 @@
 #ifndef PORT_OPTS_INCLUDE_H_
 #define PORT_OPTS_INCLUDE_H_
 
+struct port_opts_s {
+    /* i.e. device path on unix */
+    const char *name;
+    int baudrate;
+    int databits;
+    int stopbits;
+    int parity;
+    int rts;
+    int cts;
+    int dtr;
+    int dsr;
+    int flowcontrol;
+    int signal;
+    int chardelay;
+    int wait;
+    int stay;
+};
+
+/// exposed const "getter" pointer
+extern const struct port_opts_s *port_opts;
+
 int port_opts_parse_pinstate(const char *s, int *state);
 
 const char **port_opts_complete_pinstate(const char *s);

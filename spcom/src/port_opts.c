@@ -8,10 +8,7 @@
 #include "port_info.h"
 #include "port_opts.h"
 
-
-int port_opts_parse_xonxoff(const char *s, int *xonxoff);
-
-struct port_opts_s port_opts = {
+static struct port_opts_s _port_opts = {
     /* assume negative values invalid. -1 used to check if options provided and 
      should be set or untouched. */
     .baudrate = -1,
@@ -26,6 +23,9 @@ struct port_opts_s port_opts = {
     .flowcontrol = -1,
     .signal = -1
 };
+
+// exposed const "read" pointer
+extern const struct port_opts_s *port_opts = &_port_opts;
 
 // clang-format off
 static const char* pinstate_words[] =  {
@@ -307,43 +307,43 @@ const char **port_opts_complete_flowcontrol(const char *s)
 
 static int _parse_devname(const struct opt_conf *conf, char *sval)
 {
-    port_opts.name = sval;
+    _port_opts.name = sval;
     return 0;
 }
 
 static int _parse_baud_dps(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_baud_dps(sval,
-                           &port_opts.baudrate,
-                           &port_opts.databits,
-                           &port_opts.parity,
-                           &port_opts.stopbits);
+                           &_port_opts.baudrate,
+                           &_port_opts.databits,
+                           &_port_opts.parity,
+                           &_port_opts.stopbits);
 }
 
 static int _parse_baud(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_baud(sval, &port_opts.baudrate, NULL);
+    return port_opts_parse_baud(sval, &_port_opts.baudrate, NULL);
 }
 
 
 static int _parse_databits(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_databits(sval, &port_opts.databits, NULL);
+    return port_opts_parse_databits(sval, &_port_opts.databits, NULL);
 }
 
 static int _parse_stopbits(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_stopbits(sval, &port_opts.stopbits, NULL);
+    return port_opts_parse_stopbits(sval, &_port_opts.stopbits, NULL);
 }
 
 static int parse_parity(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_parity(sval, &port_opts.parity, NULL);
+    return port_opts_parse_parity(sval, &_port_opts.parity, NULL);
 }
 
 static int _parse_flowcontrol(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_flowcontrol(sval, &port_opts.flowcontrol);
+    return port_opts_parse_flowcontrol(sval, &_port_opts.flowcontrol);
 }
 
 static int port_opts_post_parse(const struct opt_section_entry *entry)
@@ -399,18 +399,18 @@ static const struct opt_conf port_opts_conf[] = {
     },
     {
         .name = "char-delay",
-        .dest = &port_opts.chardelay,
+        .dest = &_port_opts.chardelay,
         .parse = opt_ap_int,
     },
     {
         .name = "wait",
-        .dest = &port_opts.wait,
+        .dest = &_port_opts.wait,
         .parse = opt_ap_flag_true,
         .descr = "Wait on specified serial port to show up if it do not exists"
     },
     {
         .name = "stay",
-        .dest = &port_opts.stay,
+        .dest = &_port_opts.stay,
         .parse = opt_ap_flag_true,
         .descr = "Similar to --wait but will never exit if the serial port "
                  "disappears and wait for it to reappear instead"

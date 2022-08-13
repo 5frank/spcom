@@ -93,12 +93,12 @@ static const char *port_state_to_str(int state)
     }
 }
 
-static int port_exists(void)
+static int _port_exists(void)
 {
     // wont fly on windows but uv_fs_pool_t doesent either (I think) so need
     // something else anyway
     // TODO use "abspath"
-    return (access(port_opts.name, F_OK) == 0);
+    return (access(port_opts->name, F_OK) == 0);
 }
 
 static void on_port_discovered(int err)
@@ -126,7 +126,7 @@ static void _port_panic_recover(void)
 
 /// oh no! check port exists, if not wait for it if allowed, else die.
 #define PORT_PANIC(EXIT_CODE, FMT, ...) do { \
-    if (port_opts.stay) { \
+    if (port_opts->stay) { \
         LOG_DBG(FMT, ##__VA_ARGS__); \
         _port_panic_recover(); \
     } \
@@ -188,7 +188,7 @@ static bool update_write(const void *buf, size_t bufsize)
     int rc;
     size_t size;
     uint64_t ts_now = 0;
-    const int chardelay = port_opts.chardelay;
+    const int chardelay = port_opts->chardelay;
 
     if (chardelay) {
         ts_now = uv_now(uv_default_loop());
@@ -259,7 +259,7 @@ static void _on_prepare(uv_prepare_t* handle)
 
     if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(port_data.state));
+                port_opts->name, port_state_to_str(port_data.state));
 
         // implicilty set port_data.current_op = NULL;
         op_done(op);
@@ -426,48 +426,47 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 
 int port_set_config(void)
 {
+    int err;
     // TODO is user change config in cmd mode it should also be stored for reopen
 #define CONFIG_ERROR(ERR, WHY) (LOG_SP_ERR(ERR, WHY), ERR)
     struct sp_port *p = port_data.port;
-    struct port_opts_s *o = &port_opts;
     if (!p)
         return -1;
-    int err;
 
-    if (o->baudrate >= 0) {
-        err = sp_set_baudrate(p, o->baudrate);
+    if (port_opts->baudrate >= 0) {
+        err = sp_set_baudrate(p, port_opts->baudrate);
         if (err)
             return CONFIG_ERROR(err, "sp_set_baudrate");
     }
 
-    if (o->databits >= 0) {
-        err = sp_set_bits(p, o->databits);
+    if (port_opts->databits >= 0) {
+        err = sp_set_bits(p, port_opts->databits);
         if (err)
             return CONFIG_ERROR(err, "sp_set_(data)bits");
     }
 
-    if (o->parity >= 0) {
-        err = sp_set_parity(p, o->parity);
+    if (port_opts->parity >= 0) {
+        err = sp_set_parity(p, port_opts->parity);
         if (err)
             return CONFIG_ERROR(err, "sp_set_parity");
     }
 
-    if (o->stopbits >= 0) {
-        err = sp_set_stopbits(p, o->stopbits);
+    if (port_opts->stopbits >= 0) {
+        err = sp_set_stopbits(p, port_opts->stopbits);
         if (err)
             return CONFIG_ERROR(err, "sp_set_stopbits");
     }
 
-    if (o->flowcontrol >= 0) {
+    if (port_opts->flowcontrol >= 0) {
 
-        int flowcontrol = FLOW_TO_SP_FLOWCONTROL(o->flowcontrol);
+        int flowcontrol = FLOW_TO_SP_FLOWCONTROL(port_opts->flowcontrol);
         err = sp_set_flowcontrol(p, flowcontrol);
         if (err)
             return CONFIG_ERROR(err, "sp_set_flowcontrol");
 
         // libserialport default when flow is XONOFF is txrx 
         if (flowcontrol == SP_FLOWCONTROL_XONXOFF) {
-            int xonxoff = FLOW_TO_SP_XONXOFF(o->flowcontrol);
+            int xonxoff = FLOW_TO_SP_XONXOFF(port_opts->flowcontrol);
             if (xonxoff) {
                 err = sp_set_xon_xoff(p, xonxoff);
                 if (err)
@@ -489,9 +488,9 @@ static void port_open(void)
     uv_loop_t *loop = uv_default_loop();
     // TODO when, if ever, should operation queue be cleares/reseted? not here!!!
 
-    LOG_DBG("Opening port '%s'", port_opts.name);
+    LOG_DBG("Opening port '%s'", port_opts->name);
 
-    err = sp_get_port_by_name(port_opts.name, &port_data.port);
+    err = sp_get_port_by_name(port_opts->name, &port_data.port);
     assert_sp_ok(err, "sp_get_port_by_name");
 
     struct sp_port *p = port_data.port;
@@ -603,7 +602,7 @@ int port_write(const void *data, size_t size)
 
     if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(port_data.state));
+                port_opts->name, port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -642,7 +641,7 @@ int port_putc(int c)
 #if 1
     if (port_data.state != PORT_STATE_READY) {
         LOG_ERR("%s not ready. state: %s",
-                port_opts.name, port_state_to_str(port_data.state));
+                port_opts->name, port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -691,7 +690,7 @@ void port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
 
-    if (!port_opts.name) {
+    if (!port_opts->name) {
         SPCOM_EXIT(EX_USAGE, "No port or device name provided");
     }
 
@@ -712,20 +711,20 @@ void port_init(port_rx_cb_fn *rx_cb)
 
     port_data.ts_lastc = uv_now(loop);
 
-    if (port_opts.wait) {
-        port_wait_init(port_opts.name);
+    if (port_opts->wait) {
+        port_wait_init(port_opts->name);
     }
 
-    if (port_exists()) {
+    if (_port_exists()) {
         port_open();
     }
     else {
-        if (port_opts.wait) {
+        if (port_opts->wait) {
             port_wait_start(on_port_discovered);
             port_data.state = PORT_STATE_WAITING;
         }
         else {
-            SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts.name);
+            SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts->name);
         }
     }
 }
