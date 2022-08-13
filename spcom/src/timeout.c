@@ -48,7 +48,7 @@ void timeout_stop(void)
     int err = uv_timer_stop(&uvt_timeout);
     // assume this is at exit - only debug log error
     if (err)
-        LOG_DBG("uv_timer_stop err=%d", err);
+        LOG_UV_DBG(err, "uv_timer_stop");
 }
 
 static const struct opt_conf timeout_opts_conf[] = {

@@ -10,6 +10,7 @@
 #include "str.h"
 #include "opt.h"
 #include "eol.h"
+#include "strto_r.h"
 
 #define EOL_RX_TIMEOUT_DEFAULT 1
 
@@ -122,11 +123,9 @@ static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
     if (str_startswith(s, "0x")) {
         s += 2; // jump "0X"
         const char *ep = NULL;
-        uint8_t tmp = 0;
-        if (str_hextou8(s, &tmp, &ep)) {
+        if (strtouc_r(s, &ep, 16, byte)) {
             return NULL;
         }
-        *byte = tmp;
         return ep;
     }
 
@@ -212,31 +211,18 @@ static const struct opt_conf eol_opts_conf[] = {
     {
         .name = "eol",
         .parse = eol_opt_parse_txrx,
-        .descr = "end of line crlf", // TODO
+        .descr = "end of line tx and rx", // TODO
     },
     {
         .name = "eol-tx",
         .parse = eol_opt_parse_tx,
-        .descr = "end of line crlf", // TODO
+        .descr = "end of line tx", // TODO
     },
     {
         .name = "eol-rx",
         .parse = eol_opt_parse_rx,
-        .descr = "end of line crlf", // TODO
+        .descr = "end of line rx", // TODO
     },
-#if 0 // TODO implement
-    {
-        .name  = "--eol-rx-timeout",
-        .parse = opt_ap_int,
-        .dest  = &eol_opts.eol_rx_timeout,
-        .descr = "Float in seconds. "\
-                 "If some data received but no eol received within given time, "\
-                 "the buffered data is written output anywas."\
-                 "Default: " STRINGIFY(EOL_RX_TIMEOUT_DEFAULT) ". "\
-                 "Applies in coocked (line buffered) mode only otherwise ignored. "\
-
-    },
-#endif
 };
 
 OPT_SECTION_ADD(main,

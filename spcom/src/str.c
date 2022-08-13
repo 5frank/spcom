@@ -4,49 +4,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <errno.h>
 #include <libserialport.h>
 #include "assert.h"
 #include "common.h"
 #include "str.h"
+#include "strto_r.h"
 #include "vt_defs.h"
 
-/// unknown parse failure
-#define STR_EUNKNOWN (300)
-/// unexpected character at end of input string
-#define STR_EEND (301)
-/// string is not a number (no digits)
-#define STR_ENAN (302)
-/// invalid format (incorrect delimiter etc)
-#define STR_EFMT (303)
-/// string do not match 
-#define STR_ENOMATCH (304)
-// number out of allowed range. (same as ERANGE on most platforms)
-#define STR_ERANGE (34)
-// string not valid. (same as EINVAL on most platforms)
-#define STR_EINVAL (22)
-// something did not fit (same as E2BIG on most platforms)
-#define STR_E2BIG  (7)
-
-//#define STR_ENO0xPREFIX (305)
-
-
 static const char *_matchresult[32];
-
-/**
- * @return true if c is a "human visible" character.
- * space, tabs and line breaks not considerd as "visible".  */
-static inline int _isvisible(char c)
-{
-    // same as (c >= '!' && c <= '~')
-    return (c >= 0x21 && c <= 0x7E);
-}
-#if 0
-static int _have_0x_prefix(const char *s)
-{
-    return (s[0] == '0' && s[1] == 'x');
-}
-#endif
 
 #define _MATCH(S, LIST) _match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
 /// assumes string of interest first in item
@@ -147,99 +114,6 @@ int _lookup_oddtruelist(const char *s, int *res, const char *list[], size_t list
    return STR_ENOMATCH;
 }
 
-int str_dectol(const char *s, long int *res, const char **ep)
-{
-    if (!s || !res) {
-        return -EINVAL;
-    }
-    // TODO? restore errno
-    char *tmp_ep;
-    errno = 0;
-    long int val = strtol(s, &tmp_ep, 10);
-    if (errno) {
-        return STR_ERANGE;
-    }
-
-    if (tmp_ep == s) {
-        return STR_ENAN;
-    }
-
-    if (ep) {
-        *ep = tmp_ep;
-    }
-    else if (_isvisible(*tmp_ep)) {
-        return STR_EEND;
-    }
-
-    *res = val;
-
-    return 0;
-}
-
-int str_hextoul(const char *s, unsigned long int *res, const char **ep)
-{
-    if (!s || !res) {
-        return -EINVAL;
-    }
-
-    char *tmp_ep = NULL;
-    errno = 0;
-    unsigned long int val = strtoul(s, &tmp_ep, 16);
-    if (errno) {
-        return STR_ERANGE;
-    }
-
-    if (tmp_ep == s) {
-        return STR_ENAN;
-    }
-
-    if (ep) {
-        *ep = tmp_ep;
-    }
-    else if (_isvisible(*tmp_ep)) {
-        return STR_EEND;
-    }
-
-    *res = val;
-
-    return 0;
-}
-
-/** decimal string to int **/
-int str_dectoi(const char *s, int *res, const char **ep)
-{
-    long int tmp = 0;
-    int err = str_dectol(s, &tmp, ep);
-    if (err) {
-        return err;
-    }
-
-    if (tmp < INT_MIN || tmp > INT_MAX) {
-        return STR_ERANGE;
-    }
-
-    *res = tmp;
-
-    return 0;
-}
-
-int str_hextou8(const char *s, uint8_t *res, const char **ep)
-{
-    unsigned long int tmp = 0;
-    int err = str_hextoul(s, &tmp, ep);
-    if (err) {
-        return err;
-    }
-
-    if (tmp > UINT8_MAX) {
-        return STR_ERANGE;
-    }
-
-    *res = tmp;
-
-    return 0;
-}
-
 // clang-format off
 static const char* bool_words[] =  {
    "0",     "1",
@@ -298,7 +172,7 @@ int str_to_baud(const char *s, int *baud, const char **ep)
     const char *tmp_ep;
     int tmp_baud = 0;
 
-    err = str_dectoi(s, &tmp_baud, &tmp_ep);
+    err = strtoi_r(s, &tmp_ep, 10, &tmp_baud);
     if (err)
         return err;
 
@@ -535,7 +409,7 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
         return EINVAL;
     s++;
 
-    return str_hextou8(s, res, ep);
+    return strtou8_r(s, ep, 16, res);
 }
 
 char *str_lstrip(char *s)
@@ -575,35 +449,6 @@ char *str_stripc(char *s, char c)
 {
     return str_rstripc(str_lstripc(s, c), c);
 }
-
-#if 0
-static int str_is0xbyte(const char *s)
-{
-    if (!s || s[0] == '\0')
-        return false;
-
-    if (*s != '0')
-        return false;
-    s++;
-
-    if (*s != 'x')
-        return false;
-    s++;
-
-
-    if (!isxdigit(*s))
-        return false;
-    s++;
-
-    if (isxdigit(*s))
-        s++;
-
-    if (*s != '\0')
-        return false;
-
-    return true;
-}
-#endif
 
 int str_split(char *s, const char *delim, char *toks[], int *n)
 {
@@ -763,5 +608,69 @@ int str_escape_nonprint(char *dst, size_t dstsize,
 
     *dst = '\0';
     return totlen;
+}
+
+/* or use ts from moreutils? `apt install moreutils`
+ *
+ *  comand | ts '[%Y-%m-%d %H:%M:%S]'
+ */
+
+#define STR_ISO8601_SHORT_SIZE (sizeof("19700101T010203Z.123456789") + 2)
+//#define STR_ISO8601_LONG_SIZE (sizeof("1970-01-01T01:02:03Z.123456789") + 2)
+int str_iso8601_short(char *dst, size_t size)
+{
+    int len = 0;
+
+    if (size < STR_ISO8601_SHORT_SIZE)
+        return -ENOSPC;
+
+    /* gettimeofday marked obsolete in POSIX.1-2008 and recommends
+     * ... or use uv_gettimeofday?
+     */
+    struct timespec now;
+#if 0 // TODO use uv_gettimeofday - more portable
+    uv_timeval64_t uvtv;
+    int err = uv_gettimeofday(&uvtv);
+    if (err) {
+        LOG_ERR("uv_gettimeofday err=%d", err);
+        return;
+    }
+    now.tv_sec = uvtv.tv_sec;
+    now.tv_nsec = uvtv.tv_usec * 1000;
+
+#else
+    int err = clock_gettime(CLOCK_REALTIME, &now);
+    if (err) {
+        // should not occur. 
+        return -errno;
+    }
+#endif
+    struct tm tm;
+    gmtime_r(&now.tv_sec, &tm);
+
+    size_t rsz = strftime(dst, size, "%Y%m%dT%H%M%S", &tm);
+    if (rsz == 0) {
+        // content of buf undefined on zero
+        *dst = '\0';
+        return -1;
+    }
+
+    assert(rsz < size);
+    size -= rsz;
+    dst += rsz;
+    len += rsz;
+
+    // do not have nanosecond precision
+    int rc = snprintf(dst, size, ".%03luZ: ", now.tv_nsec / 1000000);
+    if (rc < 0) {
+        return -1;
+    }
+    else if (rc >= size) {
+        return -ENOSPC;
+    }
+
+    len += rc;
+
+    return len;
 }
 

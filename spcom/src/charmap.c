@@ -11,6 +11,7 @@
 #include "common.h"
 #include "eol.h"
 #include "str.h"
+#include "strto_r.h"
 #include "ctohex.h"
 #include "opt.h"
 #include "charmap.h"
@@ -333,10 +334,10 @@ static int str_to_crepr_id(const char *s, int *id)
     return str_map_to_int(s, crepr_id_strmap, nmemb, id);
 }
 
-static int str_0xhexbytetoi(const char *s, int *res)
+static int _hexbytetoi(const char *s, int *res)
 {
         uint8_t u8tmp = 0;
-        int err = str_0xhextou8(s, &u8tmp, NULL);
+        int err = strtou8_r(s, NULL, 16, &u8tmp);
         if (err)
             return err;
         *res = u8tmp;
@@ -384,7 +385,7 @@ static int charmap_set_group_repr(struct charmap_s *cm, int groupid, int reprid)
 static int charmap_opt_parse_group(const char *skey, int *key)
 {
     int err;
-    err = str_0xhexbytetoi(skey, key);
+    err = _hexbytetoi(skey, key);
     if (!err)
         return 0;
 
@@ -431,7 +432,7 @@ static int charmap_opt_parse_repr(const char *sval, int *reprid)
 {
     int err;
 
-    err = str_0xhexbytetoi(sval, reprid);
+    err = _hexbytetoi(sval, reprid);
     if (!err)
         return 0;
 

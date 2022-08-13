@@ -2,10 +2,10 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <stdio.h>
-#include <time.h>
 
 #include "opt.h"
 #include "vt_defs.h"
+#include "str.h"
 #include "log.h"
 #include "eol.h"
 #include "shell.h"
@@ -14,15 +14,13 @@
 #include "outfmt.h"
 #include "assert.h"
 
-static struct outfmt_s 
-{
-    // end-of-line sequence
+static struct outfmt_s {
+    bool linebufed;
+    // had end-of-line char or sequence
     bool had_eol;
-
     int prev_c;
-    char last_c;
     char last_c_flushed;
-} outfmt = {
+} outfmt_data = {
     .prev_c = -1,
 };
 
@@ -39,20 +37,11 @@ static struct outfmt_opts_s {
     },
 };
 
-#if 0
-static struct strbuf {
-    char data[128];
-    size_t len;
-    char last_c_flushed;
-} _strbuf;
-#endif
-
-
 static void outfmt_strbuf_flush(struct strbuf *sb)
 {
     shell_write(0, sb->buf, sb->len);
 
-    outfmt.last_c_flushed = sb->buf[sb->len];
+    outfmt_data.last_c_flushed = sb->buf[sb->len];
 
     sb->len = 0;
 }
@@ -65,42 +54,36 @@ static void outfmt_strbuf_flush(struct strbuf *sb)
  */
 STRBUF_STATIC_INIT(outfmt_strbuf, 1024, outfmt_strbuf_flush);
 
+static void _eol_rx_timeout_init(void)
+{
+#if CONFIG_OPT_EOL_RX_TIMEOUT
+    if (!opt_timeout_sec)
+        return;
+
+    uv_loop_t *loop = uv_default_loop();
+    assert(loop);
+
+    err = uv_timer_init(loop, &uvt_timeout);
+    assert_uv_ok(err, "uv_timer_init");
+
+    uint64_t ms = (uint64_t) opt_timeout_sec * 1000;
+    err = uv_timer_start(&uvt_timeout, _uvcb_on_timeout, ms, 0);
+    assert_uv_ok(err, "uv_timer_start");
+
+    LOG_DBG("timeout set to %d sec", opt_timeout_sec);
+#endif
+}
+
 /* or use ts from moreutils? `apt install moreutils`
  *
  *  comand | ts '[%Y-%m-%d %H:%M:%S]'
  */
-static void print_timestamp(struct strbuf *sb)
+static void _print_timestamp(struct strbuf *sb)
 {
-    int err;
-    /* gettimeofday marked obsolete in POSIX.1-2008 and recommends
-     * ... or use uv_gettimeofday?
-     */
     if (!outfmt_opts.timestamp)
         return;
-    struct timespec now;
-#if 0 // TODO use uv_gettimeofday - more portable
-    uv_timeval64_t uvtv;
-    err = uv_gettimeofday(&uvtv);
-    if (err) {
-        LOG_ERR("uv_gettimeofday err=%d", err);
-        return;
-    }
-    now.tv_sec = uvtv.tv_sec;
-    now.tv_nsec = uvtv.tv_usec * 1000;
 
-#else
-    err = clock_gettime(CLOCK_REALTIME, &now);
-    if (err) {
-        // should not occur. TODO check errno?
-        return;
-    }
-#endif
-    struct tm tm;
-    gmtime_r(&now.tv_sec, &tm);
-
-    //char buf[sizeof("19700101T010203Z.123456789") + 2];
-
-    const size_t size_needed = sizeof("19700101T010203Z.123456789") + 2;
+    const size_t size_needed = STR_ISO8601_SHORT_SIZE;
 
     size_t dst_size = strbuf_remains(sb);
     if (dst_size < size_needed) {
@@ -108,23 +91,15 @@ static void print_timestamp(struct strbuf *sb)
         dst_size = strbuf_remains(sb);
         assert(dst_size >= size_needed);
     }
-    char *dst = &sb->buf[sb->len];
 
-    size_t rc = strftime(dst, dst_size, "%Y-%m-%dT%H:%M:%S", &tm);
-    if (rc == 0) {
-        // content of buf undefined
-        *dst = '\0';
-        return;
-    }
+    int rc = str_iso8601_short(&sb->buf[sb->len], dst_size);
+    assert(rc > 0);
+    assert(rc <= dst_size);
 
     sb->len += rc;
-
-    // do not have nanosecond precision
-    strbuf_printf(sb, ".%03luZ: ", now.tv_nsec / 1000000);
-
 }
 
-static void outfmt_sb_putc(struct strbuf *sb, int c)
+static void _sb_remap_putc(struct strbuf *sb, int c)
 {
     int repr_type = charmap_repr_type(charmap_rx, c);
 
@@ -158,82 +133,88 @@ static void outfmt_sb_putc(struct strbuf *sb, int c)
  */
 void outfmt_write(const void *data, size_t size)
 {
-    struct strbuf *sb = &outfmt_strbuf;
-
     if (!size)
         return;
 
-    const char *p = data;
-    int prev_c = outfmt.prev_c;
+    const char *src = data;
+    struct strbuf *sb = &outfmt_strbuf;
+    struct outfmt_s *ofd = &outfmt_data;
 
-    bool is_first_c = prev_c < 0;
+
+    bool is_first_c = ofd->prev_c < 0;
     if (is_first_c)
-        print_timestamp(sb);
-
-    bool had_eol = outfmt.had_eol;
+        _print_timestamp(sb);
 
     for (size_t i = 0; i < size; i++) {
-        int c = *p++;
+        int c = *src++;
         // timestamp on first char received _after_ eol
-        if (had_eol) {
-            print_timestamp(sb);
-            had_eol = false;
+        if (ofd->had_eol) {
+            _print_timestamp(sb);
+            ofd->had_eol = false;
         }
 
-        int ec = eol_match(eol_rx, prev_c, c);
+        int ec = eol_match(eol_rx, ofd->prev_c, c);
         switch (ec) {
 
             case EOL_C_NOMATCH:
-                outfmt_sb_putc(sb, c);
+                _sb_remap_putc(sb, c);
                 break;
 
             case EOL_C_MATCH:
-                had_eol = true;
+                ofd->had_eol = true;
                 /* outfmt putc no check, "raw" */
-
                 strbuf_putc(sb, '\n');
+                if (ofd->linebufed) {
+                    outfmt_strbuf_flush(sb);
+                    // TODO _eol_rx_timeout_stop();
+                }
                 break;
 
             case EOL_C_POP:
-                outfmt_sb_putc(sb, prev_c);
-                outfmt_sb_putc(sb, c);
+                _sb_remap_putc(sb, ofd->prev_c);
+                _sb_remap_putc(sb, c);
                 break;
 
             case EOL_C_POP_AND_STASH:
-                outfmt_sb_putc(sb, prev_c);
+                _sb_remap_putc(sb, ofd->prev_c);
                 break;
 
             case EOL_C_IGNORE:
             case EOL_C_STASH:
-                // prev_c = c below
+                // ofd->prev_c = c below
                 break;
 
             default:
                 assert(0);
                 break;
         }
-        prev_c = c;
+        ofd->prev_c = c;
     }
 
-    outfmt_strbuf_flush(sb);
-
-    outfmt.had_eol = had_eol;
-    outfmt.prev_c = prev_c;
+    if (ofd->linebufed) {
+        if (sb->len > 0) {
+            // TODO _eol_rx_timeout_start();
+        }
+    }
+    else {
+        outfmt_strbuf_flush(sb);
+    }
 }
 
 void outfmt_endline(void)
 {
     // TODO if color turn it off
     struct strbuf *sb = &outfmt_strbuf;
+    struct outfmt_s *ofd = &outfmt_data;
     // flush in case data remains
     outfmt_strbuf_flush(sb);
-    if (outfmt.last_c_flushed == '\0') {
+    if (ofd->last_c_flushed == '\0') {
         return;
     }
-    if (outfmt.last_c_flushed != '\n') {
+    if (ofd->last_c_flushed != '\n') {
         // add newline to avoid text on same line as prompt after exit
         fputc('\n', stdout);
-        outfmt.last_c_flushed = 0;
+        ofd->last_c_flushed = 0;
     }
 }
 
@@ -277,6 +258,19 @@ static const struct opt_conf outfmt_opts_conf[] = {
         .parse = opt_ap_flag_true,
         .descr = "enable color output",
     },
+#if CONFIG_OPT_EOL_RX_TIMEOUT
+    {
+        .name  = "--eol-rx-timeout",
+        .dest  = &eol_opts.eol_rx_timeout,
+        .parse = opt_ap_int,
+        .descr = "Float in seconds. "\
+                 "If some data received but no eol received within given time, "\
+                 "the buffered data is written output anywas."\
+                 "Default: " STRINGIFY(EOL_RX_TIMEOUT_DEFAULT) ". "\
+                 "Applies in coocked (line buffered) mode only otherwise ignored. "\
+
+    },
+#endif
 };
 
 OPT_SECTION_ADD(outfmt,

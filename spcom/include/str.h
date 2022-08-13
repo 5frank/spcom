@@ -5,29 +5,29 @@
 #include <stdint.h>
 #include <string.h>
 
+/// unknown parse failure
+#define STR_EUNKNOWN (300)
+/// unexpected character at end of input string
+#define STR_EEND (301)
+/// string is not a number (no digits)
+#define STR_ENAN (302)
+/// invalid format (incorrect delimiter etc)
+#define STR_EFMT (303)
+/// string do not match 
+#define STR_ENOMATCH (304)
+// number out of allowed range. (same as ERANGE on most platforms)
+#define STR_ERANGE (34)
+// string not valid. (same as EINVAL on most platforms)
+#define STR_EINVAL (22)
+// something did not fit (same as E2BIG on most platforms)
+#define STR_E2BIG  (7)
+
 /**
- * str_to functions:
- *    @param ep - endpointer `const char **ep` is optional, if NULL, used
- *    internal endpointer and check that it points to nul byte ('\0').  @return
- *    zero on success
- *
  * string matchers:
  *    @param s if s is a empty string, all possible matches is returned.
  *    @return a NULL terminated list of strings beginning with `s`, or NULL if
  *    none found
  */
-
-/**
- * Decimal (base 10) string to int.
- * handles all checks on errno and endpointer that posix strto family requires.
- */
-int str_dectoi(const char *s, int *res, const char **ep);
-
-int str_hextoul(const char *s, unsigned long int *res, const char **ep);
-
-int str_hextou8(const char *s, uint8_t *res, const char **ep);
-
-int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
 
 int str_to_bool(const char *s, bool *rbool);
 
@@ -164,4 +164,8 @@ int str_split_quoted(char *s, int *argc, char *argv[], int argvmax);
 
 int str_escape_nonprint(char *dst, size_t dstsize,
                        const char *src, size_t srcsize);
+
+#define STR_ISO8601_SHORT_SIZE (sizeof("19700101T010203Z.123456789") + 2)
+int str_iso8601_short(char *dst, size_t size);
+
 #endif
