@@ -2,11 +2,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> // access
 
 #include <uv.h>
 #include <libserialport.h>
-
-#include <unistd.h> // access
 
 #include "common.h"
 #include "misc.h"
@@ -18,6 +17,7 @@
 #include "opq.h"
 #include "str.h"
 #include "port_wait.h"
+#include "port_opts.h"
 #include "port.h"
 
 #if 1

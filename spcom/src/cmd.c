@@ -12,6 +12,7 @@
 #include "opq.h"
 #include "str.h"
 #include "cmd.h"
+#include "port_opts.h"
 
 struct cmd_ap_s {
     char matchbuf[32];
@@ -75,12 +76,12 @@ static CMD_FUNC(_cmd_break)
 }
 static CMD_FUNC(_cmd_parity)
 {
-    // TODO
+    // TODO port_opts_parse_parity
     return 0;
 }
 static CMD_FUNC(_cmd_flow)
 {
-    // TODO
+    // TODO port_opts_parse_flowcontrol
     return 0;
 }
 static CMD_FUNC(_cmd_set_pinstate) 
@@ -165,7 +166,7 @@ static struct cmd_s _cmds[] = {
         .opcode = OP_PORT_BAUD,
         .name = "baud",
         .callback = _cmd_baud,
-        .complete = str_match_baud,
+        .complete = port_opts_complete_baud,
     },
     {
         .opcode = OP_PORT_FLUSH,
@@ -186,25 +187,25 @@ static struct cmd_s _cmds[] = {
         .opcode = OP_PORT_SET_RTS,
         .name = "rts",
         .callback = _cmd_set_pinstate,
-        .complete = str_match_pinstate,
+        .complete = port_opts_complete_pinstate,
     },
     {
         .opcode = OP_PORT_SET_CTS,
         .name = "cts",
         .callback = _cmd_set_pinstate,
-        .complete = str_match_pinstate,
+        .complete = port_opts_complete_pinstate,
     },
     {
         .opcode = OP_PORT_SET_DTR,
         .name = "dtr",
         .callback = _cmd_set_pinstate,
-        .complete = str_match_pinstate,
+        .complete = port_opts_complete_pinstate,
     },
     {
         .opcode = OP_PORT_SET_DSR,
         .name = "dsr",
         .callback = _cmd_set_pinstate,
-        .complete = str_match_pinstate,
+        .complete = port_opts_complete_pinstate,
     },
     {
         .opcode = OP_PORT_PARITY,

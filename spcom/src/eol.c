@@ -14,7 +14,6 @@
 
 #define EOL_RX_TIMEOUT_DEFAULT 1
 
-
 static struct eol_opts {
     int eol_rx_timeout_ms;
     struct eol_seq eol_txrx;

@@ -4,11 +4,12 @@
 #include <limits.h>
 
 /**
- * strto{type}_r functions:
- *
- * handles all checks on errno and endpointer that posix strto family requires.
- *    @param ep - endpointer `const char **ep` is optional, if NULL, used
- *    internal endpointer and check that it points to nul byte ('\0') or isspace().
+ * @defgroup strto<type>_r functions:
+ * @{
+ * @details
+ *      handles all checks on errno and end pointer that posix strto family requires.
+ *    @param ep - endpointer `const char **ep` is optional, if NULL, 
+ *    internal endpointer used and check that it points to nul byte ('\0') or isspace().
  *    @return zero on success
  */
 
@@ -65,5 +66,9 @@ ___STRTOUL_R_WRAPPER_DEFINE(strtou16_r, uint16_t, UINT16_MAX)
 ___STRTOUL_R_WRAPPER_DEFINE(strtou32_r, uint32_t, UINT32_MAX)
 
 #undef ___STRTOUL_R_WRAPPER_DEFINE
+
+/**
+ * @}
+ */
 
 #endif

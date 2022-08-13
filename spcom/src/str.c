@@ -15,9 +15,9 @@
 
 static const char *_matchresult[32];
 
-#define _MATCH(S, LIST) _match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
-/// assumes string of interest first in item
-static const char **_match_list(const char *s, const void *items, size_t itemsize, size_t numitems)
+#define STR_MATCH_LIST(S, LIST) str_match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
+
+const char **str_match_list(const char *s, const void *items, size_t itemsize, size_t numitems)
 {
     if (!s)
         s = "";
@@ -101,18 +101,6 @@ const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map, size
    return NULL;
 }
 #endif
-int _lookup_oddtruelist(const char *s, int *res, const char *list[], size_t listlen)
-{
-   for (int i = 0; i < listlen; i++) {
-       if (!strcasecmp(s, list[i])) {
-           // odd words are true 
-           *res = (i & 1);
-           return 0;
-       }
-   }
-
-   return STR_ENOMATCH;
-}
 
 // clang-format off
 static const char* bool_words[] =  {
@@ -128,275 +116,19 @@ int str_to_bool(const char *s, bool *rbool)
 {
     assert(s);
     assert(rbool);
-    int tmp  = 0;
-    int err = _lookup_oddtruelist(s, &tmp, bool_words, ARRAY_LEN(bool_words));
-    if (err)
-        return err;
-    *rbool = tmp;
+    int i = str_list_indexof(s, bool_words, ARRAY_LEN(bool_words));
+    if (i < 0) {
+        return STR_ENOMATCH;
+    }
+
+    // odd words are true
+    *rbool = (i & 1);
     return 0;
 }
 
 const char **str_match_bool(const char *s)
 {
-    return _MATCH(s, bool_words);
-}
-
-// clang-format off
-static const char* pinstate_words[] =  {
-   "0",   "1",
-   "low", "high",
-   "off", "on"
-};
-// clang-format on
-
-int str_to_pinstate(const char *s, int *state)
-{
-    assert(s);
-    assert(state);
-
-    return _lookup_oddtruelist(s, state, pinstate_words, ARRAY_LEN(pinstate_words));
-}
-
-const char **str_match_pinstate(const char *s)
-{
-    return _MATCH(s, pinstate_words);
-}
-
-int str_to_baud(const char *s, int *baud, const char **ep)
-{
-    assert(s);
-    assert(baud);
-
-    int err = 0;
-
-    const char *tmp_ep;
-    int tmp_baud = 0;
-
-    err = strtoi_r(s, &tmp_ep, 10, &tmp_baud);
-    if (err)
-        return err;
-
-    if (ep)
-        *ep = tmp_ep;
-    else if (*tmp_ep != '\0')
-        return STR_EEND;
-
-    if (tmp_baud <= 0)
-        return STR_ERANGE;
-
-    *baud = tmp_baud;
-    return 0;
-}
-
-static const char *common_bauds[] = {
-    "1200", "1800", "2400", "4800", "9600", "19200", "38400", "57600",
-    "115200", "230400", "460800", "500000", "576000", "921600", "1000000",
-    "1152000", "1500000", "2000000", "2500000", "3000000", "3500000", "4000000"
-};
-
-const char **str_match_baud(const char *s)
-{
-    return _MATCH(s, common_bauds);
-}
-
-int str_to_databits(const char *s, int *databits, const char **ep)
-{
-    assert(s);
-    assert(databits);
-
-    int val = (int) s[0] - '0';
-    if ((val < 5) || (val > 9))
-        return STR_ERANGE;
-    s++;
-    if (ep)
-        *ep = s;
-    else if (*s != '\0')
-        return STR_EEND;
-
-    *databits = val;
-    return 0;
-}
-
-int str_to_parity(const char *s, int *parity, const char **ep)
-{
-    assert(s);
-    assert(parity);
-
-    switch (toupper(s[0])) {
-        case 'E':
-            *parity = SP_PARITY_EVEN;
-            break;
-        case 'O':
-            *parity = SP_PARITY_ODD;
-            break;
-        case 'N':
-            *parity = SP_PARITY_NONE;
-            break;
-        case 'M':
-            *parity = SP_PARITY_MARK;
-            break;
-        case 'S':
-            *parity = SP_PARITY_SPACE;
-            break;
-        default:
-            return STR_EINVAL;
-            break;
-    }
-
-    s++;
-
-    if (ep)
-        *ep = s;
-    else if (*s != '\0')
-        return STR_EEND;
-
-    return 0;
-}
-//
-/* TODO libserialport do not seem to support one and a half stopbits
- * format should be "1.5"? 
- */ 
-int str_to_stopbits(const char *s, int *stopbits, const char **ep)
-{
-    assert(s);
-    assert(stopbits);
-
-    int val = (int) s[0] - '0';
-    if ((val < 1) || (val > 2))
-        return STR_ERANGE;
-
-    s++;
-
-    if (ep)
-        *ep = s;
-    else if (*s != '\0')
-        return STR_EEND;
-
-    *stopbits = val;
-    return 0;
-}
-
-
-/**
- * result params only set on valid string format, otherwise untouched.
- */
-int str_to_baud_dps(const char *s, int *baud, int *databits, int *parity, int *stopbits)
-{
-    assert(baud);
-    assert(databits);
-    assert(parity);
-    assert(stopbits);
-
-    int err = 0;
-    const char *ep;
-    int tmp_baud = 0;
-    err = str_to_baud(s, &tmp_baud, &ep);
-    if (err)
-        return err;
-    // have nul
-    if (*ep == '\0') {
-        *baud = tmp_baud;
-        return 0;
-    }
-
-    if ((*ep == '/') || (*ep == ':'))
-        s = ep + 1;
-    else
-        return STR_EFMT;
-
-    int tmp_databits = 0;
-    err = str_to_databits(s, &tmp_databits, &ep);
-    if (err)
-        return err;
-    s = ep;
-
-    int tmp_parity = 0;
-    err = str_to_parity(s, &tmp_parity, &ep);
-    if (err)
-        return err;
-    s = ep;
-
-    int tmp_stopbits = 0;
-    err = str_to_stopbits(s, &tmp_stopbits, &ep);
-    if (err)
-        return err;
-
-    *baud     = tmp_baud;
-    *databits = tmp_databits;
-    *stopbits = tmp_stopbits;
-    *parity   = tmp_parity;
-
-    return 0;
-}
-#if 0
-// clang-format off
-static const struct str_kvi _xonoff_map[] = {
-    // { "off",     SP_XONXOFF_DISABLED },
-    // { "i",     SP_XONXOFF_IN },
-    { "in",    SP_XONXOFF_IN },
-    { "rx",    SP_XONXOFF_IN },
-    // { "o",     SP_XONXOFF_OUT },
-    { "out",   SP_XONXOFF_OUT },
-    { "tx",    SP_XONXOFF_OUT },
-    { "io",    SP_XONXOFF_INOUT },
-    { "inout", SP_XONXOFF_INOUT },
-    { "txrx",  SP_XONXOFF_INOUT }
-};
-// clang-format on
-
-/** in libserialport - default is "txrx"=`INOUT` if flowcontrol set to SP_FLOWCONTROL_XONXOFF
- */ 
-int str_to_xonxoff(const char *s, int *xonxoff)
-{
-   assert(xonxoff);
-   for (int i = 0; i < ARRAY_LEN(_xonoff_map); i++) {
-       if (!strcasecmp(s, _xonoff_map[i].s)) {
-           *xonxoff = _xonoff_map[i].val;
-           return 0;
-       }
-   }
-   return STR_EINVAL;
-}
-#endif
-
-#define FLOW_XONXOFF_TX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_OUT << 8))
-#define FLOW_XONXOFF_RX_ONLY (SP_FLOWCONTROL_XONXOFF | (SP_XONXOFF_IN << 8))
-
-static const struct str_map flowcontrol_map[] = {
-    // No flow control
-    STR_MAP_INT("none",        SP_FLOWCONTROL_NONE),
-    // Hardware flow control using RTS/CTS.
-    STR_MAP_INT("rtscts",      SP_FLOWCONTROL_RTSCTS ),
-    // Hardware flow control using DTR/DSR
-    STR_MAP_INT("dtrdsr",      SP_FLOWCONTROL_DTRDSR ),
-    // Software flow control using XON/XOFF characters
-    STR_MAP_INT("xonxoff",     SP_FLOWCONTROL_XONXOFF ),
-    STR_MAP_INT("xonxoff-tx",  FLOW_XONXOFF_TX_ONLY),
-    STR_MAP_INT("xonxoff-out", FLOW_XONXOFF_TX_ONLY),
-    STR_MAP_INT("xonxoff-rx",  FLOW_XONXOFF_RX_ONLY),
-    STR_MAP_INT("xonxoff-in",  FLOW_XONXOFF_RX_ONLY)
-    //{ "xonxoff-txrx", SP_FLOWCONTROL_XONXOFF },
-    //{ "xonxoff-inout", SP_FLOWCONTROL_XONXOFF },
-};
-/* in pyserial flow options named:
- *  xonxoff (bool) – Enable software flow control.
- *  rtscts (bool) – Enable hardware (RTS/CTS) flow control.
- *  dsrdtr (bool) – Enable hardware (DSR/DTR) flow control.
-*/
-int str_to_flowcontrol(const char *s, int *flowcontrol)
-{
-    _Static_assert((unsigned int) SP_XONXOFF_IN < 256, "");
-    _Static_assert((unsigned int) SP_XONXOFF_OUT < 256, "");
-    _Static_assert((unsigned int) SP_XONXOFF_INOUT < 256, "");
-    return str_map_to_int(s,
-                          flowcontrol_map,
-                          ARRAY_LEN(flowcontrol_map),
-                          flowcontrol);
-}
-
-const char **str_match_flowcontrol(const char *s)
-{
-    return _MATCH(s, flowcontrol_map);
+    return STR_MATCH_LIST(s, bool_words);
 }
 
 int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
