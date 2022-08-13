@@ -189,22 +189,20 @@ static void main_cleanup(void)
 
 static bool main_do_early_exit_opts(void)
 {
-    const struct main_opts_s *opts = main_opts_get();
-
     // implicit priorty order of show_x options here if multiple flags provided
 
-    if (opts->show_help) {
+    if (main_opts->show_help) {
         opt_show_help();
         return true;
     }
 
-    if (opts->show_version) {
-        misc_print_version(opts->verbose);
+    if (main_opts->show_version) {
+        misc_print_version(main_opts->verbose);
         return true;
     }
 
-    if (opts->show_list) {
-        port_info_print_list(opts->verbose);
+    if (main_opts->show_list) {
+        port_info_print_list(main_opts->verbose);
         return true;
     }
 

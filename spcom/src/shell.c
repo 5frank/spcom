@@ -27,9 +27,11 @@ extern const struct shell_mode_s *shell_mode_raw;
 extern const struct shell_mode_s *shell_mode_cooked;
 //extern const struct shell_mode_s *shell_mode_cmd;
 
-struct shell_opts_s shell_opts = {
+static struct shell_opts_s _shell_opts = {
     .cooked = false,
 };
+
+const struct shell_opts_s *shell_opts = &_shell_opts;
 
 static struct shell_s {
     bool initialized;
@@ -246,7 +248,7 @@ int shell_init(void)
     err = uv_poll_start(&shell_data.poll_handle, UV_READABLE, _on_stdin_data_avail);
     assert_uv_ok(err, "uv_poll_start");
 
-    shell_data.default_mode = (shell_opts.cooked)
+    shell_data.default_mode = (shell_opts->cooked)
         ? shell_mode_cooked
         : shell_mode_raw;
     shell_set_mode(shell_data.default_mode);
@@ -313,7 +315,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .name = "cooked",
         .shortname = 'C',
         .alias = "canonical",
-        .dest = &shell_opts.cooked,
+        .dest = &_shell_opts.cooked,
         .parse = opt_ap_flag_true,
         .descr = "cooked (or canonical) mode - input from stdin are stored "
             "and can be edited in local line buffer before sent over serial "
@@ -323,7 +325,7 @@ static const struct opt_conf shell_opts_conf[] = {
     },
     {
         .name = "sticky",
-        .dest = &shell_opts.sticky,
+        .dest = &_shell_opts.sticky,
         .parse = opt_ap_flag_true,
         .descr = "sticky promt that keep input characters on same line."
             "Only applies when in coocked mode"
@@ -331,7 +333,7 @@ static const struct opt_conf shell_opts_conf[] = {
     {
         .name = "echo",
         .alias = "lecho",
-        .dest = &shell_opts.local_echo,
+        .dest = &_shell_opts.local_echo,
         .parse = opt_ap_flag_true,
         .descr = "local echo input characters on stdout"
     },

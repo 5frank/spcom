@@ -43,17 +43,6 @@ static const char *_matchlist[32];
 
 static struct cmd_ap_s _cmd_ap;
 
-static inline bool _is_termchar(int c, const char* termchars)
-{
-   if (c == '\0' || c == ' ' || c == '\n')
-       return true;
-
-   if (termchars)
-        return strchr(termchars, c) ? true : false;
-
-   return false;
-}
-
 static CMD_FUNC(_cmd_help)
 {
     // TODO

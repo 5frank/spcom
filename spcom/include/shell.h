@@ -8,7 +8,8 @@ struct shell_opts_s {
     int sticky;
     int local_echo;
 };
-extern struct shell_opts_s shell_opts;
+
+extern const struct shell_opts_s *shell_opts;
 
 struct shell_mode_s {
     //struct readline_state *rlstate;

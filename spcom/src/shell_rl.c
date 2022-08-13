@@ -82,7 +82,7 @@ const void *shell_rl_save(void)
     if (!data->enabled)
         return NULL;
 
-    if (!shell_opts.sticky)
+    if (!shell_opts->sticky)
         return NULL;
 
     if (RL_ISSTATE(RL_STATE_DONE))

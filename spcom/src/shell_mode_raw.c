@@ -74,7 +74,7 @@ static void sh_raw_insertchar(int c)
 {
     opq_enqueue_val(&opq_rt, OP_PORT_PUTC, c);
 
-    if (shell_opts.local_echo)
+    if (shell_opts->local_echo)
         putc(c, stdout);
 }
 

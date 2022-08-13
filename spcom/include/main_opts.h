@@ -8,5 +8,5 @@ struct main_opts_s {
     int verbose;
 };
 
-const struct main_opts_s *main_opts_get(void);
+extern const struct main_opts_s *main_opts;
 #endif
