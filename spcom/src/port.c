@@ -66,6 +66,8 @@ static struct port_s {
     struct opq_item *current_op;
     enum port_state_e state;
     port_rx_cb_fn *rx_cb;
+    char eol[3];
+    unsigned char eol_len;
 } port_data = {0};
 
 
@@ -300,10 +302,8 @@ static void _on_writable(uv_poll_t* handle)
             done = update_write(&tmpc, 1);
             break;
 
-        case OP_PORT_PUT_EOL: {
-            const struct eol_seq *es = eol_tx;
-            done = update_write(es->seq, es->len);
-            }
+        case OP_PORT_PUT_EOL:
+            done = update_write(port_data.eol, port_data.eol_len);
             break;
 
         case OP_PORT_SET_RTS:
@@ -694,6 +694,10 @@ void port_init(port_rx_cb_fn *rx_cb)
     if (!port_opts.name) {
         SPCOM_EXIT(EX_USAGE, "No port or device name provided");
     }
+
+    port_data.eol_len = eol_seq_cpy(eol_tx,
+                                    port_data.eol,
+                                    sizeof(port_data.eol));
 
     port_data.rx_cb = rx_cb;
     // allocate some resources

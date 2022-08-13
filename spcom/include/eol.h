@@ -4,52 +4,38 @@
 
 #include <stdint.h>
 
-#define EOL_MAX_LEN 2
-
-enum eol_c_e {
-    EOL_C_NONE = 0,
-    EOL_C_FWD1,
-    EOL_C_FWD2,
-    EOL_C_CONSUMED,
-    EOL_C_FOUND,
+enum {
+    EOL_C_NOMATCH = 0,
+    /// hold on to c. partial match
+    EOL_C_STASH,
+    /// release/pop prev_c. c is not a match
+    EOL_C_POP,
+    /// release/pop prev_c c is a match
+    EOL_C_POP_AND_STASH,
+    /// eol found
+    EOL_C_MATCH,
+    // excpect same behavior
+    EOL_C_IGNORE,
 };
 
-struct eol_seq;
-
-typedef int (eol_eval_fn)(struct eol_seq *es, char c, char *cfwd);
-
 struct eol_seq {
-    eol_eval_fn *handler;
-    uint8_t index;
-    uint8_t len;
-    char seq[EOL_MAX_LEN];
+    unsigned char seq[2];
+    unsigned char len;
+    int (*match_func)(const struct eol_seq *p, int prev_c, int c);
 };
 
 extern struct eol_seq *eol_rx;
 extern struct eol_seq *eol_tx;
-
-static inline int eol_eval(struct eol_seq *es, char c, char *cfwd)
+/**
+ * @param prev_c previous c. assumed -1 on first call */
+static inline int eol_match(const struct eol_seq *es, int prev_c, int c)
 {
-    if (!es->handler)
-        return EOL_C_NONE;
+    if (!es->match_func)
+        return EOL_C_NOMATCH;
 
-    return es->handler(es, c, cfwd);
+    return es->match_func(es, prev_c, c);
 }
 
-#if 0
-
-struct eol_seq {
-    uint8_t seq[4];
-    uint8_t len;
-    uint32_t seqmsk;
-    uint32_t cmpmsk;
-};
-
-
-int eol_rx_check(char c);
-void eol_rx_check_reset(void);
-
-const struct eol_seq *eol_tx_get(void);
-#endif
+int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size);
 
 #endif

@@ -171,7 +171,6 @@ void outfmt_write(const void *data, size_t size)
         print_timestamp(sb);
 
     bool had_eol = outfmt.had_eol;
-    char cfwd[EOL_MAX_LEN];
 
     for (size_t i = 0; i < size; i++) {
         int c = *p++;
@@ -181,35 +180,36 @@ void outfmt_write(const void *data, size_t size)
             had_eol = false;
         }
 
-        int ec = eol_eval(eol_rx, c, cfwd);
+        int ec = eol_match(eol_rx, prev_c, c);
         switch (ec) {
 
-            case EOL_C_NONE:
+            case EOL_C_NOMATCH:
                 outfmt_sb_putc(sb, c);
                 break;
 
-            case EOL_C_CONSUMED:
-                break;
-
-            case EOL_C_FOUND:
+            case EOL_C_MATCH:
                 had_eol = true;
                 /* outfmt putc no check, "raw" */
 
                 strbuf_putc(sb, '\n');
                 break;
 
-            case EOL_C_FWD1:
-                outfmt_sb_putc(sb, cfwd[0]);
+            case EOL_C_POP:
+                outfmt_sb_putc(sb, prev_c);
+                outfmt_sb_putc(sb, c);
                 break;
 
-            case EOL_C_FWD2:
-                outfmt_sb_putc(sb, cfwd[0]);
-                outfmt_sb_putc(sb, cfwd[1]);
+            case EOL_C_POP_AND_STASH:
+                outfmt_sb_putc(sb, prev_c);
+                break;
+
+            case EOL_C_IGNORE:
+            case EOL_C_STASH:
+                // prev_c = c below
                 break;
 
             default:
-                LOG_ERR("never!");
-                outfmt_sb_putc(sb, c);
+                assert(0);
                 break;
         }
         prev_c = c;
