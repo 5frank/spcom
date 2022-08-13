@@ -13,8 +13,8 @@
 
 /// unknown parse failure
 #define STR_EUNKNOWN (300)
-/// parsing did not end at nul byte
-#define STR_ENONUL (301)
+/// unexpected character at end of input string
+#define STR_EEND (301)
 /// string is not a number (no digits)
 #define STR_ENAN (302)
 /// invalid format (incorrect delimiter etc)
@@ -33,12 +33,20 @@
 
 static const char *_matchresult[32];
 
-static inline bool _is_termchar(int c)
+/**
+ * @return true if c is a "human visible" character.
+ * space, tabs and line breaks not considerd as "visible".  */
+static inline int _isvisible(char c)
 {
-   if (c == '\0' || c == ' ' || c == '\n')
-       return true;
-   return false;
+    // same as (c >= '!' && c <= '~')
+    return (c >= 0x21 && c <= 0x7E);
 }
+#if 0
+static int _have_0x_prefix(const char *s)
+{
+    return (s[0] == '0' && s[1] == 'x');
+}
+#endif
 
 #define _MATCH(S, LIST) _match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
 /// assumes string of interest first in item
@@ -138,29 +146,96 @@ int _lookup_oddtruelist(const char *s, int *res, const char *list[], size_t list
 
    return STR_ENOMATCH;
 }
+
+int str_dectol(const char *s, long int *res, const char **ep)
+{
+    if (!s || !res) {
+        return -EINVAL;
+    }
+    // TODO? restore errno
+    char *tmp_ep;
+    errno = 0;
+    long int val = strtol(s, &tmp_ep, 10);
+    if (errno) {
+        return STR_ERANGE;
+    }
+
+    if (tmp_ep == s) {
+        return STR_ENAN;
+    }
+
+    if (ep) {
+        *ep = tmp_ep;
+    }
+    else if (_isvisible(*tmp_ep)) {
+        return STR_EEND;
+    }
+
+    *res = val;
+
+    return 0;
+}
+
+int str_hextoul(const char *s, unsigned long int *res, const char **ep)
+{
+    if (!s || !res) {
+        return -EINVAL;
+    }
+
+    char *tmp_ep = NULL;
+    errno = 0;
+    unsigned long int val = strtoul(s, &tmp_ep, 16);
+    if (errno) {
+        return STR_ERANGE;
+    }
+
+    if (tmp_ep == s) {
+        return STR_ENAN;
+    }
+
+    if (ep) {
+        *ep = tmp_ep;
+    }
+    else if (_isvisible(*tmp_ep)) {
+        return STR_EEND;
+    }
+
+    *res = val;
+
+    return 0;
+}
+
 /** decimal string to int **/
 int str_dectoi(const char *s, int *res, const char **ep)
 {
-    char *tmp_ep;
-    // TODO restore errno?
-    errno = 0;
-    long int val = strtol(s, &tmp_ep, 10);
-    if (errno == ERANGE && (val == LONG_MAX || val == LONG_MIN))
+    long int tmp = 0;
+    int err = str_dectol(s, &tmp, ep);
+    if (err) {
+        return err;
+    }
+
+    if (tmp < INT_MIN || tmp > INT_MAX) {
         return STR_ERANGE;
+    }
 
-    if (errno != 0 && val == 0)
-        return STR_EUNKNOWN;
+    *res = tmp;
 
-    // no digits found
-    if (tmp_ep == s)
-        return STR_ENAN;
+    return 0;
+}
 
-    if (ep)
-        *ep = tmp_ep;
-    else if (*tmp_ep != '\0')
-        return STR_ENONUL;
+int str_hextou8(const char *s, uint8_t *res, const char **ep)
+{
+    unsigned long int tmp = 0;
+    int err = str_hextoul(s, &tmp, ep);
+    if (err) {
+        return err;
+    }
 
-    *res = (int) val;
+    if (tmp > UINT8_MAX) {
+        return STR_ERANGE;
+    }
+
+    *res = tmp;
 
     return 0;
 }
@@ -175,7 +250,7 @@ static const char* bool_words[] =  {
 };
 // clang-format on
 
-int str_to_bool(const char *s, bool *rbool) 
+int str_to_bool(const char *s, bool *rbool)
 {
     assert(s);
     assert(rbool);
@@ -230,7 +305,7 @@ int str_to_baud(const char *s, int *baud, const char **ep)
     if (ep)
         *ep = tmp_ep;
     else if (*tmp_ep != '\0')
-        return STR_ENONUL;
+        return STR_EEND;
 
     if (tmp_baud <= 0)
         return STR_ERANGE;
@@ -262,7 +337,7 @@ int str_to_databits(const char *s, int *databits, const char **ep)
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_ENONUL;
+        return STR_EEND;
 
     *databits = val;
     return 0;
@@ -299,7 +374,7 @@ int str_to_parity(const char *s, int *parity, const char **ep)
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_ENONUL;
+        return STR_EEND;
 
     return 0;
 }
@@ -321,7 +396,7 @@ int str_to_stopbits(const char *s, int *stopbits, const char **ep)
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_ENONUL;
+        return STR_EEND;
 
     *stopbits = val;
     return 0;
@@ -450,28 +525,8 @@ const char **str_match_flowcontrol(const char *s)
     return _MATCH(s, flowcontrol_map);
 }
 
-static int str_hex2nib(char sc, uint8_t *b)
-{
-    uint8_t c = sc;
-    if ((c >= '0') && (c <= '9')) {
-
-        *b = (c - '0');
-        return 0;
-    }
-
-    unsigned char lc = c | (1 << 5); // to lower
-    if ((lc >= 'a') && (lc <= 'f')) {
-        *b = c - 'a' + 10;
-        return 0;
-    }
-
-    return -1;
-}
-
 int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
 {
-    int err;
-    uint8_t b = 0;
     if (*s != '0')
         return EINVAL;
     s++;
@@ -480,26 +535,7 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
         return EINVAL;
     s++;
 
-    err = str_hex2nib(*s, &b);
-    if (err)
-        return EINVAL;
-    b <<= 4;
-    s++;
-
-    err = str_hex2nib(*s, &b);
-    if (err)
-        return EINVAL;
-    s++;
-
-    if (isxdigit(*s))
-        return EINVAL; // ambigous end
-
-    *res = b;
-
-    if (ep)
-        *ep = s;
-
-    return 0;
+    return str_hextou8(s, res, ep);
 }
 
 char *str_lstrip(char *s)
@@ -540,6 +576,7 @@ char *str_stripc(char *s, char c)
     return str_rstripc(str_lstripc(s, c), c);
 }
 
+#if 0
 static int str_is0xbyte(const char *s)
 {
     if (!s || s[0] == '\0')
@@ -566,6 +603,7 @@ static int str_is0xbyte(const char *s)
 
     return true;
 }
+#endif
 
 int str_split(char *s, const char *delim, char *toks[], int *n)
 {

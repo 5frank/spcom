@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 /**
  * str_to functions:
@@ -21,6 +22,12 @@
  * handles all checks on errno and endpointer that posix strto family requires.
  */
 int str_dectoi(const char *s, int *res, const char **ep);
+
+int str_hextoul(const char *s, unsigned long int *res, const char **ep);
+
+int str_hextou8(const char *s, uint8_t *res, const char **ep);
+
+int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
 
 int str_to_bool(const char *s, bool *rbool);
 
@@ -67,7 +74,6 @@ const char **str_match_flowcontrol(const char *s);
 //int str_to_argv(char *s, int *argc, char **argv, unsigned int max_argc);
 
 
-int str_0xhextou8(const char *s, uint8_t *res, const char **ep);
 
 char *str_lstrip(char *s);
 char *str_rstrip(char *s);
@@ -76,6 +82,16 @@ char *str_strip(char *s);
 char *str_lstripc(char *s, char c);
 char *str_rstripc(char *s, char c);
 char *str_stripc(char *s, char c);
+
+static inline int str_startswith(const char *str, const char *prefix)
+{
+    return !strncmp(str, prefix, strlen(prefix));
+}
+
+static inline int str_casestartswith(const char *str, const char *prefix)
+{
+    return !strncasecmp(str, prefix, strlen(prefix));
+}
 #if 1
 
 struct str_map {
