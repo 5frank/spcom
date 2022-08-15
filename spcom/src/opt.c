@@ -55,13 +55,13 @@ static bool opt_conf_has_val(const struct opt_conf *conf)
     if (conf->positional)
         return false;
 
-    if (conf->parse == opt_ap_flag_true)
+    if (conf->parse == opt_parse_flag_true)
         return false;
 
-    if (conf->parse == opt_ap_flag_false)
+    if (conf->parse == opt_parse_flag_false)
         return false;
 
-    if (conf->parse == opt_ap_flag_count)
+    if (conf->parse == opt_parse_flag_count)
         return false;
 
     return true;

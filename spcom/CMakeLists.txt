@@ -17,7 +17,7 @@ set(SOURCES
     src/opt.c
     src/opt_shortstr.c
     src/opt_argviter.c
-    src/opt_ap.c
+    src/opt_parse.c
     src/outfmt.c
     src/port.c
     src/port_info.c

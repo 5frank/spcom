@@ -1,14 +1,20 @@
 #ifndef STRTO_R_INCLUDE_H_
 #define STRTO_R_INCLUDE_H_
 
+#include <errno.h>
 #include <limits.h>
 
+/**
+ * @brief error value to string.
+ * return NULL if unkown error
+ */
+const char *strto_r_strerror(int err);
 /**
  * @defgroup strto<type>_r functions:
  * @{
  * @details
  *      handles all checks on errno and end pointer that posix strto family requires.
- *    @param ep - endpointer `const char **ep` is optional, if NULL, 
+ *    @param ep - endpointer `const char **ep` is optional, if NULL,
  *    internal endpointer used and check that it points to nul byte ('\0') or isspace().
  *    @return zero on success
  */
@@ -27,7 +33,7 @@ static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
     }                                                                          \
                                                                                \
     if (tmp < TYPE_MIN || tmp > TYPE_MAX) {                                    \
-        return STR_ERANGE;                                                     \
+        return -ERANGE;                                                        \
     }                                                                          \
                                                                                \
     *res = tmp;                                                                \
@@ -60,6 +66,7 @@ static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
     return 0;                                                                  \
 }
 
+___STRTOUL_R_WRAPPER_DEFINE(strtoui_r, unsigned int, UCHAR_MAX)
 ___STRTOUL_R_WRAPPER_DEFINE(strtouc_r, unsigned char, UCHAR_MAX)
 ___STRTOUL_R_WRAPPER_DEFINE(strtou8_r, uint8_t, UINT8_MAX)
 ___STRTOUL_R_WRAPPER_DEFINE(strtou16_r, uint16_t, UINT16_MAX)

@@ -5,23 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/// unknown parse failure
-#define STR_EUNKNOWN (300)
-/// unexpected character at end of input string
-#define STR_EEND (301)
-/// string is not a number (no digits)
-#define STR_ENAN (302)
-/// invalid format (incorrect delimiter etc)
-#define STR_EFMT (303)
-/// string do not match 
-#define STR_ENOMATCH (304)
-// number out of allowed range. (same as ERANGE on most platforms)
-#define STR_ERANGE (34)
-// string not valid. (same as EINVAL on most platforms)
-#define STR_EINVAL (22)
-// something did not fit (same as E2BIG on most platforms)
-#define STR_E2BIG  (7)
-
 /**
  * string match (completer) helpers:
  *    @param s if s is a empty string, all possible matches is returned.
@@ -61,7 +44,7 @@ static inline int str_list_indexof(const char *s, const char *list[], size_t lis
        }
    }
 
-   return -1;
+   return -ENOENT;
 }
 
 #if 1

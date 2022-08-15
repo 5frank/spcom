@@ -8,8 +8,13 @@
 #include "port_info.h"
 #include "port_opts.h"
 
+// TODO remove this
+#ifndef EENDC
+#define EENDC 256
+#endif
+
 static struct port_opts_s _port_opts = {
-    /* assume negative values invalid. -1 used to check if options provided and 
+    /* assume negative values invalid. -1 used to check if options provided and
      should be set or untouched. */
     .baudrate = -1,
     .databits = -1,
@@ -25,7 +30,7 @@ static struct port_opts_s _port_opts = {
 };
 
 // exposed const "read" pointer
-extern const struct port_opts_s *port_opts = &_port_opts;
+const struct port_opts_s *port_opts = &_port_opts;
 
 // clang-format off
 static const char* pinstate_words[] =  {
@@ -42,7 +47,7 @@ int port_opts_parse_pinstate(const char *s, int *state)
 
     int i = str_list_indexof(s, pinstate_words, ARRAY_LEN(pinstate_words));
     if (i < 0) {
-        return STR_ENOMATCH;
+        return -ENOENT;
     }
 
     // odd words are true
@@ -72,10 +77,10 @@ int port_opts_parse_baud(const char *s, int *baud, const char **ep)
     if (ep)
         *ep = tmp_ep;
     else if (*tmp_ep != '\0')
-        return STR_EEND;
+        return -EENDC;
 
     if (tmp_baud <= 0)
-        return STR_ERANGE;
+        return -ERANGE;
 
     *baud = tmp_baud;
     return 0;
@@ -99,12 +104,12 @@ int port_opts_parse_databits(const char *s, int *databits, const char **ep)
 
     int val = (int) s[0] - '0';
     if ((val < 5) || (val > 9))
-        return STR_ERANGE;
+        return -ERANGE;
     s++;
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_EEND;
+        return -EENDC;
 
     *databits = val;
     return 0;
@@ -132,7 +137,7 @@ int port_opts_parse_parity(const char *s, int *parity, const char **ep)
             *parity = SP_PARITY_SPACE;
             break;
         default:
-            return STR_EINVAL;
+            return -EINVAL;
             break;
     }
 
@@ -141,7 +146,7 @@ int port_opts_parse_parity(const char *s, int *parity, const char **ep)
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_EEND;
+        return -EENDC;
 
     return 0;
 }
@@ -156,14 +161,14 @@ int port_opts_parse_stopbits(const char *s, int *stopbits, const char **ep)
 
     int val = (int) s[0] - '0';
     if ((val < 1) || (val > 2))
-        return STR_ERANGE;
+        return -ERANGE;
 
     s++;
 
     if (ep)
         *ep = s;
     else if (*s != '\0')
-        return STR_EEND;
+        return -EENDC;
 
     *stopbits = val;
     return 0;
@@ -207,7 +212,7 @@ int port_opts_parse_baud_dps(const char *s, int *baud, int *databits,
     if ((*ep == '/') || (*ep == ':'))
         s = ep + 1;
     else
-        return STR_EFMT;
+        return -1; // EFORMAT
 
     int tmp_databits = 0;
     err = port_opts_parse_databits(s, &tmp_databits, &ep);
@@ -251,7 +256,7 @@ static const struct str_kvi _xonoff_map[] = {
 // clang-format on
 
 /** in libserialport - default is "txrx"=`INOUT` if flowcontrol set to SP_FLOWCONTROL_XONXOFF
- */ 
+ */
 int port_opts_parse_xonxoff(const char *s, int *xonxoff)
 {
    assert(xonxoff);
@@ -261,7 +266,7 @@ int port_opts_parse_xonxoff(const char *s, int *xonxoff)
            return 0;
        }
    }
-   return STR_EINVAL;
+   return -ENOENT;
 }
 #endif
 
@@ -305,13 +310,13 @@ const char **port_opts_complete_flowcontrol(const char *s)
     return STR_MATCH_LIST(s, flowcontrol_map);
 }
 
-static int _parse_devname(const struct opt_conf *conf, char *sval)
+static int _parse_cb_devname(const struct opt_conf *conf, char *sval)
 {
     _port_opts.name = sval;
     return 0;
 }
 
-static int _parse_baud_dps(const struct opt_conf *conf, char *sval)
+static int _parse_cb_baud_dps(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_baud_dps(sval,
                            &_port_opts.baudrate,
@@ -320,28 +325,28 @@ static int _parse_baud_dps(const struct opt_conf *conf, char *sval)
                            &_port_opts.stopbits);
 }
 
-static int _parse_baud(const struct opt_conf *conf, char *sval)
+static int _parse_cb_baud(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_baud(sval, &_port_opts.baudrate, NULL);
 }
 
 
-static int _parse_databits(const struct opt_conf *conf, char *sval)
+static int _parse_cb_databits(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_databits(sval, &_port_opts.databits, NULL);
 }
 
-static int _parse_stopbits(const struct opt_conf *conf, char *sval)
+static int _parse_cb_stopbits(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_stopbits(sval, &_port_opts.stopbits, NULL);
 }
 
-static int parse_parity(const struct opt_conf *conf, char *sval)
+static int _parse_cb_parity(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_parity(sval, &_port_opts.parity, NULL);
 }
 
-static int _parse_flowcontrol(const struct opt_conf *conf, char *sval)
+static int _parse_cb_flowcontrol(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_flowcontrol(sval, &_port_opts.flowcontrol);
 }
@@ -356,62 +361,62 @@ static int port_opts_post_parse(const struct opt_section_entry *entry)
 static const struct opt_conf port_opts_conf[] = {
     {
         .positional = 1,
-        .parse = _parse_devname,
+        .parse = _parse_cb_devname,
     },
     {
         .positional = 2,
-        .parse = _parse_baud_dps,
+        .parse = _parse_cb_baud_dps,
     },
     {
         .name = "port",
         //.shortname = 'x', // TODO use what?
         .alias = "device",
-        .parse = _parse_devname,
+        .parse = _parse_cb_devname,
         .complete = port_info_complete,
     },
     {
         .name = "baudrate",
         .shortname = 'b',
         .alias = "baud",
-        .parse = _parse_baud,
+        .parse = _parse_cb_baud,
         .complete = port_opts_complete_baud,
     },
     {
         .name = "databits",
         .shortname = 'd',
-        .parse = _parse_databits,
+        .parse = _parse_cb_databits,
     },
     {
         .name = "stopbits",
         .shortname = 's',
-        .parse = _parse_stopbits,
+        .parse = _parse_cb_stopbits,
     },
     {
         .name = "flow",
         .shortname = 'f',
         .alias = "flowcontrol",
-        .parse = _parse_flowcontrol,
+        .parse = _parse_cb_flowcontrol,
     },
     {
         .name = "parity",
         .shortname = 'p',
-        .parse = parse_parity,
+        .parse = _parse_cb_parity,
     },
     {
         .name = "char-delay",
         .dest = &_port_opts.chardelay,
-        .parse = opt_ap_int,
+        .parse = opt_parse_int,
     },
     {
         .name = "wait",
         .dest = &_port_opts.wait,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "Wait on specified serial port to show up if it do not exists"
     },
     {
         .name = "stay",
         .dest = &_port_opts.stay,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "Similar to --wait but will never exit if the serial port "
                  "disappears and wait for it to reappear instead"
     },

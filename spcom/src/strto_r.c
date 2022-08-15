@@ -3,9 +3,32 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
-#include <math.h>
-#include "str.h"
+#include <math.h> // is_nan and is_inf
+// local
 #include "strto_r.h"
+
+// extent errno with custom values. POSIX errno is always less then 256
+#define EFORMAT (256)
+#define ENAN  (257)
+#define EENDC (258)
+
+const char *strto_r_strerror(int err)
+{
+    switch (err) {
+        case -EINVAL:
+            return "Invalid argument";
+        case -ERANGE:
+            return "Result too large for type";
+        case -EFORMAT:
+            return "Invalid string format";
+        case -ENAN:
+            return "Not a number";
+        case -EENDC:
+            return "Unexpected character at end of input";
+        default:
+            return NULL;
+    }
+}
 
 static inline int ___errno_reset(void)
 {
@@ -42,31 +65,31 @@ static char _first_nonspace(const char *s)
 int strtoul_r(const char *s, const char **ep, int base, unsigned long int *res)
 {
     if (!s || !res) {
-        return STR_EINVAL;
+        return -EINVAL;
     }
 
     // stroul ignores sign or silently overflow
     if (_first_nonspace(s) == '-') {
-        return STR_EINVAL;
+        return -EFORMAT;
     }
 
     char *tmp_ep = NULL;
-    int err = ___errno_reset();
+    int errnum = ___errno_reset();
     unsigned long int tmp = strtoul(s, &tmp_ep, base);
-    err = ___errno_restore(err);
-    if (err) {
-        return (err == ERANGE) ? STR_ERANGE : STR_EUNKNOWN;
+    errnum = ___errno_restore(errnum);
+    if (errnum) {
+        return -errnum;
     }
 
     if (tmp_ep == s) {
-        return STR_ENAN;
+        return -ENAN;
     }
 
     if (ep) {
         *ep = tmp_ep;
     }
     else if (!_is_valid_endc(*tmp_ep)) {
-        return STR_EEND;
+        return -EENDC;
     }
 
     *res = tmp;
@@ -82,26 +105,26 @@ int strtol_r(const char *s, const char **ep, int base, long int *res)
 
     // negative hex is insane. strol ignores sign or silently overflow
     if (base == 16 && _first_nonspace(s) == '-') {
-        return STR_EINVAL;
+        return -EFORMAT;
     }
 
     char *tmp_ep = NULL;
-    int err = ___errno_reset();
+    int errnum = ___errno_reset();
     long int tmp = strtol(s, &tmp_ep, base);
-    err = ___errno_restore(err);
-    if (err) {
-        return (err == ERANGE) ? STR_ERANGE : STR_EUNKNOWN;
+    errnum = ___errno_restore(errnum);
+    if (errnum) {
+        return -errnum;
     }
 
     if (tmp_ep == s) {
-        return STR_ENAN;
+        return -ENAN;
     }
 
     if (ep) {
         *ep = tmp_ep;
     }
     else if (!_is_valid_endc(*tmp_ep)) {
-        return STR_EEND;
+        return -EENDC;
     }
 
     *res = tmp;
@@ -116,26 +139,26 @@ int strtof_r(const char *s, const char **ep, float *res)
     }
 
     char *tmp_ep = NULL;
-    int err = ___errno_reset();
+    int errnum = ___errno_reset();
     float tmp = strtof(s, &tmp_ep);
-    err = ___errno_restore(err);
-    if (err) {
-        return (err == ERANGE) ? STR_ERANGE : STR_EUNKNOWN;
+    errnum = ___errno_restore(errnum);
+    if (errnum) {
+        return -errnum;
     }
 
     if (tmp_ep == s) {
-        return STR_ENAN;
+        return -ENAN;
     }
 
     if (isinf(tmp) || isnan(tmp)) {
-        return STR_EINVAL;
+        return -EFORMAT;
     }
 
     if (ep) {
         *ep = tmp_ep;
     }
     else if (!_is_valid_endc(*tmp_ep)) {
-        return STR_EEND;
+        return -EENDC;
     }
 
     *res = tmp;

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <errno.h>
+// local
 #include "assert.h"
 #include "common.h"
 #include "vt_defs.h"
@@ -35,6 +36,7 @@ static int kb_error(int err, const char *msg)
     | (((uint16_t)(KEY)    & 0xFF))         \
     | (((uint16_t)(ACTION) & 0xFF) <<  8)   \
 )
+
 /// add single key binding action
 static int kb_add_action(struct keybind_map *kbm, uint8_t key, uint8_t action)
 {
@@ -63,8 +65,8 @@ static uint8_t kb_get_action(const struct keybind_map *kbm, uint8_t key)
         if (!map_val)
             break;
 
-         if (KB_UNPACK_KEY(map_val) == key)
-             return KB_UNPACK_ACTION(map_val);
+        if (KB_UNPACK_KEY(map_val) == key)
+            return KB_UNPACK_ACTION(map_val);
     }
 
     return 0;
@@ -79,7 +81,7 @@ static uint8_t kb_get_action(const struct keybind_map *kbm, uint8_t key)
     | (((uint32_t)(FOLLOWK) & 0xFF) <<  8)    \
     | (((uint32_t)(ACTION)  & 0xFF) << 16)    \
 )
-#define KB_SEQ_UNPACK_ID(VAL) ((VAL) & 0xFFFF)
+#define KB_SEQ_UNPACK_ID(VAL)     ((VAL) & 0xFFFF)
 #define KB_SEQ_UNPACK_ACTION(VAL) (((VAL) >> 16) & 0xFF)
 
 /// set key sequence action

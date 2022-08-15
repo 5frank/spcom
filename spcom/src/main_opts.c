@@ -49,20 +49,20 @@ static const struct opt_conf main_opts_conf[] = {
         .name = "help",
         .shortname = 'h',
         .dest = &_main_opts.show_help,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "show help and exit",
     },
     {
         .name = "version",
         .dest = &_main_opts.show_version,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "show version and exit",
     },
     {
         .name = "list",
         .shortname = 'l',
         .dest = &_main_opts.show_list,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "list serial port devices. "
             "Combine with verbose option for more detailes",
     },
@@ -71,7 +71,7 @@ static const struct opt_conf main_opts_conf[] = {
         .name = "info",
         //.shortname = 'i',
         .dest = &_main_opts.show_info,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "show serial port info and exit. "
             "Will briefly open the port to retrive some info",
     },
@@ -80,7 +80,7 @@ static const struct opt_conf main_opts_conf[] = {
         .name = "verbose",
         .shortname = 'v',
         .dest = &_main_opts.verbose,
-        .parse = opt_ap_flag_count,
+        .parse = opt_parse_flag_count,
         .descr = "verbose output",
     },
     {

@@ -67,22 +67,24 @@ int opt_parse_args(int argc, char *argv[]);
 
 void opt_show_help(void);
 
-int opt_ap_int(const struct opt_conf *conf, char *s);
+int opt_parse_int(const struct opt_conf *conf, char *s);
+int opt_parse_uint(const struct opt_conf *conf, char *s);
+int opt_parse_float(const struct opt_conf *conf, char *s);
 
-int opt_ap_str(const struct opt_conf *conf, char *s);
+int opt_parse_str(const struct opt_conf *conf, char *s);
 /** set conf->dest to true.
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_true(const struct opt_conf *conf, char *s);
+int opt_parse_flag_true(const struct opt_conf *conf, char *s);
 
 /** set conf->dest to false.
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_false(const struct opt_conf *conf, char *s);
+int opt_parse_flag_false(const struct opt_conf *conf, char *s);
 
 /** set conf->dest += 1 .
  * implies no arg value and assumes conf->dest points to a int
  */
-int opt_ap_flag_count(const struct opt_conf *conf, char *s);
+int opt_parse_flag_count(const struct opt_conf *conf, char *s);
 #endif
 

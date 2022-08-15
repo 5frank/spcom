@@ -211,7 +211,7 @@ static const struct opt_conf log_opts_conf[] = {
     {
         .name = "loglevel",
         .dest = &log_opts.level,
-        .parse = opt_ap_int,
+        .parse = opt_parse_int,
         .descr = "log verbosity level. "
             "Error: " STRINGIFY(LOG_LEVEL_ERR) ", "
             "Warn: " STRINGIFY(LOG_LEVEL_WRN) ", "
@@ -222,12 +222,12 @@ static const struct opt_conf log_opts_conf[] = {
     {
         .name = "logfile",
         .dest = &log_opts.file,
-        .parse = opt_ap_str,
+        .parse = opt_parse_str,
     },
     {
         .name = "silent",
         .dest = &log_opts.silent,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "Only serial port data written to stdout. "\
                  "Error or information message(s) to stderr are suppressed"
     },

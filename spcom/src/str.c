@@ -83,7 +83,7 @@ int str_kvi_getval(const char *s, int *val, const struct str_kvi *map, size_t n)
 {
     const struct str_kvi *kvi = str_kvi_lookup(s, map, n);
     if (!kvi)
-        return STR_ENOMATCH;
+        return -ENOENT;
 
     *val = kvi->val;
     return 0;
@@ -118,7 +118,7 @@ int str_to_bool(const char *s, bool *rbool)
     assert(rbool);
     int i = str_list_indexof(s, bool_words, ARRAY_LEN(bool_words));
     if (i < 0) {
-        return STR_ENOMATCH;
+        return -ENOENT;
     }
 
     // odd words are true

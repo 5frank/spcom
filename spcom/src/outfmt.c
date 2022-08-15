@@ -2,7 +2,9 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <stdio.h>
-
+// deps
+#include <uv.h>
+// local
 #include "opt.h"
 #include "vt_defs.h"
 #include "str.h"
@@ -13,6 +15,12 @@
 #include "strbuf.h"
 #include "outfmt.h"
 #include "assert.h"
+
+#ifndef CONFIG_EOL_RX_TIMEOUT
+#define CONFIG_EOL_RX_TIMEOUT  1
+#endif
+
+#define EOL_RX_TIMEOUT_DEFAULT 1.0
 
 static struct outfmt_s {
     bool linebufed;
@@ -25,12 +33,14 @@ static struct outfmt_s {
 };
 
 static struct outfmt_opts_s {
+    float eol_rx_timeout;
     bool color;
     struct {
         const char *remapped;
     } colors;
     int timestamp;
-} outfmt_opts = {
+} _outfmt_opts = {
+    .eol_rx_timeout = EOL_RX_TIMEOUT_DEFAULT,
     .color = false,
     .colors = {
         .remapped = NULL,
@@ -54,25 +64,57 @@ static void outfmt_strbuf_flush(struct strbuf *sb)
  */
 STRBUF_STATIC_INIT(outfmt_strbuf, 1024, outfmt_strbuf_flush);
 
+#if CONFIG_EOL_RX_TIMEOUT
+static struct {
+    uv_timer_t timer;
+    uint64_t msec;
+} _eol_rx_timeout_data;
+
+static void _eol_rx_timeout_cb(uv_timer_t* handle)
+{
+
+    struct strbuf *sb = &outfmt_strbuf;
+    LOG_DBG("eol_rx_timeout after %f sec. size in buf %zu",
+            _outfmt_opts.eol_rx_timeout, sb->len);
+    outfmt_strbuf_flush(sb);
+}
+
 static void _eol_rx_timeout_init(void)
 {
-#if CONFIG_OPT_EOL_RX_TIMEOUT
-    if (!opt_timeout_sec)
+    float seconds = _outfmt_opts.eol_rx_timeout;
+    if (seconds <= 0.0f)
         return;
 
-    uv_loop_t *loop = uv_default_loop();
-    assert(loop);
-
-    err = uv_timer_init(loop, &uvt_timeout);
+    int err = uv_timer_init(uv_default_loop(), &_eol_rx_timeout_data.timer);
     assert_uv_ok(err, "uv_timer_init");
 
-    uint64_t ms = (uint64_t) opt_timeout_sec * 1000;
-    err = uv_timer_start(&uvt_timeout, _uvcb_on_timeout, ms, 0);
-    assert_uv_ok(err, "uv_timer_start");
 
-    LOG_DBG("timeout set to %d sec", opt_timeout_sec);
-#endif
+    _eol_rx_timeout_data.msec = seconds * 1000.0f;;
+
 }
+
+static void _eol_rx_timeout_start(void)
+{
+    int err = uv_timer_start(&_eol_rx_timeout_data.timer,
+                             _eol_rx_timeout_cb,
+                             _eol_rx_timeout_data.msec,
+                             0);
+    assert_uv_ok(err, "uv_timer_start");
+    LOG_DBG("eol_rx_timeout start");
+}
+
+static void _eol_rx_timeout_stop(void)
+{
+    int err = uv_timer_stop(&_eol_rx_timeout_data.timer);
+    assert_uv_ok(err, "uv_timer_stop");
+    LOG_DBG("eol_rx_timeout stop");
+}
+#else
+
+static void _eol_rx_timeout_start(void) {}
+static void _eol_rx_timeout_stop(void) {}
+
+#endif
 
 /* or use ts from moreutils? `apt install moreutils`
  *
@@ -80,7 +122,7 @@ static void _eol_rx_timeout_init(void)
  */
 static void _print_timestamp(struct strbuf *sb)
 {
-    if (!outfmt_opts.timestamp)
+    if (!_outfmt_opts.timestamp)
         return;
 
     const size_t size_needed = STR_ISO8601_SHORT_SIZE;
@@ -111,7 +153,7 @@ static void _sb_remap_putc(struct strbuf *sb, int c)
         return;
     }
     // TODO add colors here
-    const char *color = outfmt_opts.colors.remapped;
+    const char *color = _outfmt_opts.colors.remapped;
     if (color) {
         strbuf_puts(sb, color);
     }
@@ -140,7 +182,6 @@ void outfmt_write(const void *data, size_t size)
     struct strbuf *sb = &outfmt_strbuf;
     struct outfmt_s *ofd = &outfmt_data;
 
-
     bool is_first_c = ofd->prev_c < 0;
     if (is_first_c)
         _print_timestamp(sb);
@@ -166,7 +207,7 @@ void outfmt_write(const void *data, size_t size)
                 strbuf_putc(sb, '\n');
                 if (ofd->linebufed) {
                     outfmt_strbuf_flush(sb);
-                    // TODO _eol_rx_timeout_stop();
+                    _eol_rx_timeout_stop();
                 }
                 break;
 
@@ -193,7 +234,7 @@ void outfmt_write(const void *data, size_t size)
 
     if (ofd->linebufed) {
         if (sb->len > 0) {
-            // TODO _eol_rx_timeout_start();
+            _eol_rx_timeout_start();
         }
     }
     else {
@@ -231,8 +272,8 @@ static int outfmt_opts_post_parse(const struct opt_section_entry *entry)
     charmap_print_map("tx", charmap_tx);
     charmap_print_map("rx", charmap_rx);
 #endif
-    if (outfmt_opts.color) {
-        outfmt_opts.colors.remapped = VT_COLOR_RED;
+    if (_outfmt_opts.color) {
+        _outfmt_opts.colors.remapped = VT_COLOR_RED;
     }
 
     return 0;
@@ -240,29 +281,29 @@ static int outfmt_opts_post_parse(const struct opt_section_entry *entry)
 static const struct opt_conf outfmt_opts_conf[] = {
     {
         .name = "timestamp",
-        .dest = &outfmt_opts.timestamp,
-        .parse = opt_ap_flag_true,
+        .dest = &_outfmt_opts.timestamp,
+        .parse = opt_parse_flag_true,
         .descr = "prepend timestamp on every line",
     },
 #if 0 // TODO options:{long, short, +TZ, +ns, +ms }?
     {
         .name = "iso8601-format",
-        .dest = &outfmt_opts.timestamp,
-        .parse = opt_ap_flag_true,
+        .dest = &_outfmt_opts.timestamp,
+        .parse = opt_parse_flag_true,
         .descr = "ISO 8601 format for timestamp",
     },
 #endif
     {
         .name = "color",
-        .dest = &outfmt_opts.color,
-        .parse = opt_ap_flag_true,
+        .dest = &_outfmt_opts.color,
+        .parse = opt_parse_flag_true,
         .descr = "enable color output",
     },
-#if CONFIG_OPT_EOL_RX_TIMEOUT
+#if CONFIG_EOL_RX_TIMEOUT
     {
-        .name  = "--eol-rx-timeout",
-        .dest  = &eol_opts.eol_rx_timeout,
-        .parse = opt_ap_int,
+        .name = "--eol-rx-timeout",
+        .dest = &_outfmt_opts.eol_rx_timeout,
+        .parse = opt_parse_float,
         .descr = "Float in seconds. "\
                  "If some data received but no eol received within given time, "\
                  "the buffered data is written output anywas."\

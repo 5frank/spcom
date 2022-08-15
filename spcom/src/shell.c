@@ -316,7 +316,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .shortname = 'C',
         .alias = "canonical",
         .dest = &_shell_opts.cooked,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "cooked (or canonical) mode - input from stdin are stored "
             "and can be edited in local line buffer before sent over serial "
             "port." " This opposed to default raw (or non-canonical) mode "
@@ -326,7 +326,7 @@ static const struct opt_conf shell_opts_conf[] = {
     {
         .name = "sticky",
         .dest = &_shell_opts.sticky,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "sticky promt that keep input characters on same line."
             "Only applies when in coocked mode"
     },
@@ -334,7 +334,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .name = "echo",
         .alias = "lecho",
         .dest = &_shell_opts.local_echo,
-        .parse = opt_ap_flag_true,
+        .parse = opt_parse_flag_true,
         .descr = "local echo input characters on stdout"
     },
 

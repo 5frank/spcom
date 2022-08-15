@@ -12,52 +12,53 @@
 #include "eol.h"
 #include "strto_r.h"
 
-#define EOL_RX_TIMEOUT_DEFAULT 1
+#define EOL_OPT_IGNORE_DEFAULT '\r'
 
 static struct eol_opts {
-    int eol_rx_timeout_ms;
     struct eol_seq eol_txrx;
     struct eol_seq eol_tx;
     struct eol_seq eol_rx;
-} eol_opts = {
-    .eol_rx_timeout_ms = 1000 * EOL_RX_TIMEOUT_DEFAULT
+    int ignore;
+} _eol_opts = {
+    .ignore = EOL_OPT_IGNORE_DEFAULT
 };
-
+#if 0
 static int eol_match_a_ignore_b(const struct eol_seq *es, int prev_c, int c)
 {
     (void) prev_c;
 
-    if (c == es->seq[0])
+    if (c == es->c_a)
         return EOL_C_MATCH;
 
-    if (c == es->seq[1])
+    if (c == es->c_b)
         return EOL_C_IGNORE;
 
     return EOL_C_NOMATCH;
 }
+#endif
 
 static int eol_match_a(const struct eol_seq *es, int prev_c, int c)
 {
     (void) prev_c;
-    return (c == es->seq[0]) ? EOL_C_MATCH : EOL_C_NOMATCH;
+    return (c == es->c_a) ? EOL_C_MATCH : EOL_C_NOMATCH;
 }
 
-static int eol_match_a_then_b(const struct eol_seq *es, int prev_c, int c)
+static int eol_match_ab(const struct eol_seq *es, int prev_c, int c)
 {
-    //char a = es->seq[0];
-    //char b = es->seq[1];
-    bool prev_matched = (prev_c == es->seq[0]);
+    //char a = es->c_a;
+    //char b = es->c_b;
+    bool prev_matched = (prev_c == es->c_a);
 
     if (!prev_matched) {
-        if (c == es->seq[0])
+        if (c == es->c_a)
             return EOL_C_STASH;
         else
             return EOL_C_NOMATCH;
     }
     else {
-        if (c == es->seq[1])
+        if (c == es->c_b)
             return EOL_C_MATCH;
-        else if (c == es->seq[0])
+        else if (c == es->c_a)
             return EOL_C_POP_AND_STASH;
         else
             return EOL_C_POP;
@@ -68,7 +69,34 @@ static int eol_match_a_then_b(const struct eol_seq *es, int prev_c, int c)
 static int eol_match_a_or_b(const struct eol_seq *es, int prev_c, int c)
 {
     (void) prev_c;
-    return (c == es->seq[0] || c == es->seq[1]) ? EOL_C_MATCH : EOL_C_NOMATCH;
+    return (c == es->c_a || c == es->c_b) ? EOL_C_MATCH : EOL_C_NOMATCH;
+}
+
+
+static struct eol_seq eol_tx_default = {
+    .match_func = eol_match_a,
+    .c_a = '\n',
+};
+
+const struct eol_seq *eol_tx = &eol_tx_default;
+
+static struct eol_seq eol_rx_default = {
+    .match_func = eol_match_a,
+    .c_a = '\n',
+    .ignore = EOL_OPT_IGNORE_DEFAULT,
+};
+
+const struct eol_seq *eol_rx = &eol_rx_default;
+
+int eol_match(const struct eol_seq *es, int prev_c, int c)
+{
+    if (_eol_opts.ignore == c)
+        return EOL_C_IGNORE;
+
+    if (!es->match_func)
+        return EOL_C_NOMATCH;
+
+    return es->match_func(es, prev_c, c);
 }
 
 int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size)
@@ -76,10 +104,10 @@ int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size)
     assert(es->match_func);
     assert(size >= 3);
 
-    int len = (es->match_func == eol_match_a_then_b) ? 2 : 1;
-    *dst++ = es->seq[0];
+    int len = (es->match_func == eol_match_ab) ? 2 : 1;
+    *dst++ = es->c_a;
     if (len > 1) {
-        *dst++ = es->seq[0];
+        *dst++ = es->c_a;
     }
 
     *dst = '\0';
@@ -87,21 +115,6 @@ int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size)
     return len;
 }
 
-static struct eol_seq eol_tx_default = {
-    .match_func = eol_match_a,
-    .seq = { '\n' },
-    .len = 1
-};
-
-struct eol_seq *eol_tx = &eol_tx_default;
-
-static struct eol_seq eol_rx_default = {
-    .match_func = eol_match_a_ignore_b,
-    .seq = { '\n', '\r' },
-    .len = 1
-};
-
-struct eol_seq *eol_rx = &eol_rx_default;
 
 /// returns NULL on error
 static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
@@ -133,7 +146,7 @@ static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
 
 static int eol_opt_parse_str(const char *s, struct eol_seq *es)
 {
-    s = eol_opt_parse_next(s, &es->seq[0]);
+    s = eol_opt_parse_next(s, &es->c_a);
     if (!s) {
         return -EINVAL;
     }
@@ -144,7 +157,7 @@ static int eol_opt_parse_str(const char *s, struct eol_seq *es)
             return 0;
 
         case ',':
-            es->match_func = eol_match_a_then_b;
+            es->match_func = eol_match_ab;
             s++; // jump delmiter
             break;
 
@@ -155,10 +168,10 @@ static int eol_opt_parse_str(const char *s, struct eol_seq *es)
 
         // "crlf", or "0x130x10" have no delimiter
         default:
-            es->match_func = eol_match_a_then_b;
+            es->match_func = eol_match_ab;
     }
 
-    s = eol_opt_parse_next(s, &es->seq[1]);
+    s = eol_opt_parse_next(s, &es->c_b);
     if (!s) {
         return -EINVAL;
     }
@@ -173,17 +186,17 @@ static int eol_opt_parse_str(const char *s, struct eol_seq *es)
 static int eol_opt_post_parse(const struct opt_section_entry *entry)
 {
     // note: do not use LOG here
-    struct eol_seq *txrx = &eol_opts.eol_txrx; //.
+    struct eol_seq *txrx = &_eol_opts.eol_txrx; //.
     if (txrx->match_func) {
         eol_tx = txrx;
         eol_rx = txrx;
     }
-    struct eol_seq *tx = &eol_opts.eol_tx;
+    struct eol_seq *tx = &_eol_opts.eol_tx;
     if (tx->match_func) {
         eol_tx = tx;
     }
 
-    struct eol_seq *rx = &eol_opts.eol_rx;
+    struct eol_seq *rx = &_eol_opts.eol_rx;
     if (rx->match_func) {
         eol_rx = rx;
     }
@@ -191,37 +204,46 @@ static int eol_opt_post_parse(const struct opt_section_entry *entry)
     return 0;
 }
 
-static int eol_opt_parse_txrx(const struct opt_conf *conf, char *s)
+static int _parse_cb_txrx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &eol_opts.eol_txrx);
+    return eol_opt_parse_str(s, &_eol_opts.eol_txrx);
 }
 
-static int eol_opt_parse_tx(const struct opt_conf *conf, char *s)
+static int _parse_cb_tx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &eol_opts.eol_tx);
+    return eol_opt_parse_str(s, &_eol_opts.eol_tx);
 }
 
-static int eol_opt_parse_rx(const struct opt_conf *conf, char *s)
+static int _parse_cb_rx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &eol_opts.eol_rx);
+    return eol_opt_parse_str(s, &_eol_opts.eol_rx);
 }
 
 static const struct opt_conf eol_opts_conf[] = {
     {
         .name = "eol",
-        .parse = eol_opt_parse_txrx,
+        .parse = _parse_cb_txrx,
         .descr = "end of line tx and rx", // TODO
     },
     {
         .name = "eol-tx",
-        .parse = eol_opt_parse_tx,
-        .descr = "end of line tx", // TODO
+        .parse = _parse_cb_tx,
+        .descr = "send (transmit) eol used after new line detected on stdin",
     },
     {
         .name = "eol-rx",
-        .parse = eol_opt_parse_rx,
+        .parse = _parse_cb_rx,
         .descr = "end of line rx", // TODO
     },
+#if 0
+    {
+        .name = "eol-ignore", # see stty {i,o}nocr
+
+        .parse = _parse_cb_ignore,
+        .descr = "eol character ignored and not printed to stdout. "\
+                 "Default: " STRINGIFY(EOL_OPT_IGNORE_DEFAULT) "."
+    },
+#endif
 };
 
 OPT_SECTION_ADD(main,
