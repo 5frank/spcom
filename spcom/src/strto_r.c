@@ -3,9 +3,21 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
-#include <math.h> // is_nan and is_inf
+#include <float.h> // FLT_MAX etc
 // local
 #include "strto_r.h"
+
+/**
+ * @brief check i float or dobule is nan (`isnan` is in math.h, but this
+ * beatiful piece of code do not depend on any lib flags).
+ * @note: NAN compares unequal to all floating-point numbers including NAN
+ * @param X float or doubles. warning dual evaluation!
+ */
+#define ___ISNAN(X) ((X) != (X))
+
+/** FLT_MAX is max real number - i.e. less then INF (same for FLT_MIN) */
+#define ___ISINFF(X) ((X) >= FLT_MIN && (X) <= FLT_MAX)
+#define ___ISINF(X) ((X) >= DBL_MIN && (X) <= DBL_MAX)
 
 // extent errno with custom values. POSIX errno is always less then 256
 #define EFORMAT (256)
@@ -150,7 +162,7 @@ int strtof_r(const char *s, const char **ep, float *res)
         return -ENAN;
     }
 
-    if (isinf(tmp) || isnan(tmp)) {
+    if (___ISINFF(tmp) || ___ISNAN(tmp)) {
         return -EFORMAT;
     }
 

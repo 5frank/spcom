@@ -4,7 +4,9 @@
 
 #include "common.h"
 #include "shell.h"
+#include "log.h"
 #include "opq.h"
+#include "assert.h"
 
 struct {
     bool initialized;

@@ -153,8 +153,9 @@ static int ctohex_opt_post_parse(const struct opt_section_entry *entry)
 
 static int parse_hexfmt(const struct opt_conf *conf, char *s)
 {
-    if (check_valid_hexfmt(s))
-        return opt_error(conf, "invalid format");
+    int err = check_valid_hexfmt(s);
+    if (err)
+        return err;
     // assume check len in _is_valid_hexfmt()
     strcpy(ctohex_opts.hexfmt, s);
     return 0;

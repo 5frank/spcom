@@ -11,6 +11,11 @@
 #include "assert.h"
 #include "port_wait.h"
 
+
+#ifndef CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS
+#define CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS 5000
+#endif
+
 struct port_wait_s {
     bool initialized;
     port_wait_cb *cb;
@@ -20,28 +25,61 @@ struct port_wait_s {
     char *abspath;
     char *dirname;
     char *basename;
-    uv_timer_t rw_timer;
     uv_fs_event_t fsevent_handle;
 };
 
 static struct port_wait_s port_wait;
-
-static void _on_rw_access_timeout(uv_timer_t* handle)
-{
-    LOG_ERR("Timeout waiting for R/W access");
-    // TODO?
-}
 
 /**
  * this timeout needed to avoid a "false" infinitive
  * wait when permission will never be granted. Example when user not in group
  * dialout.
  */
-static void _start_rw_timeout(unsigned int ms)
+static uv_timer_t _permission_timer;
+
+static void _permission_timeout_cb(uv_timer_t* handle)
 {
-    struct port_wait_s *pw = &port_wait;
-    int err = uv_timer_start(&pw->rw_timer, _on_rw_access_timeout, ms, 0);
+    LOG_DBG("Timeout waiting for R/W access");
+    SPCOM_EXIT(EX_NOPERM, "Missing port r/w permisson (timeout after %u ms",
+            CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS);
+    // TODO?
+}
+
+static void _permission_timeout_start_once(void)
+{
+    unsigned int msec = CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS;
+
+    if (!msec) {
+        return; // disabled
+    }
+
+    if (uv_is_active((uv_handle_t *) &_permission_timer)) {
+        return; // already started
+    }
+
+    int err = uv_timer_start(&_permission_timer,
+                             _permission_timeout_cb,
+                             msec,
+                             0);
+
     assert_uv_ok(err, "uv_timer_start");
+
+    LOG_DBG("permission timeout started, %u ms", msec);
+}
+
+static void _permission_timeout_stop(void)
+{
+    // should be safe to call stop regardless of timer is running or not
+    int err = uv_timer_stop(&_permission_timer);
+    if (err) {
+        LOG_UV_ERR(err, "uv_timer_stop");
+    }
+}
+
+static void _permission_timeout_init(void)
+{
+    int err = uv_timer_init(uv_default_loop(), &_permission_timer);
+    assert_uv_ok(err, "uv_timer_init");
 }
 
 /**
@@ -70,7 +108,8 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
         LOG_DBG("device fd gone");
         return;
     }
-    // start rw timer here?
+
+    _permission_timeout_start_once();
 
     if (access(pw->abspath, R_OK | W_OK)) {
         if (errno != EACCES) {
@@ -85,6 +124,8 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
     if (err)
         LOG_UV_ERR(err, "uv_fs_event_stop");
 
+    _permission_timeout_stop();
+
     /* unless someting immediately received from port, user will never know if device (re)connected
      */
     LOG_INF("Waiting done. %s found", pw->abspath);
@@ -95,8 +136,10 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
 void port_wait_start(port_wait_cb *cb)
 {
     assert(cb);
-
     struct port_wait_s *pw = &port_wait;
+
+    assert(pw->initialized);
+
     LOG_DBG("Watching directory '%s'", pw->dirname);
     pw->cb = cb;
     int err = uv_fs_event_start(&pw->fsevent_handle,
@@ -113,16 +156,12 @@ void port_wait_stop(void)
     int err;
     struct port_wait_s *pw = &port_wait;
 
+    _permission_timeout_stop();
+
     if (uv_is_active((uv_handle_t *) &pw->fsevent_handle)) {
         err = uv_fs_event_stop(&pw->fsevent_handle);
         if (err)
             LOG_UV_ERR(err, "uv_fs_event_stop");
-    }
-
-    if (uv_is_active((uv_handle_t *) &pw->rw_timer)) {
-        err = uv_timer_stop(&pw->rw_timer);
-        if (err)
-            LOG_UV_ERR(err, "uv_timer_stop");
     }
 }
 
@@ -162,8 +201,7 @@ int port_wait_init(const char *name)
     err = uv_fs_event_init(loop, &pw->fsevent_handle);
     assert_uv_ok(err, "uv_fs_event_init");
 
-    err = uv_timer_init(loop, &pw->rw_timer);
-    assert_uv_ok(err, "uv_timer_init");
+    _permission_timeout_init();
 
     /* posix versions of dirname() and basename() might return a modifed
      * version of its parameter.
@@ -184,6 +222,7 @@ int port_wait_init(const char *name)
 
     pw->basename = basename(pw->abspath);
     assert(pw->basename);
+
 
     pw->initialized = true;
 

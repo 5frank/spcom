@@ -67,6 +67,11 @@ int opt_parse_args(int argc, char *argv[]);
 
 void opt_show_help(void);
 
+/**
+ * @defgroup data type parsers.
+ * to be used as parse callback.
+ * @{
+ */
 int opt_parse_int(const struct opt_conf *conf, char *s);
 int opt_parse_uint(const struct opt_conf *conf, char *s);
 int opt_parse_float(const struct opt_conf *conf, char *s);
@@ -86,5 +91,9 @@ int opt_parse_flag_false(const struct opt_conf *conf, char *s);
  * implies no arg value and assumes conf->dest points to a int
  */
 int opt_parse_flag_count(const struct opt_conf *conf, char *s);
+
+/**
+ * @}
+ */
 #endif
 

@@ -72,7 +72,6 @@ static struct {
 
 static void _eol_rx_timeout_cb(uv_timer_t* handle)
 {
-
     struct strbuf *sb = &outfmt_strbuf;
     LOG_DBG("eol_rx_timeout after %f sec. size in buf %zu",
             _outfmt_opts.eol_rx_timeout, sb->len);
@@ -88,9 +87,7 @@ static void _eol_rx_timeout_init(void)
     int err = uv_timer_init(uv_default_loop(), &_eol_rx_timeout_data.timer);
     assert_uv_ok(err, "uv_timer_init");
 
-
     _eol_rx_timeout_data.msec = seconds * 1000.0f;;
-
 }
 
 static void _eol_rx_timeout_start(void)
@@ -111,6 +108,7 @@ static void _eol_rx_timeout_stop(void)
 }
 #else
 
+static void _eol_rx_timeout_init(void) {}
 static void _eol_rx_timeout_start(void) {}
 static void _eol_rx_timeout_stop(void) {}
 

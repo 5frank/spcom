@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <string.h>
 
+#include "assert.h"
 #include "common.h"
 #include "eol.h"
 #include "str.h"

@@ -20,7 +20,7 @@ int opt_parse_int(const struct opt_conf *conf, char *s)
     int err = strtoi_r(s, NULL, 0, (int *)conf->dest);
     if (err) {
         const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "unknown parse error");
+        return opt_error(conf, emsg ? emsg : "parse int failed");
     }
 
     return 0;
@@ -34,7 +34,7 @@ int opt_parse_uint(const struct opt_conf *conf, char *s)
     int err = strtoui_r(s, NULL, 0, (unsigned int *)conf->dest);
     if (err) {
         const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "unknown parse error");
+        return opt_error(conf, emsg ? emsg : "parse uint failed");
     }
 
     return 0;
@@ -48,7 +48,7 @@ int opt_parse_float(const struct opt_conf *conf, char *s)
     int err = strtof_r(s, NULL, (float *)conf->dest);
     if (err) {
         const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "unknown parse error");
+        return opt_error(conf, emsg ? emsg : "parse float failed");
     }
 
     return 0;

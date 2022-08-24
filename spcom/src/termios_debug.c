@@ -23,7 +23,7 @@ void ___termios_debug_before(void)
 
 static const char *___termios_debug_cc_to_str(const struct termios *attr)
 {
-    static const char * hexlut = "0123456789ABCDEF";
+    static const char *hexlut = "0123456789ABCDEF";
     static char buf[ARRAY_LEN(attr->c_cc) * 3 + 1];
 
     char *p = &buf[0];

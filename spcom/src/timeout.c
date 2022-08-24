@@ -27,10 +27,7 @@ void timeout_init(void)
     if (_timeout_opt_sec <= 0)
         return;
 
-    uv_loop_t *loop = uv_default_loop();
-    assert(loop);
-
-    err = uv_timer_init(loop, &_timeout_timer);
+    err = uv_timer_init(uv_default_loop(), &_timeout_timer);
     assert_uv_ok(err, "uv_timer_init");
 
     uint64_t ms = (uint64_t) _timeout_opt_sec * 1000;

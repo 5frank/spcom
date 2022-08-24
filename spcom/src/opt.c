@@ -20,7 +20,7 @@
 #define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
 #endif
 
-#define OPT_DBG(...) if (0) { printf(__VA_ARGS__); } else
+#define OPT_DBG(...) if (0) { fprintf(stderr, __VA_ARGS__); } else
 
 #define OPT_MAX_COUNT 256
 
@@ -104,7 +104,9 @@ static char *opt_conf_str(const struct opt_section_entry *entry,
 
     return buf;
 }
-
+/**
+ * @brief this is a software error. Some conf is incorrect.
+ */
 static int opt_conf_error(const struct opt_section_entry *entry,
                           const struct opt_conf *conf,
                           const char *msg)
@@ -114,7 +116,7 @@ static int opt_conf_error(const struct opt_section_entry *entry,
 
     return -EBADF;
 }
-
+#if 0 
 static int opt_arg_error(const struct opt_conf *conf,
                         const char *arg,
                         const char *msg)
@@ -124,6 +126,10 @@ static int opt_arg_error(const struct opt_conf *conf,
         fprintf(stderr, "%s ", opt_conf_str(NULL, conf));
     }
 
+    if (!msg) {
+        msg = "unknown";
+    }
+
     fprintf(stderr, "%s", msg);
 
     if (arg)
@@ -131,6 +137,22 @@ static int opt_arg_error(const struct opt_conf *conf,
 
     fprintf(stderr, "\n");
     return -EINVAL;
+}
+#endif
+int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
+{
+    if (conf) {
+        fprintf(stderr, "%s ", opt_conf_str(NULL, conf));
+    }
+    va_list args;
+
+    va_start(args, fmt);
+    int rc = vfprintf(stderr, fmt, args);
+    va_end(args);
+    (void) rc;
+
+    fputc('\n', stderr);
+    return -1;
 }
 
 int opt_error(const struct opt_conf *conf, const char *msg)
@@ -368,14 +390,14 @@ int opt_parse_args(int argc, char *argv[])
         }
 
         if (!conf) {
-            opt_arg_error(NULL, arg, "unknown option");
-            return 404;
+            opt_arg_error(NULL, "unknown option '%s'", arg);
+            return -ENOENT;
         }
 
         if (opt_conf_has_val(conf)) {
             err = opt_argviter_getval(&itr);
             if (err)
-                return opt_arg_error(conf, arg, itr.errmsg);
+                return opt_arg_error(conf, "%s '%s'", itr.errmsg, arg);
 
             sval = itr.out.val;
         }

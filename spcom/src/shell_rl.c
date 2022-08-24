@@ -10,6 +10,8 @@
 #include "shell_rl.h"
 #include "opq.h"
 #include "port.h"
+#include "log.h"
+#include "assert.h"
 
 struct shell_rl {
     bool initialized;

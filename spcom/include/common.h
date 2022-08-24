@@ -7,7 +7,6 @@
 #include <string.h>
 
 #include "assert.h"
-#include "outfmt.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -26,6 +25,7 @@
 #define __FILENAME__ __FILE__
 #endif
 
+__attribute__((always_inline))
 static inline const char *___filebasename(const char *strrchr_res, const char *file)
 {
     return strrchr_res ? (strrchr_res  + 1) : file;
@@ -83,6 +83,5 @@ void ___termios_debug_after(const char *what);
 #define ___TERMIOS_DEBUG_BEFORE()    do { } while (0)
 #define ___TERMIOS_DEBUG_AFTER(WHAT) do { } while (0)
 #endif /* CONFIG_TERMIOS_DEBUG */
-
 
 #endif

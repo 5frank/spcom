@@ -70,13 +70,10 @@ static struct port_s {
     unsigned char eol_len;
 } port_data = {0};
 
-
 static void port_open(void);
 void port_close(void);
 void port_cleanup(void);
 static void _uvcb_poll_event(uv_poll_t* handle, int status, int events);
-
-
 
 static const char *port_state_to_str(int state)
 {
@@ -125,14 +122,14 @@ static void _port_panic_recover(void)
 }
 
 /// oh no! check port exists, if not wait for it if allowed, else die.
-#define PORT_PANIC(EXIT_CODE, FMT, ...) do { \
-    if (port_opts->stay) { \
-        LOG_DBG(FMT, ##__VA_ARGS__); \
-        _port_panic_recover(); \
-    } \
-    else { \
-        SPCOM_EXIT(EXIT_CODE, FMT, ##__VA_ARGS__); \
-    } \
+#define PORT_PANIC(EXIT_CODE, FMT, ...) do {                                   \
+    if (port_opts->stay) {                                                     \
+        LOG_DBG(FMT, ##__VA_ARGS__);                                           \
+        _port_panic_recover();                                                 \
+    }                                                                          \
+    else {                                                                     \
+        SPCOM_EXIT(EXIT_CODE, FMT, ##__VA_ARGS__);                             \
+    }                                                                          \
 } while (0)
 
 static void _set_event_flags(int flags)
@@ -207,7 +204,7 @@ static bool update_write(const void *buf, size_t bufsize)
     rc = sp_nonblocking_write(p->port, src, size);
 
     if (rc < 0) {
-        PORT_PANIC(EX_IOERR, "sp_nonblocking_write size=%zu, rc=%d", size, rc);
+        PORT_PANIC(EX_IOERR, "port write - %s", misc_sp_err_to_str(rc));
         return false; // should not get here
     }
 
@@ -372,7 +369,7 @@ static void _on_readable(uv_poll_t* handle)
     static char buf[255];
     int rc = sp_nonblocking_read(port_data.port, buf, sizeof(buf));
     if (rc < 0) {
-        PORT_PANIC(EX_IOERR, "sp_nonblocking_read rc=%d", rc);
+        PORT_PANIC(EX_IOERR, "port read - %s", misc_sp_err_to_str(rc));
         return;
     }
     if (rc == 0) {
@@ -403,7 +400,8 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 {
     // This will typicaly occur if user pulls the cabel for /dev/ttyUSB
     if (status == UV_EBADF) {
-        PORT_PANIC(EX_OSFILE, "poll event EBADF - device disconnected!?");
+        PORT_PANIC(EX_OSFILE, "port poll - %s (%s)",
+                uv_strerror(status), uv_err_name(status));
         return;
     }
     else if (status) {
@@ -418,9 +416,9 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
         _on_writable(handle);
     }
 
-    if (events & UV_DISCONNECT) {
-        // probaly never
-        PORT_PANIC(EX_UNAVAILABLE, "UV_DISCONNECT");
+    int unexpected = events & ~(UV_READABLE | UV_WRITABLE);
+    if (unexpected) {
+        LOG_WRN("unexpected uv events 0x%X", unexpected);
     }
 }
 
@@ -481,7 +479,10 @@ int port_set_config(void)
 
 static void port_open(void)
 {
-    /* any assert failure will trigger cleanup - no need to do it here */
+    /* note:
+     * - any assert failure will trigger cleanup - no need to do it here 
+     * - do not start port_wait here as that could cause a "reset loop" 
+     */
 
     int err = 0;
 
@@ -558,14 +559,14 @@ void port_close(void)
     port_data.offset = 0;
     port_data.current_op = NULL;
 
-    if (port_data.have_org_config) {
+    if (port_data.have_org_config && _port_exists()) {
         assert(port_data.org_config);
-        LOG_DBG("Restoring port settings");
         err = sp_set_config(port_data.port, port_data.org_config);
-        // TODO if /dev/ttyUSB0 unplugged, print more usefull message
-        //  can not restore. no error message?
         if (err) {
-            LOG_SP_ERR(err, "sp_set_config");
+            LOG_WRN("failed to restore port settings");
+        }
+        else {
+            LOG_DBG("port settings restored");
         }
         port_data.have_org_config = false;
     }
@@ -582,7 +583,7 @@ void port_close(void)
 void port_cleanup(void)
 {
     if (port_data.org_config) {
-         sp_free_config(port_data.org_config);
+        sp_free_config(port_data.org_config);
         port_data.org_config = NULL;
     }
 
@@ -659,7 +660,7 @@ int port_write_line(const char *line)
 
 int port_drain(uint32_t timeout_ms)
 {
-    /* Quote from libsp doc:
+    /* Quote from libserialport doc:
      * "If your program runs on Unix, defines its own signal handlers, and
      * needs to abort draining the output buffer when when these are called,
      * then you should not use this function. It repeats system calls that

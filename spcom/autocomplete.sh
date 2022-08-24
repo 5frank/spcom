@@ -17,16 +17,40 @@ _spcom_complete_opt()
     COMPREPLY=( $( compgen -W "$(spcom --autocomplete $1  2>/dev/null)" -- "$cur" ) )
 }
 
+
 _spcom_complete_positional()
 {
-    case $COMP_CWORD in
-        1)
-            COMPREPLY=( $(compgen -W "${opts}" -- "${COMP_WORDS[COMP_CWORD]}") )
-            ;;
-        2)
-            COMPREPLY=( $(compgen -o default -- "${COMP_WORDS[COMP_CWORD]}") )
-            ;;
+    # this is a hack - turns out to be harder then it seems to complete
+    # more then one positional argument...
+
+    local cur prev
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    local isdigit
+
+    case "$cur" in
+        ''|*[!0-9]*)
+            isdigit=0;
+        ;;
+        *)
+            isdigit=1;
+        ;;
     esac
+    # can not have negative baud. need to enter at least one digit for baud compleation
+    if [[ ${prev} != "-*" && $isdigit == 1 ]] ; then
+        _spcom_complete_opt baud
+    else
+        _spcom_complete_opt port
+    fi
+    return;
+
+
+    if [[ $COMP_CWORD == 0 ]] ; then
+                _spcom_complete_opt port
+    elif [[ $isdigit ==  1 ]] ; then
+                _spcom_complete_opt baud
+    fi
 }
 
 _spcom_complete()
@@ -53,14 +77,11 @@ _spcom_complete()
             ;;
 
         "-p" | "--parity")
-            COMPREPLY=( $( compgen -W '$(spcom --autocomplete parity  2>/dev/null)' -- "$cur" ) )
+            _spcom_complete_opt parity
             ;;
         *)
-            if [[ ${prev} != "-*" || $COMP_CWORD == 0 ]] ; then
-                _spcom_complete_opt port
-            elif [[ $COMP_CWORD -lt  0 ]] ; then
-                _spcom_complete_opt baud
-            fi
+            _spcom_complete_positional
+
           ;;
     esac
 }

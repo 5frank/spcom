@@ -354,7 +354,10 @@ static int _parse_cb_flowcontrol(const struct opt_conf *conf, char *sval)
 static int port_opts_post_parse(const struct opt_section_entry *entry)
 {
     // note: do not use LOG here
-    // TODO set defaults?
+    if (_port_opts.stay) {
+        _port_opts.wait = true;
+    }
+
     return 0;
 }
 
