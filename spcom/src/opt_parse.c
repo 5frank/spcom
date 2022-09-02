@@ -45,7 +45,7 @@ int opt_parse_float(const struct opt_conf *conf, char *s)
     assert(conf->dest);
     assert(IS_ALIGNED(conf->dest, sizeof(float)));
 
-    int err = strtof_r(s, NULL, (float *)conf->dest);
+    int err = strtof_r(s, NULL, 0, (float *)conf->dest);
     if (err) {
         const char *emsg = strto_r_strerror(err);
         return opt_error(conf, emsg ? emsg : "parse float failed");

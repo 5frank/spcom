@@ -144,7 +144,7 @@ int strtol_r(const char *s, const char **ep, int base, long int *res)
     return 0;
 }
 
-int strtof_r(const char *s, const char **ep, float *res)
+int strtof_r(const char *s, const char **ep, int naninf, float *res)
 {
     if (!s || !res) {
         return -EINVAL;
@@ -162,7 +162,11 @@ int strtof_r(const char *s, const char **ep, float *res)
         return -ENAN;
     }
 
-    if (___ISINFF(tmp) || ___ISNAN(tmp)) {
+    if (!(naninf & 1) &&  ___ISNAN(tmp)) {
+        return -ENAN;
+    }
+
+    if (!(naninf & 2) && ___ISINFF(tmp)) {
         return -EFORMAT;
     }
 

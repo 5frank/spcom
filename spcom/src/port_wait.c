@@ -31,18 +31,17 @@ struct port_wait_s {
 static struct port_wait_s port_wait;
 
 /**
- * this timeout needed to avoid a "false" infinitive
- * wait when permission will never be granted. Example when user not in group
- * dialout.
+ * this timeout needed to avoid a "false" infinite wait when permission will
+ * never be granted. Example when user not in group dialout.
  */
 static uv_timer_t _permission_timer;
 
 static void _permission_timeout_cb(uv_timer_t* handle)
 {
-    LOG_DBG("Timeout waiting for R/W access");
-    SPCOM_EXIT(EX_NOPERM, "Missing port r/w permisson (timeout after %u ms",
+    LOG_DBG("Timeout waiting for R/W access after %u ms",
             CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS);
-    // TODO?
+
+    SPCOM_EXIT(EX_NOPERM, "Missing serial port r/w permisson");
 }
 
 static void _permission_timeout_start_once(void)
@@ -126,9 +125,6 @@ void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int event
 
     _permission_timeout_stop();
 
-    /* unless someting immediately received from port, user will never know if device (re)connected
-     */
-    LOG_INF("Waiting done. %s found", pw->abspath);
     assert(pw->cb);
     pw->cb(0);
 }
@@ -148,7 +144,6 @@ void port_wait_start(port_wait_cb *cb)
                             0); // UV_FS_EVENT_RECURSIVE);
     assert_uv_ok(err, "uv_fs_event_start");
 
-    LOG_INF("Waiting for %s ...", pw->abspath);
 }
 
 void port_wait_stop(void)

@@ -98,9 +98,19 @@ static int _port_exists(void)
     return (access(port_opts->name, F_OK) == 0);
 }
 
-static void on_port_discovered(int err)
+static void _on_port_discovered(int err)
 {
+    /* unless someting immediately received from port, user will never know if
+     * device (re)connected */
+    LOG_INF("Opening %s", port_opts->name);
     port_open();
+}
+
+static void _wait_start(void)
+{
+    LOG_INF("Waiting for %s ...", port_opts->name);
+    port_wait_start(_on_port_discovered);
+    port_data.state = PORT_STATE_WAITING;
 }
 
 /// assume port_opts.stay is true
@@ -114,11 +124,9 @@ static void _port_panic_recover(void)
     }
 
     /* if we get here, device probably still "exists" as this process holds a
-     * open file descriptor to it . i.e. device not "gone" until after close.
-     */
+     * open file descriptor to it . i.e. device not "gone" until after close.*/
     port_close();
-    port_wait_start(on_port_discovered);
-    port_data.state = PORT_STATE_WAITING;
+    _wait_start();
 }
 
 /// oh no! check port exists, if not wait for it if allowed, else die.
@@ -389,12 +397,12 @@ static void _on_readable(uv_poll_t* handle)
 
 /*
  * note on `uv_poll`:
- """ It is possible that poll handles occasionally signal that a file descriptor is
-readable or writable even when it isn’t. The user should therefore always be
-prepared to handle EAGAIN or equivalent when it attempts to read from or write
-to the fd."""
-
-on unix, sp_nonblocking_{read, write} return 0 if read fails and EAGAIN is set
+ * """ It is possible that poll handles occasionally signal that a file
+ * descriptor is readable or writable even when it isn’t. The user should
+ * therefore always be prepared to handle EAGAIN or equivalent when it attempts
+ * to read from or write to the fd."""
+ *
+ * on unix, sp_nonblocking_{read, write} return 0 if read fails and EAGAIN is set
 */
 static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 {
@@ -425,7 +433,6 @@ static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
 int port_set_config(void)
 {
     int err;
-    // TODO is user change config in cmd mode it should also be stored for reopen
 #define CONFIG_ERROR(ERR, WHY) (LOG_SP_ERR(ERR, WHY), ERR)
     struct sp_port *p = port_data.port;
     if (!p)
@@ -475,7 +482,6 @@ int port_set_config(void)
 
     return 0;
 }
-
 
 static void port_open(void)
 {
@@ -543,7 +549,6 @@ void port_close(void)
 
     err = uv_timer_stop(&port_data.t_sleep);
     (void)err;
-    //LOG_UV_ERR(err, "uv_poll_stop");
 
     err = uv_prepare_stop(&port_data.prepare_handle);
     (void) err; // cant fail
@@ -558,12 +563,13 @@ void port_close(void)
     opq_release_all(&opq_rt);
     port_data.offset = 0;
     port_data.current_op = NULL;
-
     if (port_data.have_org_config && _port_exists()) {
         assert(port_data.org_config);
         err = sp_set_config(port_data.port, port_data.org_config);
         if (err) {
-            LOG_WRN("failed to restore port settings");
+            /* error expected if serial port unplugged as file handle exists
+             * until closed */
+            LOG_DBG("failed to restore port settings");
         }
         else {
             LOG_DBG("port settings restored");
@@ -721,8 +727,7 @@ void port_init(port_rx_cb_fn *rx_cb)
     }
     else {
         if (port_opts->wait) {
-            port_wait_start(on_port_discovered);
-            port_data.state = PORT_STATE_WAITING;
+            _wait_start();
         }
         else {
             SPCOM_EXIT(EX_USAGE, "No such device '%s'", port_opts->name);

@@ -24,7 +24,15 @@ const char *strto_r_strerror(int err);
 
 int strtoul_r(const char *s, const char **ep, int base, unsigned long int *res);
 int strtol_r(const char *s, const char **ep, int base, long int *res);
-int strtof_r(const char *s, const char **ep, float *res);
+/**
+ * @param naninf check for NAN and/or INFINITY. ex. whatever "nan",
+ * "-inf" etc is accepted or not.
+ *  if 0 (0b00) both NAN and INFINITY result in non-zero return value
+ *  if 1 (0b01) NAN allowed
+ *  if 2 (0b10) INFINITY allowed
+ *  if 3 (0b11) both NAN and INFINITY allowed
+ */
+int strtof_r(const char *s, const char **ep, int naninf, float *res);
 
 #define ___STRTOL_R_WRAPPER_DEFINE(NAME, TYPE, TYPE_MIN, TYPE_MAX)             \
 static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
