@@ -1,12 +1,12 @@
-
-#include <stdlib.h>
+// std
+#include <ctype.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <time.h>
-#include <errno.h>
-#include <libserialport.h>
+// local
 #include "assert.h"
 #include "common.h"
 #include "str.h"
@@ -15,9 +15,11 @@
 
 static const char *_matchresult[32];
 
-#define STR_MATCH_LIST(S, LIST) str_match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
+#define STR_MATCH_LIST(S, LIST)                                                \
+    str_match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
 
-const char **str_match_list(const char *s, const void *items, size_t itemsize, size_t numitems)
+const char **str_match_list(const char *s, const void *items, size_t itemsize,
+                            size_t numitems)
 {
     if (!s)
         s = "";
@@ -43,7 +45,7 @@ const char **str_match_list(const char *s, const void *items, size_t itemsize, s
             continue;
 
         _matchresult[n++] = name;
-        if (n >= (ARRAY_LEN(_matchresult) -1))
+        if (n >= (ARRAY_LEN(_matchresult) - 1))
             break;
     }
     // n = 0 if no matches
@@ -53,8 +55,7 @@ const char **str_match_list(const char *s, const void *items, size_t itemsize, s
 }
 #if 1
 
-const struct str_map *str_map_lookup(const char *s,
-                                     const struct str_map *map,
+const struct str_map *str_map_lookup(const char *s, const struct str_map *map,
                                      size_t map_len)
 {
     for (unsigned int i = 0; i < map_len; i++) {
@@ -64,19 +65,20 @@ const struct str_map *str_map_lookup(const char *s,
         }
     }
 
-   return NULL;
+    return NULL;
 }
 #else
-const struct str_kvi *str_kvi_lookup(const char *s, const struct str_kvi *map, size_t n)
+const struct str_kvi *str_kvi_lookup(const char *s, const struct str_kvi *map,
+                                     size_t n)
 {
-   for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
         const struct str_kvi *kvi = &map[i];
-       if (!strcasecmp(s, kvi->key)) {
-           return kvi;
-       }
-   }
+        if (!strcasecmp(s, kvi->key)) {
+            return kvi;
+        }
+    }
 
-   return NULL;
+    return NULL;
 }
 
 int str_kvi_getval(const char *s, int *val, const struct str_kvi *map, size_t n)
@@ -89,16 +91,17 @@ int str_kvi_getval(const char *s, int *val, const struct str_kvi *map, size_t n)
     return 0;
 }
 
-const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map, size_t n)
+const struct str_kv *str_kv_lookup(const char *s, const struct str_kv *map,
+                                   size_t n)
 {
-   for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
         const struct str_kv *kv = &map[i];
-       if (!strcasecmp(s, kv->key)) {
-           return kv;
-       }
-   }
+        if (!strcasecmp(s, kv->key)) {
+            return kv;
+        }
+    }
 
-   return NULL;
+    return NULL;
 }
 #endif
 
@@ -146,46 +149,44 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
 
 char *str_lstrip(char *s)
 {
-    while(isspace(*s)) s++;
+    while (isspace(*s))
+        s++;
     return s;
 }
 
-char *str_rstrip(char *s) 
+char *str_rstrip(char *s)
 {
-    char* back = s + strlen(s);
-    while(isspace(*--back));
+    char *back = s + strlen(s);
+    while (isspace(*--back))
+        ;
     *(back + 1) = '\0';
     return s;
 }
 
-char *str_strip(char *s) 
-{
-    return str_rstrip(str_lstrip(s)); 
-}
+char *str_strip(char *s) { return str_rstrip(str_lstrip(s)); }
 
 char *str_lstripc(char *s, char c)
 {
-    while(*s == c) s++;
+    while (*s == c)
+        s++;
     return s;
 }
 
 char *str_rstripc(char *s, char c)
 {
-    char* back = s + strlen(s);
-    while(*--back == c);
+    char *back = s + strlen(s);
+    while (*--back == c)
+        ;
     *(back + 1) = '\0';
     return s;
 }
 
-char *str_stripc(char *s, char c)
-{
-    return str_rstripc(str_lstripc(s, c), c);
-}
+char *str_stripc(char *s, char c) { return str_rstripc(str_lstripc(s, c), c); }
 
 int str_split(char *s, const char *delim, char *toks[], int *n)
 {
-   const int nmax = *n; 
-   *n = 0;
+    const int nmax = *n;
+    *n = 0;
     while (1) {
         char *tok = strsep(&s, delim);
 
@@ -205,7 +206,7 @@ int str_split(char *s, const char *delim, char *toks[], int *n)
     return 0;
 }
 
-int str_split_kv(char *s, struct str_kv *kv) 
+int str_split_kv(char *s, struct str_kv *kv)
 {
     char *toks[2];
     int n = ARRAY_LEN(toks);
@@ -250,7 +251,8 @@ int str_split_kv_list(char *s, struct str_kv *kvlist, int *n)
     return err;
 }
 
-const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int nitems)
+const struct str_kv *str_kv_get(const char *s, const struct str_kv *items,
+                                int nitems)
 {
     for (int i = 0; i < nitems; i++) {
         const struct str_kv *kv = &items[i];
@@ -264,7 +266,7 @@ const struct str_kv *str_kv_get(const char *s, const struct str_kv *items, int n
 /// note: does not nul terminate
 static int _escape_nonprint_char(char c, char *buf)
 {
-    static const char * hexlut = "0123456789ABCDEF";
+    static const char *hexlut = "0123456789ABCDEF";
 
     char *p = &buf[0];
 
@@ -315,8 +317,8 @@ static int _escape_nonprint_char(char c, char *buf)
     return 3;
 }
 
-int str_escape_nonprint(char *dst, size_t dstsize,
-                        const char *src, size_t srcsize)
+int str_escape_nonprint(char *dst, size_t dstsize, const char *src,
+                        size_t srcsize)
 {
     int totlen = 0;
     while (1) {
@@ -335,7 +337,6 @@ int str_escape_nonprint(char *dst, size_t dstsize,
         srcsize -= 1;
 
         totlen += len;
-
     }
 
     *dst = '\0';
@@ -373,7 +374,7 @@ int str_iso8601_short(char *dst, size_t size)
 #else
     int err = clock_gettime(CLOCK_REALTIME, &now);
     if (err) {
-        // should not occur. 
+        // should not occur.
         return -errno;
     }
 #endif
@@ -405,4 +406,3 @@ int str_iso8601_short(char *dst, size_t size)
 
     return len;
 }
-

@@ -17,7 +17,7 @@
 #include "assert.h"
 
 #ifndef CONFIG_EOL_RX_TIMEOUT
-#define CONFIG_EOL_RX_TIMEOUT  1
+#define CONFIG_EOL_RX_TIMEOUT 1
 #endif
 
 #define EOL_RX_TIMEOUT_DEFAULT 1.0
@@ -70,7 +70,7 @@ static struct {
     uint64_t msec;
 } _eol_rx_timeout_data;
 
-static void _eol_rx_timeout_cb(uv_timer_t* handle)
+static void _eol_rx_timeout_cb(uv_timer_t *handle)
 {
     struct strbuf *sb = &outfmt_strbuf;
     LOG_DBG("eol_rx_timeout after %f sec. size in buf %zu",
@@ -87,7 +87,7 @@ static void _eol_rx_timeout_init(void)
     int err = uv_timer_init(uv_default_loop(), &_eol_rx_timeout_data.timer);
     assert_uv_ok(err, "uv_timer_init");
 
-    _eol_rx_timeout_data.msec = seconds * 1000.0f;;
+    _eol_rx_timeout_data.msec = seconds * 1000.0f;
 }
 
 static void _eol_rx_timeout_start(void)
@@ -108,9 +108,9 @@ static void _eol_rx_timeout_stop(void)
 }
 #else
 
-static void _eol_rx_timeout_init(void) {}
-static void _eol_rx_timeout_start(void) {}
-static void _eol_rx_timeout_stop(void) {}
+static void _eol_rx_timeout_init(void) { }
+static void _eol_rx_timeout_start(void) { }
+static void _eol_rx_timeout_stop(void) { }
 
 #endif
 

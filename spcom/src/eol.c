@@ -1,15 +1,15 @@
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <string.h>
 
 #include "assert.h"
 #include "common.h"
-#include "str.h"
-#include "opt.h"
 #include "eol.h"
+#include "opt.h"
+#include "str.h"
 #include "strto_r.h"
 
 #define EOL_OPT_IGNORE_DEFAULT '\r'
@@ -19,9 +19,7 @@ static struct eol_opts {
     struct eol_seq eol_tx;
     struct eol_seq eol_rx;
     int ignore;
-} _eol_opts = {
-    .ignore = EOL_OPT_IGNORE_DEFAULT
-};
+} _eol_opts = { .ignore = EOL_OPT_IGNORE_DEFAULT };
 #if 0
 static int eol_match_a_ignore_b(const struct eol_seq *es, int prev_c, int c)
 {
@@ -39,14 +37,14 @@ static int eol_match_a_ignore_b(const struct eol_seq *es, int prev_c, int c)
 
 static int eol_match_a(const struct eol_seq *es, int prev_c, int c)
 {
-    (void) prev_c;
+    (void)prev_c;
     return (c == es->c_a) ? EOL_C_MATCH : EOL_C_NOMATCH;
 }
 
 static int eol_match_ab(const struct eol_seq *es, int prev_c, int c)
 {
-    //char a = es->c_a;
-    //char b = es->c_b;
+    // char a = es->c_a;
+    // char b = es->c_b;
     bool prev_matched = (prev_c == es->c_a);
 
     if (!prev_matched) {
@@ -63,15 +61,13 @@ static int eol_match_ab(const struct eol_seq *es, int prev_c, int c)
         else
             return EOL_C_POP;
     }
-
 }
 
 static int eol_match_a_or_b(const struct eol_seq *es, int prev_c, int c)
 {
-    (void) prev_c;
+    (void)prev_c;
     return (c == es->c_a || c == es->c_b) ? EOL_C_MATCH : EOL_C_NOMATCH;
 }
-
 
 static struct eol_seq eol_tx_default = {
     .match_func = eol_match_a,
@@ -114,7 +110,6 @@ int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size)
 
     return len;
 }
-
 
 /// returns NULL on error
 static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
@@ -246,7 +241,5 @@ static const struct opt_conf eol_opts_conf[] = {
 #endif
 };
 
-OPT_SECTION_ADD(main,
-                eol_opts_conf,
-                ARRAY_LEN(eol_opts_conf),
+OPT_SECTION_ADD(main, eol_opts_conf, ARRAY_LEN(eol_opts_conf),
                 eol_opt_post_parse);

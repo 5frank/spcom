@@ -1,10 +1,9 @@
 /**
  * kudos: Calmarius, https://stackoverflow.com/a/33780304/1565079
  */
-
-#include <ctype.h>
 #include "assert.h"
 #include "str.h"
+#include <ctype.h>
 
 // Strips backslashes from quotes
 static char *unescapeToken(char *token)
@@ -12,24 +11,23 @@ static char *unescapeToken(char *token)
     char *in = token;
     char *out = token;
 
-    while (*in)
-    {
+    while (*in) {
         assert(in >= out);
 
-        if ((in[0] == '\\') && (in[1] == '"'))
-        {
+        if ((in[0] == '\\') && (in[1] == '"')) {
             *out = in[1];
             out++;
             in += 2;
         }
-        else
-        {
+        else {
             *out = *in;
             out++;
             in++;
         }
     }
+
     *out = 0;
+
     return token;
 }
 
@@ -41,44 +39,45 @@ static char *qtok(char *str, char **next)
     int isQuoted = 0;
 
     // Eat beginning whitespace.
-    while (*current && isspace(*current)) current++;
+    while (*current && isspace(*current))
+        current++;
     start = current;
 
-    if (*current == '"')
-    {
+    if (*current == '"') {
         isQuoted = 1;
         // Quoted token
         current++; // Skip the beginning quote.
         start = current;
-        for (;;)
-        {
+        for (;;) {
             // Go till we find a quote or the end of string.
-            while (*current && (*current != '"')) current++;
-            if (!*current) 
-            {
+            while (*current && (*current != '"'))
+                current++;
+            if (!*current) {
                 // Reached the end of the string.
                 goto finalize;
             }
-            if (*(current - 1) == '\\')
-            {
+            if (*(current - 1) == '\\') {
                 // Escaped quote keep going.
                 current++;
                 continue;
             }
             // Reached the ending quote.
-            goto finalize; 
+            goto finalize;
         }
     }
     // Not quoted so run till we see a space.
-    while (*current && !isspace(*current)) current++;
+    while (*current && !isspace(*current))
+        current++;
+
 finalize:
-    if (*current)
-    {
+
+    if (*current) {
         // Close token if not closed already.
         *current = 0;
         current++;
         // Eat trailing whitespace.
-        while (*current && isspace(*current)) current++;
+        while (*current && isspace(*current))
+            current++;
     }
     *next = current;
 
@@ -92,6 +91,8 @@ int str_split_quoted(char *s, int *argc, char *argv[], int argvmax)
     while (*pText && (n < argvmax)) {
         argv[n++] = qtok(pText, &pText);
     }
+
     *argc = n;
+
     return 0;
 }

@@ -1,9 +1,9 @@
-#include<stdlib.h>
-
+#include <stdlib.h>
+// deps
 #include <uv.h>
-
-#include "common.h"
+// local
 #include "assert.h"
+#include "common.h"
 #include "opq.h"
 
 // at least 2048
@@ -14,16 +14,16 @@ static struct {
     char *buf;
 } ipipe_data;
 
-static void _uvcb_alloc(uv_handle_t *handle, size_t size, uv_buf_t* buf)
+static void _uvcb_alloc(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 {
-  buf->base = ipipe_data.buf;
-  buf->len = IPIPE_BUF_SIZE;
+    buf->base = ipipe_data.buf;
+    buf->len = IPIPE_BUF_SIZE;
 }
 
-static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t* buf)
+static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t *buf)
 {
     if (size < 0) {
-        uv_close((uv_handle_t*)stream, NULL);
+        uv_close((uv_handle_t *)stream, NULL);
         SPCOM_EXIT(EX_OK, "pipe closed");
         return;
     }
@@ -36,7 +36,7 @@ static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t* buf)
     char *line = buf->base;
     bool put_eol = false;
     if (size > 0 && line[size - 1] == '\n') {
-         // drop eol and replace it with configured char or sequence
+        // drop eol and replace it with configured char or sequence
         size--;
         put_eol = true;
     }
@@ -51,7 +51,7 @@ static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t* buf)
      * */
     int err = uv_read_stop(stream);
     // uv_read_stop() will always succeed according to doc
-    (void) err;
+    (void)err;
 }
 
 static void _on_port_write_done(const struct opq_item *itm)
@@ -60,11 +60,11 @@ static void _on_port_write_done(const struct opq_item *itm)
     uv_pipe_t *pipe = &ipipe_data.stdin_pipe;
 
     int err = uv_read_start((uv_stream_t *)pipe, _uvcb_alloc, _uvcb_read);
-    switch(err) {
+    switch (err) {
         case 0:
             break;
         case UV_EINVAL:
-            uv_close((uv_handle_t*)pipe, NULL);
+            uv_close((uv_handle_t *)pipe, NULL);
             SPCOM_EXIT(EX_OK, "pipe closed");
             break;
         case UV_EALREADY:
@@ -96,4 +96,3 @@ int ipipe_init(void)
     assert_uv_ok(err, "uv_read_start");
     return err;
 }
-

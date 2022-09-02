@@ -15,7 +15,6 @@ set(SOURCES
     src/ipipe.c
     src/log.c
     src/opt.c
-    src/opt_shortstr.c
     src/opt_argviter.c
     src/opt_parse.c
     src/outfmt.c

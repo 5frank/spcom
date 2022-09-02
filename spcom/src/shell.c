@@ -89,12 +89,12 @@ static void shell_toggle_cmd_mode(void)
 #warning "not cmd mode"
     if (shell_data.current_mode == shell_mode_cooked)
         new_m = shell_mode_raw;
-    else 
+    else
         new_m = shell_mode_cooked;
 #else
     if (shell_data.current_mode == shell_mode_cmd)
         new_m = shell_data.default_mode;
-    else 
+    else
         new_m = shell_mode_cmd;
 #endif
 
@@ -107,7 +107,7 @@ static int _write_all(int fd, const void *data, size_t size)
 
     while (1) {
         int rc = write(fd, p, size);
-        if (rc < 0 ) {
+        if (rc < 0) {
             if (errno == EINTR || errno == EAGAIN) {
                 continue;
             }
@@ -196,7 +196,7 @@ static void _stdin_read_char(void)
     }
 }
 
-static void _on_stdin_data_avail(uv_poll_t* handle, int status, int events)
+static void _on_stdin_data_avail(uv_poll_t *handle, int status, int events)
 {
     if (status == UV_EBADF) {
         SPCOM_EXIT(EX_IOERR, "stdin EBADF");
@@ -245,7 +245,9 @@ int shell_init(void)
     err = uv_poll_init(loop, &shell_data.poll_handle, STDIN_FILENO);
     assert_uv_ok(err, "uv_poll_init");
 
-    err = uv_poll_start(&shell_data.poll_handle, UV_READABLE, _on_stdin_data_avail);
+    err = uv_poll_start(&shell_data.poll_handle,
+                        UV_READABLE,
+                        _on_stdin_data_avail);
     assert_uv_ok(err, "uv_poll_start");
 
     shell_data.default_mode = (shell_opts->cooked)
@@ -273,7 +275,7 @@ static int shell_restore_term(void)
         return err;
     }
 
-    struct termios tmp = {0};
+    struct termios tmp = { 0 };
     err = tcgetattr(STDIN_FILENO, &tmp);
     if (err) {
         LOG_ERRNO(errno, "tcgetattr");

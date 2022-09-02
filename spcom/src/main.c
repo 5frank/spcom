@@ -3,8 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// deps
 #include <uv.h>
-
+// local
 #include "assert.h"
 #include "cmd.h"
 #include "common.h"
@@ -92,7 +93,8 @@ void spcom_exit(int exit_code, const char *file, unsigned int line,
 
     if (rc < 0) {
         msg[0] = '\0';
-    } else if (rc >= sizeof(msg)) {
+    }
+    else if (rc >= sizeof(msg)) {
         char *p = &msg[sizeof(msg) - 1];
         *p-- = '\0';
         *p-- = '.';
@@ -152,7 +154,8 @@ static void main_init(void)
     if (isatty(STDIN_FILENO)) {
         err = shell_init();
         assert_z(err, "shell_init");
-    } else {
+    }
+    else {
         err = ipipe_init();
         assert_z(err, "ipipe_init");
     }
@@ -235,7 +238,8 @@ int main(int argc, char *argv[])
     if (err) {
         if (main_data.signum) {
             SPCOM_EXIT(EX_OK, "Signal received: %d", main_data.signum);
-        } else {
+        }
+        else {
             SPCOM_EXIT(EX_SOFTWARE, "uv_run unhandled error %s",
                        misc_uv_err_to_str(err));
         }

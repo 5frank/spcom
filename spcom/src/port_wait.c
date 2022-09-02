@@ -36,7 +36,7 @@ static struct port_wait_s port_wait;
  */
 static uv_timer_t _permission_timer;
 
-static void _permission_timeout_cb(uv_timer_t* handle)
+static void _permission_timeout_cb(uv_timer_t *handle)
 {
     LOG_DBG("Timeout waiting for R/W access after %u ms",
             CONFIG_PORT_WAIT_PERMISSION_TIMEOUT_MS);
@@ -52,7 +52,7 @@ static void _permission_timeout_start_once(void)
         return; // disabled
     }
 
-    if (uv_is_active((uv_handle_t *) &_permission_timer)) {
+    if (uv_is_active((uv_handle_t *)&_permission_timer)) {
         return; // already started
     }
 
@@ -88,7 +88,10 @@ static void _permission_timeout_init(void)
  * - device fd is back (but not yet readable and/or writable)
  * - device is readable and/or writable
  */
-void _on_dir_entry_change(uv_fs_event_t* handle, const char* filename, int events, int status)
+static void _on_dir_entry_change(uv_fs_event_t *handle,
+                                 const char *filename,
+                                 int events,
+                                 int status)
 {
     struct port_wait_s *pw = &port_wait;
     // filename is NULL sometimes. excpected?
@@ -139,9 +142,9 @@ void port_wait_start(port_wait_cb *cb)
     LOG_DBG("Watching directory '%s'", pw->dirname);
     pw->cb = cb;
     int err = uv_fs_event_start(&pw->fsevent_handle,
-                            _on_dir_entry_change,
-                            pw->dirname,
-                            0); // UV_FS_EVENT_RECURSIVE);
+                                _on_dir_entry_change,
+                                pw->dirname,
+                                0); // UV_FS_EVENT_RECURSIVE);
     assert_uv_ok(err, "uv_fs_event_start");
 
 }
@@ -153,7 +156,7 @@ void port_wait_stop(void)
 
     _permission_timeout_stop();
 
-    if (uv_is_active((uv_handle_t *) &pw->fsevent_handle)) {
+    if (uv_is_active((uv_handle_t *)&pw->fsevent_handle)) {
         err = uv_fs_event_stop(&pw->fsevent_handle);
         if (err)
             LOG_UV_ERR(err, "uv_fs_event_stop");

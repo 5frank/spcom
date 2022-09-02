@@ -77,6 +77,7 @@ static int _traverse(struct btree *bt, const struct btree_node *node)
     cberr = _traverse(bt, node->more);
     return cberr;
 }
+
 /**
  * traverse tree in alphabetical order and run callback.
  * not thread safe!

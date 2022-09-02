@@ -1,26 +1,20 @@
 #include <ctype.h>
 #include <errno.h>
-#include <limits.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <getopt.h>
-
+// local
 #include "assert.h"
-#include "opt.h"
 #include "btree.h"
+#include "opt.h"
 #include "opt_argviter.h"
-#include "opt_shortstr.h"
 
-
-#ifndef IS_ALIGNED
-#define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
-#endif
-
-#define OPT_DBG(...) if (0) { fprintf(stderr, __VA_ARGS__); } else
+#define OPT_DBG(...)                                                           \
+    if (0) {                                                                   \
+        fprintf(stderr, __VA_ARGS__);                                          \
+    }                                                                          \
+    else
 
 #define OPT_MAX_COUNT 256
 
@@ -45,6 +39,44 @@ struct opt_context {
 
 static struct opt_context g_ctx = { 0 };
 
+/**
+ * @return NULL if @param c i zero, otherwise a static allocated and
+ * nul terminated string of length 1 with c as first char
+ */
+static const char *opt_shortstr(char c)
+{
+    static const char *lut[] = {
+        // clang-format off
+        [ 0] = "0", [ 1] = "1", [ 2] = "2", [ 3] = "3",
+        [ 4] = "4", [ 5] = "5", [ 6] = "6", [ 7] = "7",
+        [ 8] = "8", [ 9] = "9", [17] = "A", [18] = "B",
+        [19] = "C", [20] = "D", [21] = "E", [22] = "F",
+        [23] = "G", [24] = "H", [25] = "I", [26] = "J",
+        [27] = "K", [28] = "L", [29] = "M", [30] = "N",
+        [31] = "O", [32] = "P", [33] = "Q", [34] = "R",
+        [35] = "S", [36] = "T", [37] = "U", [38] = "V",
+        [39] = "W", [40] = "X", [41] = "Y", [42] = "Z",
+        [49] = "a", [50] = "b", [51] = "c", [52] = "d",
+        [53] = "e", [54] = "f", [55] = "g", [56] = "h",
+        [57] = "i", [58] = "j", [59] = "k", [60] = "l",
+        [61] = "m", [62] = "n", [63] = "o", [64] = "p",
+        [65] = "q", [66] = "r", [67] = "s", [68] = "t",
+        [69] = "u", [70] = "v", [71] = "w", [72] = "x",
+        [73] = "y", [74] = "z"
+        // clang-format on
+    };
+
+    if (c == '\0')
+        return NULL;
+
+    unsigned int i = c;
+    i -= '0';
+    assert(i < ARRAY_LEN(lut));
+    const char *s = lut[i];
+    assert(s[0]);
+    return s;
+}
+
 static bool opt_conf_has_val(const struct opt_conf *conf)
 {
     assert(conf->parse);
@@ -67,16 +99,17 @@ static bool opt_conf_has_val(const struct opt_conf *conf)
     return true;
 }
 
-#define SSPRINTF(SP, REMAINS, ...) do { \
-    int _rc = snprintf(SP, REMAINS, __VA_ARGS__); \
-    assert(_rc > 0); \
-    assert(_rc < REMAINS); \
-    REMAINS -= _rc; \
-    SP += _rc; \
-} while(0)
+#define SSPRINTF(SP, REMAINS, ...)                                             \
+    do {                                                                       \
+        int _rc = snprintf(SP, REMAINS, __VA_ARGS__);                          \
+        assert(_rc > 0);                                                       \
+        assert(_rc < REMAINS);                                                 \
+        REMAINS -= _rc;                                                        \
+        SP += _rc;                                                             \
+    } while (0)
 
 static char *opt_conf_str(const struct opt_section_entry *entry,
-                           const struct opt_conf *conf)
+                          const struct opt_conf *conf)
 {
     static char buf[128];
     size_t remains = sizeof(buf);
@@ -90,7 +123,7 @@ static char *opt_conf_str(const struct opt_section_entry *entry,
     }
 
     if (conf->name) {
-         SSPRINTF(sp, remains, "%s--%s", delim, conf->name);
+        SSPRINTF(sp, remains, "%s--%s", delim, conf->name);
     }
 
     // can not have alias only
@@ -108,37 +141,15 @@ static char *opt_conf_str(const struct opt_section_entry *entry,
  * @brief this is a software error. Some conf is incorrect.
  */
 static int opt_conf_error(const struct opt_section_entry *entry,
-                          const struct opt_conf *conf,
-                          const char *msg)
+                          const struct opt_conf *conf, const char *msg)
 {
     msg = msg ? msg : "";
-    fprintf(stderr, "error: opt_conf %s - %s\n", opt_conf_str(entry, conf), msg);
+    fprintf(stderr, "error: opt_conf %s - %s\n", opt_conf_str(entry, conf),
+            msg);
 
     return -EBADF;
 }
-#if 0 
-static int opt_arg_error(const struct opt_conf *conf,
-                        const char *arg,
-                        const char *msg)
-{
-    fprintf(stderr, "error: ");
-    if (conf) {
-        fprintf(stderr, "%s ", opt_conf_str(NULL, conf));
-    }
 
-    if (!msg) {
-        msg = "unknown";
-    }
-
-    fprintf(stderr, "%s", msg);
-
-    if (arg)
-        fprintf(stderr, " \"%s\"", arg);
-
-    fprintf(stderr, "\n");
-    return -EINVAL;
-}
-#endif
 int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
 {
     if (conf) {
@@ -149,7 +160,7 @@ int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
     va_start(args, fmt);
     int rc = vfprintf(stderr, fmt, args);
     va_end(args);
-    (void) rc;
+    (void)rc;
 
     fputc('\n', stderr);
     return -1;
@@ -157,7 +168,7 @@ int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
 
 int opt_error(const struct opt_conf *conf, const char *msg)
 {
-   return opt_arg_error(conf, NULL, msg); // TODO
+    return opt_arg_error(conf, NULL, msg); // TODO
 }
 
 /**
@@ -168,18 +179,18 @@ int opt_error(const struct opt_conf *conf, const char *msg)
  */
 OPT_SECTION_ADD(dummy, NULL, 0, NULL)
 
-
 static const struct opt_conf *opt_lookup(struct opt_context *ctx,
                                          const char *name)
 {
-     struct btree_node *node = btree_find(&ctx->btree, name);
-     if (!node)
-         return NULL;
+    struct btree_node *node = btree_find(&ctx->btree, name);
+    if (!node)
+        return NULL;
 
-     return node->data;
+    return node->data;
 }
 
-static const struct opt_conf *opt_lookup_next_positional(struct opt_context *ctx)
+static const struct opt_conf *
+opt_lookup_next_positional(struct opt_context *ctx)
 {
     for (int i = 0; i < ARRAY_LEN(ctx->positionals.conf); i++) {
         const struct opt_conf *conf = ctx->positionals.conf[i];
@@ -197,7 +208,8 @@ static const struct opt_conf *opt_lookup_next_positional(struct opt_context *ctx
     return NULL;
 }
 
-static int opt_add_positional(struct opt_context *ctx, const struct opt_conf *conf)
+static int opt_add_positional(struct opt_context *ctx,
+                              const struct opt_conf *conf)
 {
     for (int i = 0; i < ARRAY_LEN(ctx->positionals.conf); i++) {
         const struct opt_conf *pconf = ctx->positionals.conf[i];
@@ -213,24 +225,8 @@ static int opt_add_positional(struct opt_context *ctx, const struct opt_conf *co
     return -ENOMEM;
 }
 
-#if 0
-static inline bool is_valid_long_opt(const char *s)
-{
-    if (!s)
-        return true; // valid - no long option
-
-    if (!s[0])
-        return false;
-
-    if (!s[1])
-        return false
-
-    return true;
-}
-#endif
-
 static int opt_init_cb_precheck(const struct opt_section_entry *entry,
-                             const struct opt_conf *conf, void *arg)
+                                const struct opt_conf *conf, void *arg)
 {
     struct opt_context *ctx = arg;
 
@@ -259,8 +255,7 @@ static int opt_init_cb_precheck(const struct opt_section_entry *entry,
 }
 
 static int opt_init_cb_addtobtree(const struct opt_section_entry *entry,
-                                  const struct opt_conf *conf,
-                                  void *arg)
+                                  const struct opt_conf *conf, void *arg)
 {
     struct opt_context *ctx = arg;
     int err;
@@ -272,13 +267,10 @@ static int opt_init_cb_addtobtree(const struct opt_section_entry *entry,
     }
 
     unsigned int conf_id = (uintptr_t)ctx->node_wrp
-                         - (uintptr_t)ctx->btree_nodes;
+        - (uintptr_t)ctx->btree_nodes;
 
-    const char *svals[] = {
-        conf->name,
-        opt_shortstr(conf->shortname),
-        conf->alias
-    };
+    const char *svals[] = { conf->name, opt_shortstr(conf->shortname),
+                            conf->alias };
 
     for (int i = 0; i < ARRAY_LEN(svals); i++) {
         if (!svals[i])
@@ -329,9 +321,8 @@ static int opt_init(struct opt_context *ctx)
     return 0;
 }
 
-static int opt_conf_parse(struct opt_context *ctx,
-                    const struct opt_conf *conf,
-                    char *sval)
+static int opt_conf_parse(struct opt_context *ctx, const struct opt_conf *conf,
+                          char *sval)
 {
     OPT_DBG("parsing %s:%c: sval='%s'\n", conf->name, conf->shortname, sval);
     assert(conf->parse);
@@ -357,12 +348,12 @@ int opt_parse_args(int argc, char *argv[])
         ctx->initialized = true;
     }
 
-    struct opt_argviter_ctx itr = { };
+    struct opt_argviter_ctx itr = {0};
     int flags = 0;
     err = opt_argviter_init(&itr, flags, argc, argv);
     assert(!err);
 
-    while(1) {
+    while (1) {
         err = opt_argviter_getkey(&itr);
         if (err == OPT_ARGVITER_DONE)
             break;
@@ -375,7 +366,7 @@ int opt_parse_args(int argc, char *argv[])
         const struct opt_conf *conf = NULL;
         char *sval = NULL;
 
-        switch(itr.out.dashes) {
+        switch (itr.out.dashes) {
             case 0:
                 conf = opt_lookup_next_positional(ctx);
                 sval = itr.out.name;
@@ -404,7 +395,7 @@ int opt_parse_args(int argc, char *argv[])
 
         err = opt_conf_parse(ctx, conf, sval);
         if (err)
-           return err;
+            return err;
     }
 
     const struct opt_section_entry *entries = opt_section_start_entry();
@@ -444,7 +435,7 @@ void opt_show_help(void)
 {
     int err = opt_section_foreach_conf(opt_help_cb, &g_ctx);
     // only error if callback returns error
-    (void) err;
+    (void)err;
 }
 
 const char **opt_autocomplete(const char *name, const char *startstr)

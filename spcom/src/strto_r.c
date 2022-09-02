@@ -1,9 +1,9 @@
 #include <ctype.h>
 #include <errno.h>
+#include <float.h> // FLT_MAX etc
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <limits.h>
-#include <float.h> // FLT_MAX etc
 // local
 #include "strto_r.h"
 
@@ -21,7 +21,7 @@
 
 // extent errno with custom values. POSIX errno is always less then 256
 #define EFORMAT (256)
-#define ENAN  (257)
+#define ENAN (257)
 #define EENDC (258)
 
 const char *strto_r_strerror(int err)
@@ -58,10 +58,7 @@ static inline int ___errno_restore(int errnum)
 
 /** returns true if c is a "sane" character after a number
  */
-static inline int _is_valid_endc(char c)
-{
-    return (c == '\0') || isspace(c);
-}
+static inline int _is_valid_endc(char c) { return (c == '\0') || isspace(c); }
 
 static inline int _have_0x_prefix(const char *s)
 {
@@ -70,7 +67,8 @@ static inline int _have_0x_prefix(const char *s)
 
 static char _first_nonspace(const char *s)
 {
-    while(isspace(*s)) s++;
+    while (isspace(*s))
+        s++;
     return *s;
 }
 
@@ -162,7 +160,7 @@ int strtof_r(const char *s, const char **ep, int naninf, float *res)
         return -ENAN;
     }
 
-    if (!(naninf & 1) &&  ___ISNAN(tmp)) {
+    if (!(naninf & 1) && ___ISNAN(tmp)) {
         return -ENAN;
     }
 
@@ -181,4 +179,3 @@ int strtof_r(const char *s, const char **ep, int naninf, float *res)
 
     return 0;
 }
-

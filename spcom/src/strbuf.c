@@ -1,9 +1,9 @@
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "strbuf.h"
-#include "common.h"
 #include "assert.h"
+#include "common.h"
+#include "strbuf.h"
 
 // TODO using assert here might cause recursion loop on exit
 

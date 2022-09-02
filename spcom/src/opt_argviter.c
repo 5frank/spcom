@@ -20,8 +20,8 @@
 static struct {
     char c;
     char ___nul;
-} g_shortstr[] =
-{
+} g_shortstr[] = {
+    // clang-format off
     [ 0] = {'0'}, [ 1] = {'1'}, [ 2] = {'2'}, [ 3] = {'3'},
     [ 4] = {'4'}, [ 5] = {'5'}, [ 6] = {'6'}, [ 7] = {'7'},
     [ 8] = {'8'}, [ 9] = {'9'}, [17] = {'A'}, [18] = {'B'},
@@ -38,6 +38,7 @@ static struct {
     [65] = {'q'}, [66] = {'r'}, [67] = {'s'}, [68] = {'t'},
     [69] = {'u'}, [70] = {'v'}, [71] = {'w'}, [72] = {'x'},
     [73] = {'y'}, [74] = {'z'},
+    // clang-format on
 };
 
 static char *to_shortstr(char c)
@@ -52,7 +53,7 @@ static char *to_shortstr(char c)
 
 static inline int parse_error(struct opt_argviter_ctx *p, const char *msg)
 {
-    //fprintf(stderr, "error: %s\n", msg);
+    // fprintf(stderr, "error: %s\n", msg);
     p->errmsg = msg;
     return -EINVAL;
 }
@@ -82,7 +83,7 @@ static inline int load_next_argv(struct opt_argviter_ctx *p)
 
 static inline void parse_dashes(struct opt_argviter_ctx *p)
 {
-    while(1) {
+    while (1) {
         char c = *p->sp;
         if (c == '-')
             p->dashes++;
@@ -98,7 +99,7 @@ static inline void parse_dashes(struct opt_argviter_ctx *p)
 }
 
 static inline int parse_short_key(struct opt_argviter_ctx *p,
-                                 struct opt_argviter_out *out)
+                                  struct opt_argviter_out *out)
 {
     assert(*p->sp != '\0');
     p->key = p->sp;
@@ -114,7 +115,7 @@ static inline int parse_short_value(struct opt_argviter_ctx *p)
     if (*p->sp == '\0') {
         if (load_next_argv(p) == EOF)
             return parse_error(p, "requires an argument");
-        assert(*p->sp != '\0'); 
+        assert(*p->sp != '\0');
     }
 
     p->val = p->sp;
@@ -129,7 +130,7 @@ static inline int parse_long_key(struct opt_argviter_ctx *p,
     assert(*p->sp != '\0');
     p->key = p->sp;
 
-    while(1) {
+    while (1) {
         char c = *p->sp;
         if (c == '=') {
             *p->sp++ = '\0';
@@ -166,7 +167,7 @@ static inline int parse_long_value(struct opt_argviter_ctx *p)
     if (*p->sp == '-') {
         // TODO
     }
-    while(1) {
+    while (1) {
         char c = *p->sp++;
         if (c == '\0')
             break;
@@ -187,8 +188,8 @@ static inline int parse_positional(struct opt_argviter_ctx *p,
     return 0;
 }
 
-int opt_argviter_init(struct opt_argviter_ctx *p,
-                     int flags, int argc, char *argv[])
+int opt_argviter_init(struct opt_argviter_ctx *p, int flags, int argc,
+                      char *argv[])
 {
     p->argc = argc;
     p->argv = argv;

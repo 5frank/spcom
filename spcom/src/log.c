@@ -90,8 +90,9 @@ void log_vprintf(int level,
                  const char *fmt,
                  va_list args)
 {
-    /* in case some other module uses log module before log is initialized, do it here.
-     * otherwise hard reason about initalization order always correct */
+    /* in case some other module uses log module before log is initialized, do
+     * it here. otherwise hard reason about initalization order always correct
+     */
     if (!log_data.initialized) {
         log_init();
     }
@@ -147,7 +148,7 @@ static void _sp_log_handler(const char *fmt, ...)
     va_start(args, fmt);
     int rc = vfprintf(fp, fmt, args);
     va_end(args);
-    (void) rc;
+    (void)rc;
 }
 
 void log_set_debug(int verbose) 
@@ -179,8 +180,8 @@ void log_init(void)
              * usage error as probably permission erros */
             int exit_code = (errno == EACCES) ? EX_NOPERM : EX_USAGE;
             SPCOM_EXIT(exit_code,
-                        "Failed to open log file %s '%s'",
-                        fpath, strerror(errno));
+                       "Failed to open log file %s '%s'",
+                       fpath, strerror(errno));
             return;
         }
         setlinebuf(fp); // easier debug on `tail -F spcom.log`

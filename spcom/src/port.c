@@ -4,37 +4,39 @@
 #include <string.h>
 #include <unistd.h> // access
 
-#include <uv.h>
 #include <libserialport.h>
+#include <uv.h>
 
-#include "common.h"
-#include "misc.h"
 #include "assert.h"
-#include "opt.h"
+#include "cmd.h"
+#include "common.h"
 #include "eol.h"
 #include "log.h"
-#include "cmd.h"
+#include "misc.h"
 #include "opq.h"
-#include "str.h"
-#include "port_wait.h"
-#include "port_opts.h"
+#include "opt.h"
 #include "port.h"
+#include "port_opts.h"
+#include "port_wait.h"
+#include "str.h"
 
 #if 1
 static char __log_txrx_data[64];
 
-#define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { \
-    unsigned int _size = SIZE; \
-    str_escape_nonprint(__log_txrx_data, \
-            sizeof(__log_txrx_data), DATA, _size); \
-    LOG_DBG("%s (%u) \"%s\"", TX_OR_RX, _size, __log_txrx_data); \
-} while(0)
+#define __LOG_TXRX(TX_OR_RX, DATA, SIZE)                                       \
+    do {                                                                       \
+        unsigned int _size = SIZE;                                             \
+        str_escape_nonprint(__log_txrx_data, sizeof(__log_txrx_data), DATA,    \
+                            _size);                                            \
+        LOG_DBG("%s (%u) \"%s\"", TX_OR_RX, _size, __log_txrx_data);           \
+    } while (0)
 #else
 #define __LOG_TXRX(TX_OR_RX, DATA, SIZE) do { } while (0)
 #endif
+
 /**
 On windows only sockets can be polled with poll handles. On Unix any file
-descriptor that would be accepted by poll(2) can be used.  
+descriptor that would be accepted by poll(2) can be used.
 seems possible with (WSA)WaitForMultipleEvents. example a possible workaround:
 https://github.com/libuv/help/issues/82
 https://stackoverflow.com/questions/19955617/win32-read-from-stdin-with-timeout
@@ -68,12 +70,12 @@ static struct port_s {
     port_rx_cb_fn *rx_cb;
     char eol[3];
     unsigned char eol_len;
-} port_data = {0};
+} port_data = { 0 };
 
 static void port_open(void);
 void port_close(void);
 void port_cleanup(void);
-static void _uvcb_poll_event(uv_poll_t* handle, int status, int events);
+static void _uvcb_poll_event(uv_poll_t *handle, int status, int events);
 
 static const char *port_state_to_str(int state)
 {
@@ -130,22 +132,24 @@ static void _port_panic_recover(void)
 }
 
 /// oh no! check port exists, if not wait for it if allowed, else die.
-#define PORT_PANIC(EXIT_CODE, FMT, ...) do {                                   \
-    if (port_opts->stay) {                                                     \
-        LOG_DBG(FMT, ##__VA_ARGS__);                                           \
-        _port_panic_recover();                                                 \
-    }                                                                          \
-    else {                                                                     \
-        SPCOM_EXIT(EXIT_CODE, FMT, ##__VA_ARGS__);                             \
-    }                                                                          \
-} while (0)
+#define PORT_PANIC(EXIT_CODE, FMT, ...)                                        \
+    do {                                                                       \
+        if (port_opts->stay) {                                                 \
+            LOG_DBG(FMT, ##__VA_ARGS__);                                       \
+            _port_panic_recover();                                             \
+        }                                                                      \
+        else {                                                                 \
+            SPCOM_EXIT(EXIT_CODE, FMT, ##__VA_ARGS__);                         \
+        }                                                                      \
+    } while (0)
 
 static void _set_event_flags(int flags)
 {
     // will this ever occur?
     flags |= UV_DISCONNECT;
 
-    /* calling uv_poll_start() on active handle is ok. will update events mask */
+    /* calling uv_poll_start() on active handle is ok. will update events mask
+     */
     int err = uv_poll_start(&port_data.poll_handle, flags, _uvcb_poll_event);
     assert_uv_ok(err, "uv_poll_start");
 }
@@ -169,7 +173,7 @@ static void op_done(struct opq_item *op)
     port_data.current_op = NULL;
 }
 
-static void _on_sleep_done(uv_timer_t* handle)
+static void _on_sleep_done(uv_timer_t *handle)
 {
     LOG_DBG("op d sleep done");
     assert(port_data.current_op);
@@ -230,7 +234,7 @@ static bool update_write(const void *buf, size_t bufsize)
 
     if (rc < remains) {
         // incomplete write. try write remaining on next writable event
-        //LOG_DBG("sp_nonblocking_write %d/%zu", rc, size);
+        // LOG_DBG("sp_nonblocking_write %d/%zu", rc, size);
         p->offset += rc;
         return false;
     }
@@ -238,11 +242,12 @@ static bool update_write(const void *buf, size_t bufsize)
     // success complete write
     return true; // done!
 }
+
 /** called before poll/select/whatever in event loop
  * check if there is read/write operations to be executed and
  * set "watchers" accordingly
  */
-static void _on_prepare(uv_prepare_t* handle)
+static void _on_prepare(uv_prepare_t *handle)
 {
     if (port_data.current_op)
         return; // operation not done yet
@@ -263,8 +268,8 @@ static void _on_prepare(uv_prepare_t* handle)
     }
 
     if (port_data.state != PORT_STATE_READY) {
-        LOG_ERR("%s not ready. state: %s",
-                port_opts->name, port_state_to_str(port_data.state));
+        LOG_ERR("%s not ready. state: %s", port_opts->name,
+                port_state_to_str(port_data.state));
 
         // implicilty set port_data.current_op = NULL;
         op_done(op);
@@ -272,11 +277,11 @@ static void _on_prepare(uv_prepare_t* handle)
     }
 
     if (op->op_code == OP_SLEEP) {
-        //if (port_data.sleep_active) {
-        //uv_timer_get_due_in
-        uint64_t ms = (uint64_t) op->u.val * 1000;
+        // if (port_data.sleep_active) {
+        // uv_timer_get_due_in
+        uint64_t ms = (uint64_t)op->u.val * 1000;
         int err = uv_timer_start(&port_data.t_sleep, _on_sleep_done, ms, 0);
-        LOG_DBG("sleeping %d ms", (unsigned int) ms);
+        LOG_DBG("sleeping %d ms", (unsigned int)ms);
         assert_uv_ok(err, "uv_timer_start");
         return;
     }
@@ -284,19 +289,19 @@ static void _on_prepare(uv_prepare_t* handle)
     _tx_start(); // enable _on_writable()
 }
 
-static void _on_writable(uv_poll_t* handle)
+static void _on_writable(uv_poll_t *handle)
 {
-    (void) handle;
+    (void)handle;
     int err = 0;
     char tmpc;
     bool done = true;
     struct opq_item *op = port_data.current_op;
-    if (!op)  {
+    if (!op) {
         _tx_stop();
         return;
     }
 
-    switch(op->op_code) {
+    switch (op->op_code) {
 
         case OP_PORT_WRITE:
             done = update_write(op->u.data, op->size);
@@ -371,7 +376,7 @@ static void _on_writable(uv_poll_t* handle)
     }
 }
 
-static void _on_readable(uv_poll_t* handle)
+static void _on_readable(uv_poll_t *handle)
 {
     // TODO bufsize?
     static char buf[255];
@@ -402,20 +407,21 @@ static void _on_readable(uv_poll_t* handle)
  * therefore always be prepared to handle EAGAIN or equivalent when it attempts
  * to read from or write to the fd."""
  *
- * on unix, sp_nonblocking_{read, write} return 0 if read fails and EAGAIN is set
-*/
-static void _uvcb_poll_event(uv_poll_t* handle, int status, int events)
+ * on unix, sp_nonblocking_{read, write} return 0 if read fails and EAGAIN is
+ * set
+ */
+static void _uvcb_poll_event(uv_poll_t *handle, int status, int events)
 {
     // This will typicaly occur if user pulls the cabel for /dev/ttyUSB
     if (status == UV_EBADF) {
-        PORT_PANIC(EX_OSFILE, "port poll - %s (%s)",
-                uv_strerror(status), uv_err_name(status));
+        PORT_PANIC(EX_OSFILE, "port poll - %s (%s)", uv_strerror(status),
+                   uv_err_name(status));
         return;
     }
     else if (status) {
         LOG_WRN("unexpected uv poll status %d", status);
     }
-    //LOG_DBG("port event. status=%d, event_flags=0x%x", status, events);
+    // LOG_DBG("port event. status=%d, event_flags=0x%x", status, events);
     if (events & UV_READABLE) {
         _on_readable(handle);
     }
@@ -469,7 +475,7 @@ int port_set_config(void)
         if (err)
             return CONFIG_ERROR(err, "sp_set_flowcontrol");
 
-        // libserialport default when flow is XONOFF is txrx 
+        // libserialport default when flow is XONOFF is txrx
         if (flowcontrol == SP_FLOWCONTROL_XONXOFF) {
             int xonxoff = FLOW_TO_SP_XONXOFF(port_opts->flowcontrol);
             if (xonxoff) {
@@ -486,14 +492,15 @@ int port_set_config(void)
 static void port_open(void)
 {
     /* note:
-     * - any assert failure will trigger cleanup - no need to do it here 
-     * - do not start port_wait here as that could cause a "reset loop" 
+     * - any assert failure will trigger cleanup - no need to do it here
+     * - do not start port_wait here as that could cause a "reset loop"
      */
 
     int err = 0;
 
     uv_loop_t *loop = uv_default_loop();
-    // TODO when, if ever, should operation queue be cleares/reseted? not here!!!
+    // TODO when, if ever, should operation queue be cleares/reseted? not
+    // here!!!
 
     LOG_DBG("Opening port '%s'", port_opts->name);
 
@@ -518,14 +525,14 @@ static void port_open(void)
 
     // saftey check
     uv_handle_type htype = uv_guess_handle(fd);
-    LOG_DBG("uv_handle_type='%s'=%d",
-            misc_uv_handle_type_to_str(htype), (int) htype);
+    LOG_DBG("uv_handle_type='%s'=%d", misc_uv_handle_type_to_str(htype),
+            (int)htype);
 
     err = uv_prepare_init(loop, &port_data.prepare_handle);
     assert_uv_ok(err, "uv_prepare_init");
 
     err = uv_prepare_start(&port_data.prepare_handle, _on_prepare);
-    (void) err; // cant fail according to doc
+    (void)err; // cant fail according to doc
 
     // use uv_poll_t as custom read write from libserialport
     err = uv_poll_init(loop, &port_data.poll_handle, fd);
@@ -536,7 +543,6 @@ static void port_open(void)
     assert_uv_ok(err, "uv_poll_start");
 
     port_data.state = PORT_STATE_READY;
-
 }
 
 void port_close(void)
@@ -551,9 +557,9 @@ void port_close(void)
     (void)err;
 
     err = uv_prepare_stop(&port_data.prepare_handle);
-    (void) err; // cant fail
+    (void)err; // cant fail
 
-    if (uv_is_active((uv_handle_t *) &port_data.poll_handle)) {
+    if (uv_is_active((uv_handle_t *)&port_data.poll_handle)) {
         err = uv_poll_stop(&port_data.poll_handle);
         if (err)
             LOG_UV_ERR(err, "uv_poll_stop");
@@ -583,7 +589,6 @@ void port_close(void)
 
     sp_free_port(port_data.port);
     port_data.port = NULL;
-
 }
 
 void port_cleanup(void)
@@ -608,8 +613,8 @@ int port_write(const void *data, size_t size)
         return -1;
 
     if (port_data.state != PORT_STATE_READY) {
-        LOG_ERR("%s not ready. state: %s",
-                port_opts->name, port_state_to_str(port_data.state));
+        LOG_ERR("%s not ready. state: %s", port_opts->name,
+                port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -625,9 +630,9 @@ int port_write(const void *data, size_t size)
             return -1;
         }
         if (rc == 0) {
-             // i.e. EAGAIN retry on next writable event
-             LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
-             continue;
+            // i.e. EAGAIN retry on next writable event
+            LOG_DBG("sp_nb_write rc=0 (EAGAIN?");
+            continue;
         }
         if (rc < size) {
             LOG_DBG("sp_nb_write %d/%zu", rc, size);
@@ -647,8 +652,8 @@ int port_putc(int c)
 {
 #if 1
     if (port_data.state != PORT_STATE_READY) {
-        LOG_ERR("%s not ready. state: %s",
-                port_opts->name, port_state_to_str(port_data.state));
+        LOG_ERR("%s not ready. state: %s", port_opts->name,
+                port_state_to_str(port_data.state));
 
         return -1;
     }
@@ -673,7 +678,7 @@ int port_drain(uint32_t timeout_ms)
      * return with EINTR. To be able to abort a drain from a signal handler,
      * you would need to implement your own blocking drain by polling the
      * result of sp_output_waiting()." */
-#if 0 //TODO
+#if 0 // TODO
     while(1) {
         int rc = sp_output_waiting(port_data.port);
         if (rc == 0) {
@@ -692,7 +697,6 @@ int port_drain(uint32_t timeout_ms)
 #endif
 }
 
-
 void port_init(port_rx_cb_fn *rx_cb)
 {
     int err;
@@ -701,8 +705,7 @@ void port_init(port_rx_cb_fn *rx_cb)
         SPCOM_EXIT(EX_USAGE, "No port or device name provided");
     }
 
-    port_data.eol_len = eol_seq_cpy(eol_tx,
-                                    port_data.eol,
+    port_data.eol_len = eol_seq_cpy(eol_tx, port_data.eol,
                                     sizeof(port_data.eol));
 
     port_data.rx_cb = rx_cb;

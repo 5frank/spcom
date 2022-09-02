@@ -1,16 +1,16 @@
-#include <stdint.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdio.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 // local
 #include "assert.h"
+#include "btable.h"
 #include "common.h"
-#include "vt_defs.h"
+#include "keybind.h"
 #include "log.h"
 #include "opt.h"
-#include "btable.h"
-#include "keybind.h"
+#include "vt_defs.h"
 
 struct keybind_map {
     // have key sequence if both in ckey_tbl and seq0_tbl
@@ -30,12 +30,10 @@ static int kb_error(int err, const char *msg)
     return err;
 }
 
-#define KB_UNPACK_KEY(VAL)    ((VAL) & 0xFF)
+#define KB_UNPACK_KEY(VAL) ((VAL)&0xFF)
 #define KB_UNPACK_ACTION(VAL) (((VAL) >> 8) & 0xFF)
-#define KB_PACK(KEY, ACTION) (0             \
-    | (((uint16_t)(KEY)    & 0xFF))         \
-    | (((uint16_t)(ACTION) & 0xFF) <<  8)   \
-)
+#define KB_PACK(KEY, ACTION)                                                   \
+    (0 | (((uint16_t)(KEY)&0xFF)) | (((uint16_t)(ACTION)&0xFF) << 8))
 
 /// add single key binding action
 static int kb_add_action(struct keybind_map *kbm, uint8_t key, uint8_t action)
@@ -76,19 +74,15 @@ static uint8_t kb_get_action(const struct keybind_map *kbm, uint8_t key)
 #undef KB_UNPACK_ACTION
 #undef KB_PACK
 
-#define KB_SEQ_PACK(CTLK, FOLLOWK, ACTION) (0 \
-    | (((uint32_t)(CTLK)    & 0xFF) <<  0)    \
-    | (((uint32_t)(FOLLOWK) & 0xFF) <<  8)    \
-    | (((uint32_t)(ACTION)  & 0xFF) << 16)    \
-)
-#define KB_SEQ_UNPACK_ID(VAL)     ((VAL) & 0xFFFF)
+#define KB_SEQ_PACK(CTLK, FOLLOWK, ACTION)                                     \
+    (0 | (((uint32_t)(CTLK)&0xFF) << 0) | (((uint32_t)(FOLLOWK)&0xFF) << 8)    \
+     | (((uint32_t)(ACTION)&0xFF) << 16))
+#define KB_SEQ_UNPACK_ID(VAL) ((VAL)&0xFFFF)
 #define KB_SEQ_UNPACK_ACTION(VAL) (((VAL) >> 16) & 0xFF)
 
 /// set key sequence action
-static int kb_seq_add_action(struct keybind_map *kbm,
-                             uint8_t ctlkey,
-                             uint8_t followk,
-                             uint8_t action)
+static int kb_seq_add_action(struct keybind_map *kbm, uint8_t ctlkey,
+                             uint8_t followk, uint8_t action)
 {
     assert(ctlkey);
     assert(followk);
@@ -111,12 +105,10 @@ static int kb_seq_add_action(struct keybind_map *kbm,
     return kb_error(ENOMEM, "max limit key bindings");
 }
 
-
 /** get key sequence action
  * return 0 if not unmapped
  */
-static uint8_t kb_seq_get_action(const struct keybind_map *kbm,
-                                 uint8_t ctlkey,
+static uint8_t kb_seq_get_action(const struct keybind_map *kbm, uint8_t ctlkey,
                                  uint8_t followk)
 {
     uint32_t id = KB_SEQ_PACK(ctlkey, followk, 0);
@@ -241,7 +233,8 @@ static int keybind_post_parse(const struct opt_section_entry *entry)
     err = kb_add_action(kbm, VT_C_TO_CTRL_KEY('B'), K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
-    err = kb_seq_add_action(kbm, VT_C_TO_CTRL_KEY('A'), 'c', K_ACTION_TOG_CMD_MODE);
+    err = kb_seq_add_action(kbm, VT_C_TO_CTRL_KEY('A'), 'c',
+                            K_ACTION_TOG_CMD_MODE);
     assert(!err);
 
     return 0;
@@ -255,8 +248,5 @@ static const struct opt_conf keybind_opts_conf[] = {
     }
 };
 
-OPT_SECTION_ADD(keybind,
-                keybind_opts_conf,
-                ARRAY_LEN(keybind_opts_conf),
+OPT_SECTION_ADD(keybind, keybind_opts_conf, ARRAY_LEN(keybind_opts_conf),
                 keybind_post_parse);
-

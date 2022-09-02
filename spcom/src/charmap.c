@@ -1,21 +1,20 @@
-#include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
-#include <ctype.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <limits.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "assert.h"
+#include "charmap.h"
 #include "common.h"
+#include "ctohex.h"
 #include "eol.h"
+#include "opt.h"
 #include "str.h"
 #include "strto_r.h"
-#include "ctohex.h"
-#include "opt.h"
-#include "charmap.h"
 
 enum char_group_id {
     CHARMAP_GROUP_CNTRL = UCHAR_MAX + 1,
@@ -33,7 +32,6 @@ static const char *ascii_cntrl_names[] = {
 };
 // clang-format on
 
-
 struct charmap_s {
     /**
      * map[<groupid>] = <reprid>.
@@ -42,21 +40,22 @@ struct charmap_s {
      * map initalized to its index `map[i] = i` then any remapping applied.
      * i.e. remapped if `map[i] != i`
      *
-     * if map[c] < CHARMAP_REPR_BASE - c is remapped to map[x] (single byte value)
-     *  if map[c] ==  CHARMAP_REPR_HEX - c is remapped to hex representation
-     * if map[c] >= CHARMAP_REPR_STRLIT_BASE, it is some string */
+     * if map[c] < CHARMAP_REPR_BASE - c is remapped to map[x] (single byte
+     * value) if map[c] ==  CHARMAP_REPR_HEX - c is remapped to hex
+     * representation if map[c] >= CHARMAP_REPR_STRLIT_BASE, it is some string
+     */
     uint16_t map[UCHAR_MAX + 1];
 };
 
 // initalized if needed
-static struct charmap_s _charmap_tx = {0};;
+static struct charmap_s _charmap_tx = { 0 };
+;
 // exposed const pointer. NULL until enabled
 const struct charmap_s *charmap_tx = NULL;
 // initalized if needed
-static struct charmap_s _charmap_rx = {0};
+static struct charmap_s _charmap_rx = { 0 };
 // exposed const pointer. NULL until enabled
 const struct charmap_s *charmap_rx = NULL;
-
 
 int charmap_repr_type(const struct charmap_s *cm, int c)
 {
@@ -66,7 +65,7 @@ int charmap_repr_type(const struct charmap_s *cm, int c)
 
     uint16_t reprid = cm->map[(unsigned char)c];
 
-    bool is_remapped = ((int) reprid == (int) c) ? false : true;
+    bool is_remapped = ((int)reprid == (int)c) ? false : true;
 
     if (!is_remapped) {
         return CHARMAP_REPR_NONE;
@@ -82,49 +81,6 @@ int charmap_repr_type(const struct charmap_s *cm, int c)
 
     return reprid;
 }
-#if 0
-static void charmap_print_map(const char *name, const struct charmap_s *map) 
-{
-    if (!map) {
-        printf("%s: none\n", name);
-        return;
-    }
-
-    printf("%s:\n", name);
-    for (int i = 0; i < ARRAY_LEN(map->map); i++) {
-        uint16_t x = charmap_repr_type(map, c);
-        if (!) 
-            continue;
-
-        printf("0x%02X ", i);
-        if (isprint(i) && !isblank(i)) {
-            printf("(%c) ", (char)i);
-        }
-        else {
-            printf("    ");
-        }
-        
-        switch(map->map[i]) {
-            case CHARMAP_REPR_IGNORE:
-                printf("ignore");
-                break;
-            case CHARMAP_REPR_HEX:
-                printf("hex");
-                break;
-            case CHARMAP_REPR_CNTRLNAME:
-                printf("cntrlname");
-                break;
-            case CHARMAP_REPR_STRLIT_BASE:
-                printf("strlit");
-            default:
-                printf("<unknown>%u", (unsigned int)map->map[i]);
-                break;
-        }
-
-        printf("\n");
-    }
-}
-#endif
 
 static const char *cntrl_valtostr(int val)
 {
@@ -175,8 +131,6 @@ static const char *_strlit_get(int reprid)
     return sl->strs[i];
 }
 
-
-
 static int _strlit_add(const char *s, int *id)
 {
     if (strlen(s) >= CHARMAP_REPR_BUF_SIZE) {
@@ -210,17 +164,15 @@ static int bufputs(char *dst, const char *src)
 {
     assert(src);
     for (int i = 0; i < CHARMAP_REPR_BUF_SIZE; i++) {
-            *dst++ = *src++;
-            if (*src == '\0')
-                return i;
+        *dst++ = *src++;
+        if (*src == '\0')
+            return i;
     }
     assert(0);
     return 0;
 }
 
-int charmap_remap(const struct charmap_s *cm,
-                  char c,
-                  char *buf)
+int charmap_remap(const struct charmap_s *cm, char c, char *buf)
 {
     assert(cm);
 
@@ -267,45 +219,6 @@ int charmap_remap(const struct charmap_s *cm,
     return bufputc(buf, c);
 }
 
-#if 0
-struct hexformater {
-    char prefix[4];
-    char suffix[4];
-    char pad;
-    const char *lut;
-};
-
-int mk_hexformater(const char *fmt)
-{
-    const char *src = fmt;
-    char *dst = pref
-    int i = 0;
-    while(1) {
-        c = *src++;
-        if (c == '%')
-            break;
-
-        if (c == '\0')
-            return EINVAL;
-
-        if (!isprint(c))
-            return EINVAL;
-
-        hf->prefix[i] = c;
-        i++;
-        if (i >= sizeof(hf->prefix))
-            return E2BIG;
-    }
-    c = *src++;
-    if (c == ' ' || c == '0') {
-        c = *src++;
-        if (c != 2)
-            return EINVAL;
-            }
-
-}
-#endif
-
 // clang-format off
 static const struct str_map group_id_strmap[] = {
     STR_MAP_INT("cntrl",    CHARMAP_GROUP_CNTRL ),
@@ -337,18 +250,18 @@ static int str_to_crepr_id(const char *s, int *id)
 
 static int _hexbytetoi(const char *s, int *res)
 {
-        uint8_t u8tmp = 0;
-        int err = strtou8_r(s, NULL, 16, &u8tmp);
-        if (err)
-            return err;
-        *res = u8tmp;
+    uint8_t u8tmp = 0;
+    int err = strtou8_r(s, NULL, 16, &u8tmp);
+    if (err)
+        return err;
+    *res = u8tmp;
 
-        return 0;
+    return 0;
 }
 
 static int is_in_group(int c, int groupid)
 {
-    switch(groupid) {
+    switch (groupid) {
         case CHARMAP_GROUP_CNTRL:
             return iscntrl(c);
 
@@ -522,12 +435,11 @@ done:
     return err;
 }
 
-
 static int parse_map_txc(const struct opt_conf *conf, char *s)
 {
     int err = charmap_parse_opts(&_charmap_tx, s);
     if (!err)
-         charmap_tx = &_charmap_tx; // i.e. enable
+        charmap_tx = &_charmap_tx; // i.e. enable
 
     return err;
 }
@@ -565,8 +477,5 @@ static const struct opt_conf charmap_opts_conf[] = {
     },
 };
 
-OPT_SECTION_ADD(outfmt,
-                charmap_opts_conf,
-                ARRAY_LEN(charmap_opts_conf),
+OPT_SECTION_ADD(outfmt, charmap_opts_conf, ARRAY_LEN(charmap_opts_conf),
                 charmap_opts_post_parse);
-

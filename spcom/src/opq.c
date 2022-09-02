@@ -1,10 +1,10 @@
-
+// std
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-
-#include "common.h"
+// local
 #include "assert.h"
+#include "common.h"
 #include "opq.h"
 
 struct opq {
@@ -45,11 +45,12 @@ void opq_set_write_done_cb(struct opq *q, opq_write_done_cb *cb)
 {
     q->write_done_cb = cb;
 }
+
+#if 0
 /** enqueue/put.
  * updates write index (aka tail) after new item is added. this is where
  * the intentional off by one is from
- */ 
-#if 0
+ */
 int opq_push(struct opq *q, const void *data, size_t size)
 {
     if (opq_isfull(q)) {
@@ -89,9 +90,7 @@ int opq_enqueue_val(struct opq *q, uint16_t op_code, int val)
     return opq_enqueue_tail(q, itm);
 }
 
-int opq_enqueue_write(struct opq *q,
-                      void *data,
-                      uint16_t size)
+int opq_enqueue_write(struct opq *q, void *data, uint16_t size)
 {
     struct opq_item *itm = opq_acquire_tail(q);
     assert(itm);
@@ -114,6 +113,7 @@ int opq_enqueue_tail(struct opq *q, struct opq_item *itm)
     q->wridx = (q->wridx + 1) % ARRAY_LEN(q->items);
     return 0;
 }
+
 #if 0
 /// dequeue, 'read'
 static int opq_pop(struct opq *q, struct opq_item *itm)
@@ -156,18 +156,16 @@ void opq_release_head(struct opq *q, struct opq_item *itm)
         itm->size = 0;
     }
     itm->op_code = 0;
-    itm->u = (typeof(itm->u)) {0};
+    itm->u = (typeof(itm->u)) { 0 };
 
     // update "head"
     q->rdidx = (q->rdidx + 1) % ARRAY_LEN(q->items);
-    //q->totsize -= itm->size;
 }
 
 void opq_release_all(struct opq *q)
 {
-    while(!opq_isempty(q)) {
+    while (!opq_isempty(q)) {
         struct opq_item *itm = opq_acquire_head(q);
         opq_release_head(q, itm);
-   }
+    }
 }
-

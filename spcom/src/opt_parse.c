@@ -1,12 +1,13 @@
-#include <stdlib.h>
-#include <limits.h>
 #include <errno.h>
-#include <string.h>
-#include <stdint.h>
+#include <limits.h>
 #include <stdbool.h>
-#include "strto_r.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+// local
 #include "assert.h"
 #include "opt.h"
+#include "strto_r.h"
 
 #ifndef IS_ALIGNED
 #define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)
@@ -73,7 +74,6 @@ int opt_parse_flag_true(const struct opt_conf *conf, char *s)
     return 0;
 }
 
-
 int opt_parse_flag_false(const struct opt_conf *conf, char *s)
 {
     assert(!s);
@@ -82,8 +82,6 @@ int opt_parse_flag_false(const struct opt_conf *conf, char *s)
     *((int *)conf->dest) = false;
     return 0;
 }
-
-
 
 int opt_parse_flag_count(const struct opt_conf *conf, char *s)
 {

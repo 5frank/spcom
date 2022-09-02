@@ -1,9 +1,9 @@
 
+#include <dirent.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <dirent.h>
 
 #include <libserialport.h>
 
@@ -23,12 +23,12 @@ struct port_info_s {
 
 static const char *_matchlist[32];
 
-static int _qsort_strcmp(const void* a, const void* b)
+static int _qsort_strcmp(const void *a, const void *b)
 {
-    return strcmp(*(const char**)a, *(const char**)b);
+    return strcmp(*(const char **)a, *(const char **)b);
 }
 
-static int _qsort_port_info_s(const void* a, const void* b)
+static int _qsort_port_info_s(const void *a, const void *b)
 {
     const struct port_info_s *ainfo = a;
     const struct port_info_s *binfo = b;
@@ -87,7 +87,7 @@ int port_info_print_osconfig(const char *name)
         goto cleanup;
     }
 
-    // closing before using config getters should be ok. 
+    // closing before using config getters should be ok.
     err = sp_close(port);
     if (err) {
         LOG_SP_ERR(err, "sp_close");
@@ -128,12 +128,12 @@ cleanup:
 static int port_info_add_phyinfo(struct port_info_s *infos, size_t len)
 {
 
-#define BASE_PATH       "/dev/serial/by-path/"
+#define BASE_PATH "/dev/serial/by-path/"
 /// size of typical filename and some margin
-#define FNAME_LEN_MAX   (sizeof("pci-0000:00:14.0-usb-0:4:1.3") + 16)
+#define FNAME_LEN_MAX (sizeof("pci-0000:00:14.0-usb-0:4:1.3") + 16)
 
     int err = 0;
-    char buf[sizeof(BASE_PATH) +  FNAME_LEN_MAX] = BASE_PATH;
+    char buf[sizeof(BASE_PATH) + FNAME_LEN_MAX] = BASE_PATH;
 
     DIR *dp = opendir(BASE_PATH);
     if (!dp) {
@@ -350,7 +350,7 @@ cleanup:
     return err;
 }
 
-const char** port_info_complete(const char *s)
+const char **port_info_complete(const char *s)
 {
     _matchlist[0] = NULL;
     struct sp_port **portlist = NULL;
@@ -392,4 +392,3 @@ cleanup:
 
     return _matchlist;
 }
-

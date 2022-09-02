@@ -87,11 +87,11 @@ int port_opts_parse_baud(const char *s, int *baud, const char **ep)
 }
 
 static const char *common_bauds[] = {
-    "1200", "1800", "2400", "4800", "9600", "19200", "38400", "57600",
-    "115200", "230400", "460800", "500000", "576000", "921600", "1000000",
-    "1152000", "1500000", "2000000", "2500000", "3000000", "3500000", "4000000"
+    "1200",    "1800",    "2400",    "4800",    "9600",    "19200",
+    "38400",   "57600",   "115200",  "230400",  "460800",  "500000",
+    "576000",  "921600",  "1000000", "1152000", "1500000", "2000000",
+    "2500000", "3000000", "3500000", "4000000"
 };
-
 const char **port_opts_complete_baud(const char *s)
 {
     return STR_MATCH_LIST(s, common_bauds);
@@ -102,7 +102,7 @@ int port_opts_parse_databits(const char *s, int *databits, const char **ep)
     assert(s);
     assert(databits);
 
-    int val = (int) s[0] - '0';
+    int val = (int)s[0] - '0';
     if ((val < 5) || (val > 9))
         return -ERANGE;
     s++;
@@ -159,7 +159,7 @@ int port_opts_parse_stopbits(const char *s, int *stopbits, const char **ep)
     assert(s);
     assert(stopbits);
 
-    int val = (int) s[0] - '0';
+    int val = (int)s[0] - '0';
     if ((val < 1) || (val > 2))
         return -ERANGE;
 
@@ -190,7 +190,7 @@ int port_opts_parse_stopbits(const char *s, int *stopbits, const char **ep)
  *  @param parity set to value used by libserialport
  */
 int port_opts_parse_baud_dps(const char *s, int *baud, int *databits,
-                            int *parity, int *stopbits)
+                             int *parity, int *stopbits)
 {
     assert(baud);
     assert(databits);
@@ -231,10 +231,10 @@ int port_opts_parse_baud_dps(const char *s, int *baud, int *databits,
     if (err)
         return err;
 
-    *baud     = tmp_baud;
+    *baud = tmp_baud;
     *databits = tmp_databits;
     *stopbits = tmp_stopbits;
-    *parity   = tmp_parity;
+    *parity = tmp_parity;
 
     return 0;
 }
@@ -296,9 +296,9 @@ static const struct str_map flowcontrol_map[] = {
 */
 int port_opts_parse_flowcontrol(const char *s, int *flowcontrol)
 {
-    _Static_assert((unsigned int) SP_XONXOFF_IN < 256, "");
-    _Static_assert((unsigned int) SP_XONXOFF_OUT < 256, "");
-    _Static_assert((unsigned int) SP_XONXOFF_INOUT < 256, "");
+    _Static_assert((unsigned int)SP_XONXOFF_IN < 256, "");
+    _Static_assert((unsigned int)SP_XONXOFF_OUT < 256, "");
+    _Static_assert((unsigned int)SP_XONXOFF_INOUT < 256, "");
     return str_map_to_int(s,
                           flowcontrol_map,
                           ARRAY_LEN(flowcontrol_map),
@@ -319,10 +319,10 @@ static int _parse_cb_devname(const struct opt_conf *conf, char *sval)
 static int _parse_cb_baud_dps(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_baud_dps(sval,
-                           &_port_opts.baudrate,
-                           &_port_opts.databits,
-                           &_port_opts.parity,
-                           &_port_opts.stopbits);
+                                    &_port_opts.baudrate,
+                                    &_port_opts.databits,
+                                    &_port_opts.parity,
+                                    &_port_opts.stopbits);
 }
 
 static int _parse_cb_baud(const struct opt_conf *conf, char *sval)
