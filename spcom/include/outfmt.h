@@ -1,5 +1,5 @@
-#ifndef __OUTFMT_INCLUDE_H__
-#define __OUTFMT_INCLUDE_H__
+#ifndef OUTFMT_INCLUDE_H_
+#define OUTFMT_INCLUDE_H_
 
 #include <stddef.h>
 
@@ -13,4 +13,5 @@ void outfmt_write(const void *data, size_t size);
  * end line if last char(s) to output was not new line (eol)
 */
 void outfmt_endline(void);
+
 #endif

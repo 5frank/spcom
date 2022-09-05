@@ -1,5 +1,5 @@
-#ifndef PORT_WAIT_INCLUDE_H__
-#define PORT_WAIT_INCLUDE_H__
+#ifndef PORT_WAIT_INCLUDE_H_
+#define PORT_WAIT_INCLUDE_H_
 
 /**
  * @defgroup port wait

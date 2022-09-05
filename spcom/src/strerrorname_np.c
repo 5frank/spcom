@@ -1,7 +1,15 @@
 #include <errno.h>
 #include "common.h"
 
-#ifndef _GNU_SOURCE
+#if 0
+// alterntive rely on libuv errors all negative errno
+const char *strerrorname_np(int errnum)
+{
+    return uv_err_name(-errnum);
+}
+#endif
+
+#ifndef HAVE_STRERRORNAME_NP
 
 const char *strerrorname_np(int errnum)
 {

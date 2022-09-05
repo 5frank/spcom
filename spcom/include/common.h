@@ -1,5 +1,5 @@
-#ifndef COMMON_INCLUDE_H__
-#define COMMON_INCLUDE_H__
+#ifndef COMMON_INCLUDE_H_
+#define COMMON_INCLUDE_H_
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -20,31 +20,32 @@
 
 /// see magic trick in CMakeList.txt
 #ifdef SOURCE_PATH_SIZE
-#define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
+    #define __FILENAME__ (__FILE__ + SOURCE_PATH_SIZE)
 #else
-#define __FILENAME__ __FILE__
+    #define __FILENAME__ __FILE__
 #endif
 
 __attribute__((always_inline))
-static inline const char *___filebasename(const char *strrchr_res, const char *file)
+static inline const char *___filebasename(const char *strrchr_res,
+                                          const char *file)
 {
     return strrchr_res ? (strrchr_res  + 1) : file;
 }
 
 /** evaluate strrchr once - should be optimized at compile time */
-#define FILEBASENAME() ___filebasename(strrchr(__FILENAME__, '/'), __FILENAME__)
+#define FILEBASENAME()                                                         \
+    ___filebasename(strrchr(__FILENAME__, '/'), __FILENAME__)
 
-#ifndef _GNU_SOURCE // TODO proper test macro!!!
+/// strerrorname_np() in _GNU_SOURCE glibc >= 2.32 in <string.h>
+#if HAVE_STRERRORNAME_NP
+#include <string.h>
+#else
 /**
- * Provide if not _GNU_SOURCE
- * The strerrorname_np()
- * returns literal name of errnum.  For example, EPERM argument returns "EPERM".
- * returns NULL if unknown errnum
+ * @return literal name of errnum.  For example, EPERM argument returns "EPERM".
+ * NULL if unknown errnum
  * */
 const char *strerrorname_np(int errnum);
-
 #endif
-
 
 /** UV_VERSION_HEX "broken" on version 1.24.1 and is 0x011801 i.e. 1.18.01 */
 #define UV_VERSION_GT_OR_EQ(MAJOR, MINOR)                                      \

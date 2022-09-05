@@ -1,5 +1,5 @@
-#ifndef SHELL_INCLUDE_H__
-#define SHELL_INCLUDE_H__
+#ifndef SHELL_INCLUDE_H_
+#define SHELL_INCLUDE_H_
 
 #include <stdbool.h>
 

@@ -1,9 +1,11 @@
-#ifndef STR_INCLUDE_H__
-#define STR_INCLUDE_H__
+#ifndef STR_INCLUDE_H_
+#define STR_INCLUDE_H_
+
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 
 /**
  * string match (completer) helpers:
@@ -11,7 +13,6 @@
  *    @return a NULL terminated list of strings beginning with `s`, or NULL if
  *    none found
  */
-
 #define STR_MATCH_LIST(S, LIST) str_match_list(S, LIST, sizeof(LIST[0]), ARRAY_LEN(LIST))
 
 const char **str_match_list(const char *s, const void *items, size_t itemsize, size_t numitems);

@@ -1,5 +1,5 @@
-#ifndef PORT_INFO_INCLUDE_H__
-#define PORT_INFO_INCLUDE_H__
+#ifndef PORT_INFO_INCLUDE_H_
+#define PORT_INFO_INCLUDE_H_
 
 /**
  * note this will briefly open the port in read mode and could alter the

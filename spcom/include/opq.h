@@ -1,12 +1,12 @@
-/** 
+/**
  * This module could be seen as a "tx queue with extras".
  *
  * convert commands to operations because:
  * - alows to verify command is valid before executed - i.e. when passed as cli option
  * - simplifies implementation of sleep (i.e. hold on write)
- */ 
-#ifndef OPQ_INCLUDE_H__
-#define OPQ_INCLUDE_H__
+ */
+#ifndef OPQ_INCLUDE_H_
+#define OPQ_INCLUDE_H_
 
 #include <stdbool.h>
 #include <stddef.h>

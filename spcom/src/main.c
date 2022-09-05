@@ -18,6 +18,13 @@
 #include "shell.h"
 #include "timeout.h"
 
+#ifndef PRE_DEFS_INCLUDE_H_
+#warning "no pre_defs.h"
+#endif
+
+#ifndef _GNU_SOURCE
+#warning "no _GNU_SOURCE"
+#endif
 struct main_data {
     bool cleanup_done;
     uv_signal_t ev_sigint;

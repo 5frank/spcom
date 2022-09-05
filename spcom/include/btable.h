@@ -25,29 +25,25 @@ typedef unsigned int btable_t;
  * example usage for static allocation:
  *   static btable_t my_btable[BTABLE_NBITS_TO_NWORDS(123)];
  * */
-#define BTABLE_NBITS_TO_NWORDS(NBITS)  \
+#define BTABLE_NBITS_TO_NWORDS(NBITS)                                          \
     (((NBITS) + BTABLE_WORD_NBITS - 1) / BTABLE_WORD_NBITS)
 
 /** @param NBITS - number of bits
  */
-#define BTABLE_NBITS_TO_SIZE(NBITS) \
+#define BTABLE_NBITS_TO_SIZE(NBITS)                                            \
     (BTABLE_NBITS_TO_NWORDS(NBITS) * sizeof(btable_t))
 
 /** note might be more then nbits (number of bits) used as argument to
  * initalization macros above if nbits was not a power of two */
-#define BTABLE_SIZE_TO_MAX_NBITS(SIZE) \
+#define BTABLE_SIZE_TO_MAX_NBITS(SIZE)                                         \
     (((SIZE) / sizeof(btable_t)) * BTABLE_WORD_NBITS)
-
 
 static inline btable_t *btable_create(size_t nbits)
 {
     return calloc(BTABLE_NBITS_TO_NWORDS(nbits), sizeof(btable_t));
 }
 
-static inline void btable_free(btable_t *table)
-{
-    free(table);
-}
+static inline void btable_free(btable_t *table) { free(table); }
 
 /** reset all bits to 1 or 0 */
 static inline void btable_reset(btable_t *table, int bitval, size_t nbits)

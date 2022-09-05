@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.13)
 
 project (spcom)
 
+
+# gcc and clang option `-include`: Process file as if #include "file" appeared
+# as the first line of the primary source file.
+set(CMAKE_C_FLAGS "-include pre_defs.h")
+
 set(SOURCES
     src/assert.c
     src/main.c
@@ -37,9 +42,6 @@ set(SOURCES
     src/termios_debug.c
     src/opq.c
 )
-# TODO use gcc `-I` to include pre_defs.h before any other headers'
-#add_compile_options ( -Wno-reorder )
-#add_definitions( "-Iinclude/pre_defs.h"  )
 
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb -g3 -Os -std=gnu99 -Wall")
@@ -56,6 +58,7 @@ string(LENGTH "${CMAKE_SOURCE_DIR}/" SOURCE_PATH_SIZE)
 add_definitions("-DSOURCE_PATH_SIZE=${SOURCE_PATH_SIZE}")
 #TODO configurable target
 add_definitions("-DDEBUG=1")
+#add_definitions("-D_GNU_SOURCE=1")
 
 add_compile_definitions(CONFIG_TERMIOS_DEBUG=1)
 

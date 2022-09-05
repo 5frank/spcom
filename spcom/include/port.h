@@ -1,5 +1,5 @@
-#ifndef PORT_INCLUDE_H__
-#define PORT_INCLUDE_H__
+#ifndef PORT_INCLUDE_H_
+#define PORT_INCLUDE_H_
 
 /** data only valid in callback and do not need to be freed */
 typedef void (port_rx_cb_fn)(const void *data, size_t size);

@@ -1,7 +1,7 @@
 /** lib readline helpers */
 
-#ifndef SHELL_RL_UTILS_INCLUDE_H__
-#define SHELL_RL_UTILS_INCLUDE_H__
+#ifndef SHELL_RL_UTILS_INCLUDE_H_
+#define SHELL_RL_UTILS_INCLUDE_H_
 
 #include <stdbool.h>
 #include "assert.h"

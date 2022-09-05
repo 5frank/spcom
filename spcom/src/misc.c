@@ -17,7 +17,7 @@ int misc_print_version(int verbose)
 #ifdef __GNUC__ // || defined(__GNUG__)
 
 #ifndef __GNUC_MAJOR__
-#define __GNUC_MAJOR__  __GNUC__ 
+#define __GNUC_MAJOR__  __GNUC__
 #endif
 
     printf("gcc: %d.%d.%d\n", __GNUC_MAJOR__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
@@ -47,7 +47,7 @@ int misc_sp_err_to_exit_code(int sp_err)
         // A memory allocation failed
         case SP_ERR_MEM:
             return EX_OSERR;
-        // operation not supported by OS, driver or device. 
+        // operation not supported by OS, driver or device.
         case SP_ERR_SUPP:
             return EX_UNAVAILABLE;
         default:
@@ -86,7 +86,7 @@ const char *misc_sp_err_to_str(int sp_err)
         case SP_ERR_MEM:
             return "malloc failed";
 
-        // operation not supported by OS, driver or device. 
+        // operation not supported by OS, driver or device.
         case SP_ERR_SUPP:
             return "operation not supported";
 
