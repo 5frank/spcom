@@ -144,7 +144,7 @@ int str_0xhextou8(const char *s, uint8_t *res, const char **ep)
         return EINVAL;
     s++;
 
-    return strtou8_r(s, ep, 16, res);
+    return strto_u8(s, ep, 16, res);
 }
 
 char *str_lstrip(char *s)

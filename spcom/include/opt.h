@@ -58,10 +58,12 @@ struct opt_conf {
  */
 const char **opt_autocomplete(const char *name, const char *startstr);
 
-/** set error message. always return non-zero i.e. can be used in return
+/**
+ * print error message. always return non-zero i.e. can be used in return
  * statements.
  */
-int opt_error(const struct opt_conf *conf, const char *msg);
+__attribute__((format(printf, 2, 3)))
+int opt_perror(const struct opt_conf *conf, const char *fmt, ...);
 
 int opt_parse_args(int argc, char *argv[]);
 

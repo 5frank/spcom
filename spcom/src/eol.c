@@ -130,7 +130,7 @@ static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
     if (str_startswith(s, "0x")) {
         s += 2; // jump "0X"
         const char *ep = NULL;
-        if (strtouc_r(s, &ep, 16, byte)) {
+        if (strto_uc(s, &ep, 16, byte)) {
             return NULL;
         }
         return ep;

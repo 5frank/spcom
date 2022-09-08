@@ -18,10 +18,9 @@ int opt_parse_int(const struct opt_conf *conf, char *s)
     assert(conf->dest);
     assert(IS_ALIGNED(conf->dest, sizeof(int)));
 
-    int err = strtoi_r(s, NULL, 0, (int *)conf->dest);
+    int err = strto_i(s, NULL, 0, (int *)conf->dest);
     if (err) {
-        const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "parse int failed");
+        return opt_perror(conf, "invalid integer");
     }
 
     return 0;
@@ -32,10 +31,9 @@ int opt_parse_uint(const struct opt_conf *conf, char *s)
     assert(conf->dest);
     assert(IS_ALIGNED(conf->dest, sizeof(unsigned int)));
 
-    int err = strtoui_r(s, NULL, 0, (unsigned int *)conf->dest);
+    int err = strto_ui(s, NULL, 0, (unsigned int *)conf->dest);
     if (err) {
-        const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "parse uint failed");
+        return opt_perror(conf, "invalid positive integer");
     }
 
     return 0;
@@ -46,10 +44,9 @@ int opt_parse_float(const struct opt_conf *conf, char *s)
     assert(conf->dest);
     assert(IS_ALIGNED(conf->dest, sizeof(float)));
 
-    int err = strtof_r(s, NULL, 0, (float *)conf->dest);
+    int err = strto_f(s, NULL, 0, (float *)conf->dest);
     if (err) {
-        const char *emsg = strto_r_strerror(err);
-        return opt_error(conf, emsg ? emsg : "parse float failed");
+        return opt_perror(conf, "invalid float");
     }
 
     return 0;

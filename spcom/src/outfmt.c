@@ -299,7 +299,7 @@ static const struct opt_conf outfmt_opts_conf[] = {
     },
 #if CONFIG_EOL_RX_TIMEOUT
     {
-        .name = "--eol-rx-timeout",
+        .name = "eol-rx-timeout",
         .dest = &_outfmt_opts.eol_rx_timeout,
         .parse = opt_parse_float,
         .descr = "Float in seconds. "\

@@ -8,13 +8,18 @@
  * @brief error value to string.
  * return NULL if unkown error
  */
-const char *strto_r_strerror(int err);
+const char *strto_strerror(int err);
 /**
  * @defgroup strto<type>_r functions:
  * @{
  * @details
  *     handles all checks on errno and end pointer that posix strto family
  *     requires.
+ *
+ *
+ *
+ * @param base - either 0, 10 or 16.
+ *
  * @param ep - endpointer is optional, if not provided, internal
  *    endpointer used and checks are made that it has a sane value (points to
  *    nul byte ('\0') or isspace()).
@@ -22,8 +27,9 @@ const char *strto_r_strerror(int err);
  * @return zero on success
  */
 
-int strtoul_r(const char *s, const char **ep, int base, unsigned long int *res);
-int strtol_r(const char *s, const char **ep, int base, long int *res);
+int strto_ul(const char *s, const char **ep, int base, unsigned long int *res);
+int strto_l(const char *s, const char **ep, int base, long int *res);
+
 /**
  * @param naninf check for NAN and/or INFINITY. ex. whatever "nan",
  * "-inf" etc is accepted or not.
@@ -32,13 +38,13 @@ int strtol_r(const char *s, const char **ep, int base, long int *res);
  *  if 2 (0b10) INFINITY allowed
  *  if 3 (0b11) both NAN and INFINITY allowed
  */
-int strtof_r(const char *s, const char **ep, int naninf, float *res);
+int strto_f(const char *s, const char **ep, int naninf, float *res);
 
-#define ___STRTOL_R_WRAPPER_DEFINE(NAME, TYPE, TYPE_MIN, TYPE_MAX)             \
+#define ___STRTO_L_WRAPPER_DEFINE(NAME, TYPE, TYPE_MIN, TYPE_MAX)              \
 static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
 {                                                                              \
     long int tmp = 0;                                                          \
-    int err = strtol_r(s, ep, base, &tmp);                                     \
+    int err = strto_l(s, ep, base, &tmp);                                      \
     if (err) {                                                                 \
         return err;                                                            \
     }                                                                          \
@@ -52,19 +58,19 @@ static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
     return 0;                                                                  \
 }
 
-___STRTOL_R_WRAPPER_DEFINE(strtoi_r, int, INT_MIN, INT_MAX)
-___STRTOL_R_WRAPPER_DEFINE(strtoi8_r, int8_t, INT8_MIN, INT8_MAX)
-___STRTOL_R_WRAPPER_DEFINE(strtoi16_r, int16_t, INT16_MIN, INT16_MAX)
-___STRTOL_R_WRAPPER_DEFINE(strtoi32_r, int32_t, INT32_MIN, INT32_MAX)
-___STRTOL_R_WRAPPER_DEFINE(strtoi64_r, int64_t, INT64_MIN, INT64_MAX)
+___STRTO_L_WRAPPER_DEFINE(strto_i, int, INT_MIN, INT_MAX)
+___STRTO_L_WRAPPER_DEFINE(strto_i8, int8_t, INT8_MIN, INT8_MAX)
+___STRTO_L_WRAPPER_DEFINE(strto_i16, int16_t, INT16_MIN, INT16_MAX)
+___STRTO_L_WRAPPER_DEFINE(strto_i32, int32_t, INT32_MIN, INT32_MAX)
+___STRTO_L_WRAPPER_DEFINE(strto_i64, int64_t, INT64_MIN, INT64_MAX)
 
-#undef ___STRTOL_R_WRAPPER_DEFINE
+#undef ___STRTO_L_WRAPPER_DEFINE
 
-#define ___STRTOUL_R_WRAPPER_DEFINE(NAME, TYPE, TYPE_MAX)                      \
+#define ___STRTO_UL_WRAPPER_DEFINE(NAME, TYPE, TYPE_MAX)                       \
 static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
 {                                                                              \
     unsigned long int tmp = 0;                                                 \
-    int err = strtoul_r(s, ep, base, &tmp);                                    \
+    int err = strto_ul(s, ep, base, &tmp);                                     \
     if (err) {                                                                 \
         return err;                                                            \
     }                                                                          \
@@ -78,14 +84,14 @@ static inline int NAME(const char *s, const char **ep, int base, TYPE *res)    \
     return 0;                                                                  \
 }
 
-___STRTOUL_R_WRAPPER_DEFINE(strtoui_r, unsigned int, UCHAR_MAX)
-___STRTOUL_R_WRAPPER_DEFINE(strtouc_r, unsigned char, UCHAR_MAX)
-___STRTOUL_R_WRAPPER_DEFINE(strtou8_r, uint8_t, UINT8_MAX)
-___STRTOUL_R_WRAPPER_DEFINE(strtou16_r, uint16_t, UINT16_MAX)
-___STRTOUL_R_WRAPPER_DEFINE(strtou32_r, uint32_t, UINT32_MAX)
-___STRTOUL_R_WRAPPER_DEFINE(strtou64_r, uint64_t, UINT64_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_ui, unsigned int, UCHAR_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_uc, unsigned char, UCHAR_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_u8, uint8_t, UINT8_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_u16, uint16_t, UINT16_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_u32, uint32_t, UINT32_MAX)
+___STRTO_UL_WRAPPER_DEFINE(strto_u64, uint64_t, UINT64_MAX)
 
-#undef ___STRTOUL_R_WRAPPER_DEFINE
+#undef ___STRTO_UL_WRAPPER_DEFINE
 
 /**
  * @}

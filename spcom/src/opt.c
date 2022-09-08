@@ -19,6 +19,7 @@
 #define OPT_MAX_COUNT 256
 
 struct opt_context {
+
     bool initialized;
     /// number of opt_conf
     unsigned int num_opts;
@@ -28,9 +29,10 @@ struct opt_context {
     unsigned int num_nodes;
     /// tree nodes dynamically allocated
     struct btree_node *btree_nodes;
-    // node write pointer. should always point in range of btree_nodes
+    /// node write pointer. should always point in range of btree_nodes
     struct btree_node *node_wrp;
-
+    /// used to track whatever argument parse error printed or not
+    unsigned int perror_count;
     struct {
         unsigned int last;
         const struct opt_conf *conf[8]; // lazy no malloc
@@ -116,6 +118,10 @@ static char *opt_conf_str(const struct opt_section_entry *entry,
     char *sp = buf;
     sp[0] = '\0';
 
+    if (conf->positional) {
+        SSPRINTF(sp, remains, "<positional %d>", conf->positional);
+    }
+
     const char *delim = "";
     if (conf->shortname) {
         SSPRINTF(sp, remains, "-%c", conf->shortname);
@@ -150,10 +156,13 @@ static int opt_conf_error(const struct opt_section_entry *entry,
     return -EBADF;
 }
 
-int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
+int opt_perror(const struct opt_conf *conf, const char *fmt, ...)
 {
+    g_ctx.perror_count++;
+
+    fprintf(stderr, "spcom: option error: ");
     if (conf) {
-        fprintf(stderr, "%s ", opt_conf_str(NULL, conf));
+        fprintf(stderr, "%s - ", opt_conf_str(NULL, conf));
     }
     va_list args;
 
@@ -164,11 +173,6 @@ int opt_arg_error(const struct opt_conf *conf, const char *fmt, ...)
 
     fputc('\n', stderr);
     return -1;
-}
-
-int opt_error(const struct opt_conf *conf, const char *msg)
-{
-    return opt_arg_error(conf, NULL, msg); // TODO
 }
 
 /**
@@ -321,13 +325,20 @@ static int opt_init(struct opt_context *ctx)
     return 0;
 }
 
-static int opt_conf_parse(struct opt_context *ctx, const struct opt_conf *conf,
+static int opt_conf_parse_val(struct opt_context *ctx, const struct opt_conf *conf,
                           char *sval)
 {
     OPT_DBG("parsing %s:%c: sval='%s'\n", conf->name, conf->shortname, sval);
     assert(conf->parse);
+
+    unsigned int perror_count = ctx->perror_count;
     int err = conf->parse(conf, sval);
+
     if (err) {
+        bool error_printed = perror_count != ctx->perror_count;
+        if (error_printed)
+            return err;
+
         fprintf(stderr, "error: %s - parse failure %d\n",
                 opt_conf_str(NULL, conf), err);
 
@@ -381,19 +392,19 @@ int opt_parse_args(int argc, char *argv[])
         }
 
         if (!conf) {
-            opt_arg_error(NULL, "unknown option '%s'", arg);
+            fprintf(stderr, "spcom: unrecognized option '%s'\n", arg);
             return -ENOENT;
         }
 
         if (opt_conf_has_val(conf)) {
             err = opt_argviter_getval(&itr);
             if (err)
-                return opt_arg_error(conf, "%s '%s'", itr.errmsg, arg);
+                return opt_perror(conf, "%s '%s'", itr.errmsg, arg);
 
             sval = itr.out.val;
         }
 
-        err = opt_conf_parse(ctx, conf, sval);
+        err = opt_conf_parse_val(ctx, conf, sval);
         if (err)
             return err;
     }

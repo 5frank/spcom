@@ -251,7 +251,7 @@ static int str_to_crepr_id(const char *s, int *id)
 static int _hexbytetoi(const char *s, int *res)
 {
     uint8_t u8tmp = 0;
-    int err = strtou8_r(s, NULL, 16, &u8tmp);
+    int err = strto_u8(s, NULL, 16, &u8tmp);
     if (err)
         return err;
     *res = u8tmp;

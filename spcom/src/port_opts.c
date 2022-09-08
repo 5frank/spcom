@@ -70,7 +70,7 @@ int port_opts_parse_baud(const char *s, int *baud, const char **ep)
     const char *tmp_ep;
     int tmp_baud = 0;
 
-    err = strtoi_r(s, &tmp_ep, 10, &tmp_baud);
+    err = strto_i(s, &tmp_ep, 10, &tmp_baud);
     if (err)
         return err;
 
@@ -92,6 +92,7 @@ static const char *common_bauds[] = {
     "576000",  "921600",  "1000000", "1152000", "1500000", "2000000",
     "2500000", "3000000", "3500000", "4000000"
 };
+
 const char **port_opts_complete_baud(const char *s)
 {
     return STR_MATCH_LIST(s, common_bauds);
@@ -178,7 +179,6 @@ int port_opts_parse_stopbits(const char *s, int *stopbits, const char **ep)
 /**
  * parse baud and optional databits, parity and stopbits.
  *
- * result params only set on valid string format, otherwise untouched.
  * example:
  * "115200/8N1" --> baud=115200, databits=8, parity=NONE, stopbits=1
  * "9600" --> baud=9600 (remaning not set)
@@ -316,20 +316,57 @@ static int _parse_cb_devname(const struct opt_conf *conf, char *sval)
     return 0;
 }
 
+// positional
 static int _parse_cb_baud_dps(const struct opt_conf *conf, char *sval)
 {
-    return port_opts_parse_baud_dps(sval,
-                                    &_port_opts.baudrate,
-                                    &_port_opts.databits,
-                                    &_port_opts.parity,
-                                    &_port_opts.stopbits);
+    int err = 0;
+    const char *s = sval;
+    const char *ep;
+    int tmp_baud = 0;
+    err = port_opts_parse_baud(s, &tmp_baud, &ep);
+    if (err)
+        return opt_perror(conf, "invalid baudrate");
+
+    // have nul
+    if (*ep == '\0') {
+        _port_opts.baudrate = tmp_baud;
+        return 0;
+    }
+
+    if ((*ep == '/') || (*ep == ':'))
+        s = ep + 1;
+    else
+        return opt_perror(conf, "invalid baudrate");
+
+    int tmp_databits = 0;
+    err = port_opts_parse_databits(s, &tmp_databits, &ep);
+    if (err)
+        return opt_perror(conf, "invalid databits");
+    s = ep;
+
+    int tmp_parity = 0;
+    err = port_opts_parse_parity(s, &tmp_parity, &ep);
+    if (err)
+        return opt_perror(conf, "invalid parity");
+    s = ep;
+
+    int tmp_stopbits = 0;
+    err = port_opts_parse_stopbits(s, &tmp_stopbits, &ep);
+    if (err)
+        return opt_perror(conf, "invalid stopbits");
+
+    _port_opts.baudrate = tmp_baud;
+    _port_opts.databits = tmp_databits;
+    _port_opts.parity = tmp_parity;
+    _port_opts.stopbits = tmp_stopbits;
+
+    return 0;
 }
 
 static int _parse_cb_baud(const struct opt_conf *conf, char *sval)
 {
     return port_opts_parse_baud(sval, &_port_opts.baudrate, NULL);
 }
-
 
 static int _parse_cb_databits(const struct opt_conf *conf, char *sval)
 {
