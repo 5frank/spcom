@@ -14,7 +14,7 @@
 #include "eol.h"
 #include "opt.h"
 #include "str.h"
-#include "strto_r.h"
+#include "strto.h"
 
 enum char_group_id {
     CHARMAP_GROUP_CNTRL = UCHAR_MAX + 1,

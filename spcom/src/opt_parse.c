@@ -7,7 +7,7 @@
 // local
 #include "assert.h"
 #include "opt.h"
-#include "strto_r.h"
+#include "strto.h"
 
 #ifndef IS_ALIGNED
 #define IS_ALIGNED(PTR, SIZE) (((uintptr_t)(PTR) % (SIZE)) == 0)

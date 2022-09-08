@@ -33,7 +33,7 @@ set(SOURCES
     src/shell_mode_cooked.c
     src/shell_mode_raw.c
     src/str.c
-    src/strto_r.c
+    src/strto.c
     src/str_split_quoted.c
     src/strbuf.c
     src/strerrorname_np.c

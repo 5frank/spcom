@@ -1,5 +1,5 @@
-#ifndef STRTO_R_INCLUDE_H_
-#define STRTO_R_INCLUDE_H_
+#ifndef STRTO_INCLUDE_H_
+#define STRTO_INCLUDE_H_
 
 #include <errno.h>
 #include <limits.h>

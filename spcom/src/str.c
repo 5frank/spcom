@@ -10,7 +10,7 @@
 #include "assert.h"
 #include "common.h"
 #include "str.h"
-#include "strto_r.h"
+#include "strto.h"
 #include "vt_defs.h"
 
 static const char *_matchresult[32];

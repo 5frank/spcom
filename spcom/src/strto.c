@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 // local
-#include "strto_r.h"
+#include "strto.h"
 
 /**
  * @brief check i float or dobule is nan (`isnan` is in math.h, but no

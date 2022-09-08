@@ -10,7 +10,7 @@
 #include "eol.h"
 #include "opt.h"
 #include "str.h"
-#include "strto_r.h"
+#include "strto.h"
 
 #define EOL_OPT_IGNORE_DEFAULT '\r'
 

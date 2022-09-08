@@ -3,7 +3,7 @@
 #include "common.h"
 #include "opt.h"
 #include "str.h"
-#include "strto_r.h"
+#include "strto.h"
 #include "port.h"
 #include "port_info.h"
 #include "port_opts.h"
