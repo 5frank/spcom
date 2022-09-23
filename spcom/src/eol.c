@@ -20,6 +20,7 @@ static struct eol_opts {
     struct eol_seq eol_rx;
     int ignore;
 } _eol_opts = { .ignore = EOL_OPT_IGNORE_DEFAULT };
+
 #if 0
 static int eol_match_a_ignore_b(const struct eol_seq *es, int prev_c, int c)
 {
@@ -112,19 +113,21 @@ int eol_seq_cpy(const struct eol_seq *es, char *dst, size_t size)
 }
 
 /// returns NULL on error
-static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
+static const char *_eol_opt_parse_next(const char *s, unsigned char *byte)
 {
-    if (!s || strlen(s) < 2) {
+    static const size_t n = 2;
+
+    if (!s || strlen(s) < n) {
         return NULL;
     }
 
-    if (!strcasecmp(s, "LF")) {
+    if (!strncasecmp(s, "LF", n)) {
         *byte = '\n';
-        return s + 2;
+        return s + n;
     }
-    if (!strcasecmp(s, "CR")) {
+    if (!strncasecmp(s, "CR", n)) {
         *byte = '\r';
-        return s + 2;
+        return s + n;
     }
 
     if (str_startswith(s, "0x")) {
@@ -139,11 +142,13 @@ static const char *eol_opt_parse_next(const char *s, unsigned char *byte)
     return NULL;
 }
 
-static int eol_opt_parse_str(const char *s, struct eol_seq *es)
+static int _eol_opt_parse_str(const struct opt_conf *conf,
+                              const char *s,
+                              struct eol_seq *es)
 {
-    s = eol_opt_parse_next(s, &es->c_a);
+    s = _eol_opt_parse_next(s, &es->c_a);
     if (!s) {
-        return -EINVAL;
+        return opt_perror(conf, "unknown format");
     }
 
     switch (*s) {
@@ -166,13 +171,13 @@ static int eol_opt_parse_str(const char *s, struct eol_seq *es)
             es->match_func = eol_match_ab;
     }
 
-    s = eol_opt_parse_next(s, &es->c_b);
+    s = _eol_opt_parse_next(s, &es->c_b);
     if (!s) {
-        return -EINVAL;
+        return opt_perror(conf, "unknown format for byte two");
     }
 
     if (*s != '\0') {
-        return -EINVAL; // trailing characters
+        return opt_perror(conf, "unrecognized trailing character(s)");
     }
 
     return 0;
@@ -201,17 +206,17 @@ static int eol_opt_post_parse(const struct opt_section_entry *entry)
 
 static int _parse_cb_txrx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &_eol_opts.eol_txrx);
+    return _eol_opt_parse_str(conf, s, &_eol_opts.eol_txrx);
 }
 
 static int _parse_cb_tx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &_eol_opts.eol_tx);
+    return _eol_opt_parse_str(conf, s, &_eol_opts.eol_tx);
 }
 
 static int _parse_cb_rx(const struct opt_conf *conf, char *s)
 {
-    return eol_opt_parse_str(s, &_eol_opts.eol_rx);
+    return _eol_opt_parse_str(conf, s, &_eol_opts.eol_rx);
 }
 
 static const struct opt_conf eol_opts_conf[] = {

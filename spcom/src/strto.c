@@ -4,22 +4,13 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <math.h>
 // local
 #include "strto.h"
 
-/**
- * @brief check i float or dobule is nan (`isnan` is in math.h, but no
- * required linker flags is nice)
- *
- * @note: NAN compares unequal to all floating-point numbers including NAN
- * @param X float or doubles. warning dual evaluation!
- */
-#define ___ISNAN(X) ((X) != (X))
-
-/** FLT_MAX is max real number - i.e. less then INF (same for FLT_MIN) */
-#define ___ISINFF(X) ((X) >= FLT_MIN && (X) <= FLT_MAX)
-#define ___ISINF(X) ((X) >= DBL_MIN && (X) <= DBL_MAX)
-
+/// perhaps these belongs in header
+#define STRTO_ACCEPT_NAN    (1 << 0)
+#define STRTO_ACCEPT_INF    (1 << 1)
 
 /*
  * Notes on errors and implementations:
@@ -34,47 +25,17 @@
  *
  * That is, in C99 (and presumably C89 and elsewhere) strtoul, strtol might
  * silently fails and returns 0 if the base parameter is other then 0, 10 or
- * 16. Example `unsigned long int val = strtoul("0xff", &ep, 3);` - will in this case
- * not set errno, `val` is 0 and `ep` set to "xff" (tested with glibc 10.2.1).
+ * 16. Example `unsigned long int val = strtoul("0xff", &ep, 3);` - will in
+ * this case not set errno, `val` is 0 and `ep` set to "xff" (tested with glibc
+ * 10.2.1).
  *
  *
- * The BSD functions `strtoi()` and `strtou()` have the following documented
- * error codes:
- * """
- * - [ECANCELED] The string did not contain any characters that were converted.
- *
- * - [EINVAL] The base is not between 2 and 36 and does not contain the special
- *   value 0.
- *
- * - [ENOTSUP] The string contained non-numeric characters that did not get
- *   converted. In this case, endptr points to the first unconverted character.
- *
- * - [ERANGE] The given string was out of range; the value converted has been
- *   clamped; or the range given was invalid, i.e.  lo > hi.
- * """
- *
- * Differences from BSD `strtoi()` and `strtou()`:
- * - error codes are negative errno values. (as in libuv, zepyr RTOS and other)
- *
- * - if endptr argument provided, valid last char at end of input string can be
- *   nul ('\0') or space (as defined by POSIX `isspace`). strto{i,u} only
- *   accepts nul. One could argue that if leading spaces is accepted input than
- *   so should trailing spaces.
- *
+ * errnos used is similar to what the BSD functions `strtoi()` and `strtou()`
+ * uses.
  */
 
-#define ERR_EINVAL   -EINVAL
-/** There is also errno `EOVERFLOW` that might seem more suitable, but all
- * legacy useage and all implementations of strto* will set errno to ERANGE on
- * overflow so ERANGE is arguably more correct */
-#define ERR_OVERFLOW -ERANGE
-/** EDOM -    Mathematics argument out of domain of function (POSIX.1, C99) */
+/** EDOM - Mathematics argument out of domain of function (POSIX.1, C99) */
 #define ERR_NEGATIVE -EDOM
-
-/**  ECANCELED Operation canceled (POSIX.1-2001). conform to BSD usage */
-#define ERR_NONUMERIC -ECANCELED
-/** ENOTSUP Operation not supported (POSIX.1-2001). Conform to BSD usage */
-#define ERR_ENDCHAR   -ENOTSUP
 /** EBADF Bad file descriptor. "Creative" use of errnos - Could be read as
  * "error bad float" */
 #define ERR_ABNORMAL  -EBADF
@@ -82,18 +43,21 @@
 const char *strto_strerror(int err)
 {
     switch (err) {
-        case ERR_EINVAL:
+        case -EINVAL:
             return "Invalid argument";
-        case ERR_OVERFLOW:
+        case -ERANGE:
             return "Result too large for type";
+        /*  ECANCELED Operation canceled. conform to BSD usage */
+        case -ECANCELED:
+            return "No numeric digits found";
+        /* ENOTSUP Operation not supported. Conform to BSD usage */
+        case -ENOTSUP:
+            return "Unexpected character at end of input";
+        // ==========
         case ERR_ABNORMAL:
             return "Abnormal value";
         case ERR_NEGATIVE:
             return "Negative value";
-        case ERR_NONUMERIC:
-            return "No numeric digits found";
-        case ERR_ENDCHAR:
-            return "Unexpected character at end of input";
         default:
             return NULL;
     }
@@ -143,26 +107,22 @@ static inline int _post_check(const char *s, const char **ep,
     /* check endptr first as errno _might_ be set to EINVAL if no digits and
      * we want to distinguish this error case */
     if (tmp_ep == s) {
-        return ERR_NONUMERIC;
+        return -ECANCELED;
     }
 
     if (errnum) {
         if (errnum == ERANGE) {
-            return ERR_OVERFLOW;
+            return -ERANGE;
         }
         // this should not occur
         return -errnum;
-    }
-
-    if (tmp_ep == s) {
-        return ERR_NONUMERIC;
     }
 
     if (ep) {
         *ep = tmp_ep;
     }
     else if (!_is_valid_endc(*tmp_ep)) {
-        return ERR_ENDCHAR;
+        return -ENOTSUP;
     }
 
     return 0;
@@ -171,12 +131,12 @@ static inline int _post_check(const char *s, const char **ep,
 int strto_ul(const char *s, const char **ep, int base, unsigned long int *res)
 {
     if (!s || !res || !_is_valid_base(base)) {
-        return ERR_EINVAL;
+        return -EINVAL;
     }
 
     // stroul ignores sign or silently overflow
     if (_first_nonspace(s) == '-') {
-        return ERR_NEGATIVE;
+        return -ERANGE;
     }
 
     char *tmp_ep = NULL;
@@ -197,7 +157,7 @@ int strto_ul(const char *s, const char **ep, int base, unsigned long int *res)
 int strto_l(const char *s, const char **ep, int base, long int *res)
 {
     if (!s || !res || !_is_valid_base(base)) {
-        return ERR_EINVAL;
+        return -EINVAL;
     }
     // negative hex is insane. strol ignores sign or silently overflow
     if (base == 16 && _first_nonspace(s) == '-') {
@@ -222,7 +182,7 @@ int strto_l(const char *s, const char **ep, int base, long int *res)
 int strto_f(const char *s, const char **ep, int naninf, float *res)
 {
     if (!s || !res) {
-        return ERR_EINVAL;
+        return -EINVAL;
     }
 
     char *tmp_ep = NULL;
@@ -235,11 +195,40 @@ int strto_f(const char *s, const char **ep, int naninf, float *res)
         return err;
     }
 
-    if (!(naninf & 1) && ___ISNAN(tmp)) {
+    if (!(naninf & STRTO_ACCEPT_NAN) && isnan(tmp)) {
         return ERR_ABNORMAL;
     }
 
-    if (!(naninf & 2) && ___ISINFF(tmp)) {
+    if (!(naninf & STRTO_ACCEPT_INF) && isinf(tmp)) {
+        return ERR_ABNORMAL;
+    }
+
+    *res = tmp;
+
+    return 0;
+}
+
+int strto_d(const char *s, const char **ep, int naninf, double *res)
+{
+    if (!s || !res) {
+        return -EINVAL;
+    }
+
+    char *tmp_ep = NULL;
+    int errnum = ___errno_reset();
+    double tmp = strtod(s, &tmp_ep);
+    errnum = ___errno_restore(errnum);
+
+    int err = _post_check(s, ep, tmp_ep, errnum);
+    if (err) {
+        return err;
+    }
+
+    if (!(naninf & STRTO_ACCEPT_NAN) && isnan(tmp)) {
+        return ERR_ABNORMAL;
+    }
+
+    if (!(naninf & STRTO_ACCEPT_INF) && isinf(tmp)) {
         return ERR_ABNORMAL;
     }
 
