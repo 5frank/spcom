@@ -40,7 +40,7 @@ static void sh_raw_enter(void)
     if (!shell_raw.initialized) {
         sh_raw_init();
     }
-#if 1
+#if 0
     // readline messes with this
     err = uv_tty_reset_mode();
     if (err)
@@ -51,7 +51,7 @@ static void sh_raw_enter(void)
 
     ___TERMIOS_DEBUG_BEFORE();
     err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
-    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_RAW");
+    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode RAW");
 
     if (err)
         LOG_UV_ERR(err, "uv_tty_set_mode raw");
@@ -66,7 +66,7 @@ static void sh_raw_leave(void)
 
     int err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
     if (err)
-        LOG_UV_ERR(err, "uv_tty_set_mode normal");
+        LOG_UV_ERR(err, "uv_tty_set_mode NORMAL");
 
     // line buffering on - i.e. back to "normal"
     setvbuf(stdout, NULL, _IOLBF, 0);
@@ -82,7 +82,16 @@ static void sh_raw_insertchar(int c)
 
 static int sh_raw_getchar(void)
 {
+#if 1
+    char c;
+    ssize_t n = read(STDIN_FILENO, &c, 1);
+    if (n != 1) // TODO check errno
+        return EOF;
+    return c;
+#else
     return fgetc(stdin);
+#endif
+
 }
 
 void shell_raw_cleanup(void)
@@ -123,9 +132,9 @@ void shell_raw_cleanup(void)
 }
 
 static const struct shell_mode_s sh_mode_raw = {
-    .enter  = sh_raw_enter,
-    .leave  = sh_raw_leave,
-    .insert = sh_raw_insertchar,
+    .enter   = sh_raw_enter,
+    .leave   = sh_raw_leave,
+    .insert  = sh_raw_insertchar,
     .getchar = sh_raw_getchar
 };
 

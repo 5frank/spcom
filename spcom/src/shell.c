@@ -42,63 +42,60 @@ static struct shell_s {
     const struct shell_mode_s *current_mode;
     const struct shell_mode_s *default_mode;
     struct keybind_state kb_state;
-
-    //uv_tty_t stdin_tty;
-
 } shell_data = { 0 };
 
 const void *shell_output_lock(void)
 {
-    const struct shell_mode_s *shm = shell_data.current_mode;
-    if (!shm)
+    const struct shell_mode_s *mode = shell_data.current_mode;
+    if (!mode)
         return NULL; // shell not initialized yet
 
-    if (!shm->lock)
+    if (!mode->lock)
         return NULL;
 
-    return shm->lock();
+    return mode->lock();
 }
 
 void shell_output_unlock(const void *x)
 {
-    const struct shell_mode_s *shm = shell_data.current_mode;
-    if (!shm)
+    const struct shell_mode_s *mode = shell_data.current_mode;
+    if (!mode)
         return; // shell not initialized yet
 
-    if (shm->unlock)
-        shm->unlock(x);
+    if (mode->unlock)
+        mode->unlock(x);
 }
 
-static void shell_set_mode(const struct shell_mode_s *new_m)
+static void shell_set_mode(const struct shell_mode_s *new_mode)
 {
-    const struct shell_mode_s *old_m = shell_data.current_mode;
-    if (new_m == old_m)
+    const struct shell_mode_s *old_mode = shell_data.current_mode;
+    if (new_mode == old_mode)
         return;
 
-    if (old_m)
-        old_m->leave();
+    if (old_mode)
+        old_mode->leave();
 
-    new_m->enter();
-    shell_data.current_mode = new_m;
+    new_mode->enter();
+    shell_data.current_mode = new_mode;
 }
 
 static void shell_toggle_cmd_mode(void)
 {
-    const struct shell_mode_s *new_m;
+    const struct shell_mode_s *new_mode;
 #if 1
 #warning "not cmd mode"
     if (shell_data.current_mode == shell_mode_cooked)
-        new_m = shell_mode_raw;
+        new_mode = shell_mode_raw;
     else
-        new_m = shell_mode_cooked;
+        new_mode = shell_mode_cooked;
 #else
     if (shell_data.current_mode == shell_mode_cmd)
-        new_m = shell_data.default_mode;
+        new_mode = shell_data.default_mode;
     else
-        new_m = shell_mode_cmd;
+        new_mode = shell_mode_cmd;
 #endif
 
-    shell_set_mode(new_m);
+    shell_set_mode(new_mode);
 }
 
 static int _write_all(int fd, const void *data, size_t size)
@@ -147,12 +144,10 @@ void shell_printf(int fd, const char *fmt, ...)
 
 static void _stdin_read_char(void)
 {
+    const struct shell_mode_s *mode = shell_data.current_mode;
+    assert(mode);
 
-    const struct shell_mode_s *shm = shell_data.current_mode;
-    assert(shm);
-
-    // TODO should be safe to use getchar() here
-    int c = shm->getchar();
+    int c = mode->getchar();
 
     if (c == EOF) {
         SPCOM_EXIT(EX_IOERR, "stdin EOF");
@@ -166,7 +161,7 @@ static void _stdin_read_char(void)
 
     int action = keybind_eval(kb_state, c);
 
-    //LOG_DBG("input: %d, action: %d", (int)c, action);
+    LOG_DBG("input: %d, action: %d", (int)c, action);
 
     switch (action) {
         case K_ACTION_CACHE:
@@ -174,12 +169,12 @@ static void _stdin_read_char(void)
             break;
 
         case K_ACTION_PUTC:
-            shm->insert(c);
+            mode->insert(c);
             break;
 
         case K_ACTION_UNCACHE:
-            shm->insert(kb_state->cache[0]);
-            shm->insert(c);
+            mode->insert(kb_state->cache[0]);
+            mode->insert(c);
             break;
 
         case K_ACTION_EXIT:
@@ -217,7 +212,7 @@ static void _on_stdin_data_avail(uv_poll_t *handle, int status, int events)
     _stdin_read_char();
 }
 
-static void shell_opq_write_done_cb(const struct opq_item *itm)
+static void shell_opq_free_cb(const struct opq_item *itm)
 {
     assert(itm->u.data);
     free(itm->u.data);
@@ -231,7 +226,7 @@ int shell_init(void)
 
     assert(isatty(STDIN_FILENO)); // should already be checked
 
-    opq_set_write_done_cb(&opq_rt, shell_opq_write_done_cb);
+    opq_set_free_cb(&opq_rt, shell_opq_free_cb);
 
     err = tcgetattr(STDIN_FILENO, &shell_data.term_attr);
     if (err) {
@@ -265,6 +260,8 @@ int shell_init(void)
 static int shell_restore_term(void)
 {
     int err;
+
+    LOG_DBG("restoring terminal settings");
 
     const struct termios *org = &shell_data.term_attr;
     /* From man page: "Note that tcsetattr() returns success if any of the

@@ -78,7 +78,7 @@ int ipipe_init(void)
 {
     int err;
 
-    opq_set_write_done_cb(&opq_rt, _on_port_write_done);
+    opq_set_free_cb(&opq_rt, _on_port_write_done);
 
     // allocate once and reuse
     ipipe_data.buf = malloc(IPIPE_BUF_SIZE);

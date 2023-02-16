@@ -224,7 +224,7 @@ static const struct str_map group_id_strmap[] = {
     STR_MAP_INT("cntrl",    CHARMAP_GROUP_CNTRL ),
     STR_MAP_INT("ctrl",     CHARMAP_GROUP_CNTRL ),
     STR_MAP_INT("nonprint", CHARMAP_GROUP_NONPRINT ),
-    STR_MAP_INT("!isprint", CHARMAP_GROUP_NONPRINT ),
+    STR_MAP_INT("nisprint", CHARMAP_GROUP_NONPRINT ),
 };
 // clang-format on
 

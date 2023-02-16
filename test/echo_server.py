@@ -7,7 +7,7 @@ import serial
 
 DEFAULT_PORT = "/dev/tnt0"
 
-def run(port=None, baudrate=115200, spam_interval=None, linebufed=True):
+def run(port=None, baudrate=115200, spam_interval=None, linebufed=False):
 
     if port is None:
         port = DEFAULT_PORT
@@ -37,7 +37,8 @@ def run(port=None, baudrate=115200, spam_interval=None, linebufed=True):
 
 
 def main():
-    run(spam_interval=3)
+    #run(spam_interval=3)
+    run()
 
 if __name__ == '__main__':
     main()

@@ -12,8 +12,11 @@ _show_installation_status()
 
 _install_lcgamboa_tty0tty_module()
 {
+    # headers needed to compile
     sudo apt-get install linux-headers-`uname -r`
-    git clone https://github.com/lcgamboa/tty0tty.git
+    if [ ! -d "tty0tty" ]; then
+        git clone "https://github.com/lcgamboa/tty0tty.git"
+    fi
     cd tty0tty/module
     make
     sudo make install
@@ -24,6 +27,20 @@ _tty0tty_load_module()
 {
     sudo depmod
     sudo modprobe tty0tty
+}
+
+_all()
+{
+
+    local HAVE_MOD="$(lsmod | grep tty0tty)"
+
+    if [ -z "${HAVE_MOD}" ]; then
+        _install_lcgamboa_tty0tty_module
+        sudo depmod
+        sudo modprobe tty0tty
+    fi
+
+    _show_installation_status
 }
 
 case "$1" in
@@ -37,6 +54,6 @@ case "$1" in
        _tty0tty_load_module
        ;;
    *)
-       echo "args neeeded"
+       _all
        ;;
 esac

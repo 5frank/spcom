@@ -263,6 +263,7 @@ const struct str_kv *str_kv_get(const char *s, const struct str_kv *items,
     return NULL;
 }
 
+#define _ESCAPE_NONPRINT_CHAR_MAX_SIZE 5
 /// note: does not nul terminate
 static int _escape_nonprint_char(char c, char *buf)
 {
@@ -312,22 +313,27 @@ static int _escape_nonprint_char(char c, char *buf)
 
     unsigned char byte = c;
     *p++ = '\\';
+    *p++ = 'x';
     *p++ = hexlut[(byte >> 4) & 0x0F];
     *p++ = hexlut[(byte >> 0) & 0x0F];
-    return 3;
+    return 4;
 }
 
 int str_escape_nonprint(char *dst, size_t dstsize, const char *src,
                         size_t srcsize)
 {
+    bool truncated = false;
     int totlen = 0;
     while (1) {
 
-        if (!srcsize)
+        if (!srcsize) {
             break;
+        }
 
-        if (dstsize < 4)
+        if (dstsize < _ESCAPE_NONPRINT_CHAR_MAX_SIZE) {
+            truncated = true;
             break;
+        }
 
         int len = _escape_nonprint_char(*src, dst);
         dst += len;
@@ -341,6 +347,7 @@ int str_escape_nonprint(char *dst, size_t dstsize, const char *src,
 
     *dst = '\0';
     return totlen;
+
 }
 
 /* or use ts from moreutils? `apt install moreutils`

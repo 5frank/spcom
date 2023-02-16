@@ -44,12 +44,12 @@ static int kb_add_action(struct keybind_map *kbm, uint8_t key, uint8_t action)
 
     for (int i = 0; i < ARRAY_LEN(kbm->map); i++) {
         uint16_t map_val = kbm->map[i];
-        // empty slot
-        if (!map_val) {
-            kbm->map[i] = KB_PACK(key, action);
-            btable_set(kbm->ckey_tbl, key);
-            return 0;
-        }
+        if (map_val)
+            continue;
+
+        kbm->map[i] = KB_PACK(key, action);
+        btable_set(kbm->ckey_tbl, key);
+        return 0;
     }
 
     return kb_error(ENOMEM, "max limit key bindings");
@@ -92,14 +92,16 @@ static int kb_seq_add_action(struct keybind_map *kbm, uint8_t ctlkey,
 
     for (int i = 0; i < ARRAY_LEN(kbm->seq_map); i++) {
         uint32_t map_val = kbm->seq_map[i];
-        // empty slot
-        if (!map_val) {
-            kbm->seq_map[i] = KB_SEQ_PACK(ctlkey, followk, action);
-            btable_set(kbm->ckey_tbl, ctlkey);
-            btable_set(kbm->seq0_tbl, ctlkey);
-            btable_set(kbm->seq1_tbl, followk);
-            return 0;
-        }
+        if (map_val)
+            continue;
+
+        // have empty slot
+        kbm->seq_map[i] = KB_SEQ_PACK(ctlkey, followk, action);
+        btable_set(kbm->ckey_tbl, ctlkey);
+        btable_set(kbm->seq0_tbl, ctlkey);
+        btable_set(kbm->seq1_tbl, followk);
+
+        return 0;
     }
 
     return kb_error(ENOMEM, "max limit key bindings");
@@ -222,6 +224,8 @@ static int keybind_post_parse(const struct opt_section_entry *entry)
 {
     int err;
     // note: do not use LOG here. not initialized yet
+    //
+    // TODO default from
 
     struct keybind_map *kbm = &keybind_map;
     err = kb_add_action(kbm, VT_C_TO_CTRL_KEY('C'), K_ACTION_EXIT);

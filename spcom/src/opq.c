@@ -11,7 +11,7 @@ struct opq {
     struct opq_item items[64];
     unsigned int wridx;
     unsigned int rdidx;
-    opq_write_done_cb *write_done_cb;
+    opq_free_cb *write_done_cb;
 };
 
 struct opq opq_oo;
@@ -41,7 +41,7 @@ void opq_reset(struct opq *q)
     q->rdidx = 0;
 }
 
-void opq_set_write_done_cb(struct opq *q, opq_write_done_cb *cb)
+void opq_set_free_cb(struct opq *q, opq_free_cb *cb)
 {
     q->write_done_cb = cb;
 }

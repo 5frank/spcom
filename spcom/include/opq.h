@@ -35,14 +35,14 @@ enum op_code_e {
 struct opq_item {
     uint16_t op_code;
     uint16_t size; //<! non-zero if u.data not NULL
-    /// type of data impleied by op_code and size
+    /// type of data implied by op_code and size
     union {
         int val;
         void *data;
     } u;
 };
 
-typedef void (opq_write_done_cb)(const struct opq_item *itm);
+typedef void (opq_free_cb)(const struct opq_item *itm);
 
 /// oo - on open
 extern struct opq opq_oo;
@@ -51,13 +51,13 @@ extern struct opq opq_rt;
 
 void opq_reset(struct opq *q);
 
-void opq_set_write_done_cb(struct opq *q, opq_write_done_cb *cb);
+void opq_set_free_cb(struct opq *q, opq_free_cb *cb);
 
 /// enqueue value
 int opq_enqueue_val(struct opq *q, uint16_t op_code, int val);
 
 /**
- * enqueue a write operation. prior call to opq_set_write_done_cb might be
+ * enqueue a write operation. prior call to opq_set_free_cb might be
  * needed */
 int opq_enqueue_write(struct opq *q,
                       void *data,
