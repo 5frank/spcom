@@ -303,10 +303,10 @@ static const struct opt_conf outfmt_opts_conf[] = {
         .dest = &_outfmt_opts.eol_rx_timeout,
         .parse = opt_parse_float,
         .descr = "Float in seconds. "\
-                 "If some data received but no eol received within given time, "\
-                 "the buffered data is written output anywas."\
+                 "If some data received but no EOL received within given time, "\
+                 "the buffered data is written to stdout anywas."\
                  "Default: " STRINGIFY(EOL_RX_TIMEOUT_DEFAULT) ". "\
-                 "Applies in coocked (line buffered) mode only otherwise ignored. "\
+                 "Applies in line buffered (cooked) mode only otherwise ignored. "\
 
     },
 #endif

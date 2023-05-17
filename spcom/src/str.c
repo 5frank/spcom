@@ -183,10 +183,10 @@ char *str_rstripc(char *s, char c)
 
 char *str_stripc(char *s, char c) { return str_rstripc(str_lstripc(s, c), c); }
 
-int str_split(char *s, const char *delim, char *toks[], int *n)
+int str_split(char *s, const char *delim, char *toks[], int *ntoks)
 {
-    const int nmax = *n;
-    *n = 0;
+    const int nmax = *ntoks;
+    *ntoks = 0;
     while (1) {
         char *tok = strsep(&s, delim);
 
@@ -196,11 +196,11 @@ int str_split(char *s, const char *delim, char *toks[], int *n)
         if (tok[0] == '\0')
             continue;
 
-        if (*n >= nmax)
+        if (*ntoks >= nmax)
             return E2BIG;
 
-        toks[*n] = tok;
-        (*n)++;
+        toks[*ntoks] = tok;
+        (*ntoks)++;
     }
 
     return 0;

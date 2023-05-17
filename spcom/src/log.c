@@ -62,7 +62,6 @@ static void log_strbuf_flush(struct strbuf *sb)
         shell_write(STDERR_FILENO, sb->buf, sb->len);
     }
 
-
     sb->len = 0;
 }
 
@@ -102,8 +101,9 @@ void log_vprintf(int level,
     }
 
     struct strbuf *sb = &log_strbuf;
-    strbuf_reset(sb);
     log_data.level = level; // used in strbuf callback
+
+    strbuf_reset(sb);
 
     const char *levelstr = log_level_to_str(level);
     if (levelstr) {
@@ -174,6 +174,7 @@ void log_init(void)
 
     const char *fpath = log_opts.file;
     if (fpath) {
+        // TODO append?
         FILE *fp = fopen(fpath, "w");
         if (!fp) {
             /* errnos set are same for fopen and open.

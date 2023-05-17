@@ -142,6 +142,9 @@ void shell_printf(int fd, const char *fmt, ...)
     shell_rl_restore(state);
 }
 
+
+
+/* TODO for libreadline, use getc followed by an ungetc? */
 static void _stdin_read_char(void)
 {
     const struct shell_mode_s *mode = shell_data.current_mode;
@@ -316,7 +319,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .alias = "canonical",
         .dest = &_shell_opts.cooked,
         .parse = opt_parse_flag_true,
-        .descr = "cooked (or canonical) mode - input from stdin are stored "
+        .descr = "cooked (canonical) mode - input from stdin are stored "
             "and can be edited in local line buffer before sent over serial "
             "port." " This opposed to default raw (or non-canonical) mode "
             "where all input from stdin is directly sent over serial port, "
