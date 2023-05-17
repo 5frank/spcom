@@ -73,6 +73,8 @@ void spcom_exit(int exit_code,
 #define SPCOM_EXIT(EXIT_CODE, FMT, ...)                                       \
         spcom_exit(EXIT_CODE,  __FILENAME__, __LINE__, FMT, ##__VA_ARGS__)
 
+/// write all data, retry on EAGAIN or die
+void write_all_or_die(int fd, const void *data, size_t size);
 
 #if CONFIG_TERMIOS_DEBUG
 void ___termios_debug_before(void);

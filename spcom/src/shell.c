@@ -20,12 +20,9 @@
 #include "keybind.h"
 #include "vt_defs.h"
 #include "shell.h"
-#include "shell_rl.h"
 
-extern void shell_raw_cleanup(void);
 extern const struct shell_mode_s *shell_mode_raw;
 extern const struct shell_mode_s *shell_mode_cooked;
-//extern const struct shell_mode_s *shell_mode_cmd;
 
 static struct shell_opts_s _shell_opts = {
     .cooked = false,
@@ -34,102 +31,28 @@ static struct shell_opts_s _shell_opts = {
 const struct shell_opts_s *shell_opts = &_shell_opts;
 
 static struct shell_s {
-    bool initialized;
     uv_poll_t poll_handle;
     bool have_term_attr;
     struct termios term_attr;
     //char history[256];
-    const struct shell_mode_s *current_mode;
-    const struct shell_mode_s *default_mode;
+    const struct shell_mode_s *mode;
     struct keybind_state kb_state;
 } shell_data = { 0 };
 
-const void *shell_output_lock(void)
+void shell_write(int fd, const void *data, size_t size)
 {
-    const struct shell_mode_s *mode = shell_data.current_mode;
-    if (!mode)
-        return NULL; // shell not initialized yet
 
-    if (!mode->lock)
-        return NULL;
-
-    return mode->lock();
-}
-
-void shell_output_unlock(const void *x)
-{
-    const struct shell_mode_s *mode = shell_data.current_mode;
-    if (!mode)
-        return; // shell not initialized yet
-
-    if (mode->unlock)
-        mode->unlock(x);
-}
-
-static void shell_set_mode(const struct shell_mode_s *new_mode)
-{
-    const struct shell_mode_s *old_mode = shell_data.current_mode;
-    if (new_mode == old_mode)
-        return;
-
-    if (old_mode)
-        old_mode->leave();
-
-    new_mode->enter();
-    shell_data.current_mode = new_mode;
-}
-
-static void shell_toggle_cmd_mode(void)
-{
-    const struct shell_mode_s *new_mode;
-#if 1
-#warning "not cmd mode"
-    if (shell_data.current_mode == shell_mode_cooked)
-        new_mode = shell_mode_raw;
-    else
-        new_mode = shell_mode_cooked;
-#else
-    if (shell_data.current_mode == shell_mode_cmd)
-        new_mode = shell_data.default_mode;
-    else
-        new_mode = shell_mode_cmd;
-#endif
-
-    shell_set_mode(new_mode);
-}
-
-static int _write_all(int fd, const void *data, size_t size)
-{
-    const char *p = data;
-
-    while (1) {
-        int rc = write(fd, p, size);
-        if (rc < 0) {
-            if (errno == EINTR || errno == EAGAIN) {
-                continue;
-            }
-
-            return -errno;
-        }
-
-        if (rc >= size) {
-            return 0;
-        }
-
-        p += rc;
-        size -= rc;
+    const struct shell_mode_s *mode = shell_data.mode;
+    // cooked mode might require special case when writing to stdout or stderr
+    if (mode && mode->write) {
+        mode->write(fd, data, size);
+    }
+    else {
+        write_all_or_die(fd, data, size);
     }
 }
 
-void shell_write(int fd, const void *data, size_t size)
-{
-    const void *state = shell_rl_save();
-    int err = _write_all(fd, data, size);
-    shell_rl_restore(state);
-
-    assert(!err);
-}
-
+#if 0
 void shell_printf(int fd, const char *fmt, ...)
 {
     va_list args;
@@ -141,14 +64,12 @@ void shell_printf(int fd, const char *fmt, ...)
 
     shell_rl_restore(state);
 }
+#endif
 
-
-
-/* TODO for libreadline, use getc followed by an ungetc? */
 static void _stdin_read_char(void)
 {
-    const struct shell_mode_s *mode = shell_data.current_mode;
-    assert(mode);
+    assert(shell_data.mode);
+    const struct shell_mode_s *mode = shell_data.mode;
 
     int c = mode->getchar();
 
@@ -183,11 +104,11 @@ static void _stdin_read_char(void)
         case K_ACTION_EXIT:
             SPCOM_EXIT(0, "user key");
             break;
-
+#if 0
         case K_ACTION_TOG_CMD_MODE:
             shell_toggle_cmd_mode();
             break;
-
+#endif
         default:
             LOG_WRN("unkown action %d for c: %d", action, c);
             break;
@@ -248,12 +169,12 @@ int shell_init(void)
                         _on_stdin_data_avail);
     assert_uv_ok(err, "uv_poll_start");
 
-    shell_data.default_mode = (shell_opts->cooked)
+    shell_data.mode = (shell_opts->cooked)
         ? shell_mode_cooked
         : shell_mode_raw;
-    shell_set_mode(shell_data.default_mode);
 
-    shell_data.initialized = true;
+    shell_data.mode->init();
+
     return 0;
 }
 
@@ -293,23 +214,15 @@ static int shell_restore_term(void)
 
 void shell_cleanup(void)
 {
-    if (shell_data.initialized) {
-        shell_raw_cleanup();
-        shell_rl_cleanup();
-        shell_data.initialized = false;
+    if (shell_data.mode) {
+        shell_data.mode->exit();
+        shell_data.mode = NULL;
     }
 
     // always restore if possible. last!
     if (shell_data.have_term_attr) {
         shell_restore_term();
     }
-}
-
-static int shell_opts_post_parse(const struct opt_section_entry *entry)
-{
-    // note: do not use LOG here
-
-    return 0;
 }
 
 static const struct opt_conf shell_opts_conf[] = {
@@ -325,6 +238,7 @@ static const struct opt_conf shell_opts_conf[] = {
             "where all input from stdin is directly sent over serial port, "
             "(including most control keys such as ctrl-A)"
     },
+#if 0
     {
         .name = "sticky",
         .dest = &_shell_opts.sticky,
@@ -332,6 +246,7 @@ static const struct opt_conf shell_opts_conf[] = {
         .descr = "sticky promt that keep input characters on same line."
             "Only applies when in coocked mode"
     },
+#endif
     {
         .name = "echo",
         .alias = "lecho",
@@ -345,4 +260,4 @@ static const struct opt_conf shell_opts_conf[] = {
 OPT_SECTION_ADD(shell,
                 shell_opts_conf,
                 ARRAY_LEN(shell_opts_conf),
-                shell_opts_post_parse);
+                NULL);

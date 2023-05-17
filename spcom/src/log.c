@@ -235,10 +235,5 @@ static const struct opt_conf log_opts_conf[] = {
     },
 };
 
-static int log_opts_post_parse(const struct opt_section_entry *entry)
-{
-    return 0;
-}
-
 OPT_SECTION_ADD(log, log_opts_conf, ARRAY_LEN(log_opts_conf), NULL);
 

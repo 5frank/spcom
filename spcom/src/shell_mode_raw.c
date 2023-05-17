@@ -8,15 +8,20 @@
 #include "opq.h"
 #include "assert.h"
 
-struct {
+static struct {
     bool initialized;
     uv_tty_t stdin_tty;
-} shell_raw;;
+} sh_raw_data;;
 
 static void sh_raw_init(void)
 {
     int err;
-    uv_tty_t *p_tty = &shell_raw.stdin_tty;
+
+    if (sh_raw_data.initialized) {
+        return;
+    }
+
+    uv_tty_t *p_tty = &sh_raw_data.stdin_tty;
 
     err = uv_tty_init(uv_default_loop(), p_tty, STDIN_FILENO, 0);
     assert_uv_ok(err, "uv_tty_init");
@@ -30,24 +35,12 @@ static void sh_raw_init(void)
     // fallback to SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING);?
 #endif
 
-    shell_raw.initialized = true;
-}
-
-static void sh_raw_enter(void)
-{
-    int err;
-
-    if (!shell_raw.initialized) {
-        sh_raw_init();
-    }
-#if 0
+#if 0 // TODO use
     // readline messes with this
     err = uv_tty_reset_mode();
     if (err)
         LOG_UV_ERR(err, "uv_tty_reset_mode");
 #endif
-
-    uv_tty_t *p_tty = &shell_raw.stdin_tty;
 
     ___TERMIOS_DEBUG_BEFORE();
     err = uv_tty_set_mode(p_tty, UV_TTY_MODE_RAW);
@@ -58,11 +51,17 @@ static void sh_raw_enter(void)
 
     // line buffering off
     setvbuf(stdout, NULL, _IONBF, 0);
+
+    sh_raw_data.initialized = true;
 }
 
-static void sh_raw_leave(void)
+static void sh_raw_exit(void)
 {
-    uv_tty_t *p_tty = &shell_raw.stdin_tty;
+    if (!sh_raw_data.initialized) {
+        return;
+    }
+
+    uv_tty_t *p_tty = &sh_raw_data.stdin_tty;
 
     int err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
     if (err)
@@ -70,6 +69,32 @@ static void sh_raw_leave(void)
 
     // line buffering on - i.e. back to "normal"
     setvbuf(stdout, NULL, _IOLBF, 0);
+
+#if 0
+    if (!uv_is_active((uv_handle_t *)p_tty)) {
+        LOG_DBG("uv_tty_t stdint not active");
+        return;
+    }
+#endif
+
+#if 0
+    ___TERMIOS_DEBUG_BEFORE();
+    err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
+    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_NORMAL");
+
+    if (err)
+        LOG_UV_ERR(err, "uv_tty_set_mode normal");
+#else
+    // this returns EBADF if tty(s) already closed
+    ___TERMIOS_DEBUG_BEFORE();
+    err = uv_tty_reset_mode();
+    ___TERMIOS_DEBUG_AFTER("uv_tty_reset_mode");
+
+    if (err)
+        LOG_UV_ERR(err, "uv_tty_reset_mode");
+#endif
+
+    sh_raw_data.initialized = false;
 }
 
 static void sh_raw_insertchar(int c)
@@ -94,46 +119,9 @@ static int sh_raw_getchar(void)
 
 }
 
-void shell_raw_cleanup(void)
-{
-    int err;
-
-    if (!shell_raw.initialized)
-        return;
-
-    uv_tty_t *p_tty = &shell_raw.stdin_tty;
-#if 0
-    if (!uv_is_active((uv_handle_t *)p_tty)) {
-        LOG_DBG("uv_tty_t stdint not active");
-        return;
-    }
-#endif
-
-#if 0
-    ___TERMIOS_DEBUG_BEFORE();
-    err = uv_tty_set_mode(p_tty, UV_TTY_MODE_NORMAL);
-    ___TERMIOS_DEBUG_AFTER("uv_tty_set_mode_NORMAL");
-
-    if (err)
-        LOG_UV_ERR(err, "uv_tty_set_mode normal");
-#else
-    // this returns EBADF if tty(s) already closed
-    ___TERMIOS_DEBUG_BEFORE();
-    err = uv_tty_reset_mode();
-    ___TERMIOS_DEBUG_AFTER("uv_tty_reset_mode");
-    if (err)
-        LOG_UV_ERR(err, "uv_tty_reset_mode");
-
-#endif
-
-    /* no need to close stdin
-     * `uv_close((uv_handle_t*) p_tty, NULL);`
-     */
-}
-
 static const struct shell_mode_s sh_mode_raw = {
-    .enter   = sh_raw_enter,
-    .leave   = sh_raw_leave,
+    .init    = sh_raw_init,
+    .exit    = sh_raw_exit,
     .insert  = sh_raw_insertchar,
     .getchar = sh_raw_getchar
 };

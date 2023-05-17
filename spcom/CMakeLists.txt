@@ -13,6 +13,7 @@ set(SOURCES
     src/main_opts.c
     src/misc.c
     src/charmap.c
+    src/common.c
     src/cmd.c
     src/ctohex.c
     src/btree.c
@@ -28,8 +29,7 @@ set(SOURCES
     src/port_wait.c
     src/port_opts.c
     src/shell.c
-    src/shell_rl.c
-    #src/shell_mode_cmd.c
+    #src/shell_rl.c
     src/shell_mode_cooked.c
     src/shell_mode_raw.c
     src/str.c
