@@ -34,7 +34,7 @@ struct main_data {
 
 static struct main_data main_data = { 0 };
 
-int ipipe_init(void);
+int inpipe_init(void);
 
 static void main_cleanup(void);
 
@@ -163,8 +163,8 @@ static void main_init(void)
         assert_z(err, "shell_init");
     }
     else {
-        err = ipipe_init();
-        assert_z(err, "ipipe_init");
+        err = inpipe_init();
+        assert_z(err, "inpipe_init");
     }
 
     timeout_init();

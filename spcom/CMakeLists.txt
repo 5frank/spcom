@@ -18,7 +18,7 @@ set(SOURCES
     src/ctohex.c
     src/btree.c
     src/eol.c
-    src/ipipe.c
+    src/inpipe.c
     src/log.c
     src/opt.c
     src/opt_argviter.c

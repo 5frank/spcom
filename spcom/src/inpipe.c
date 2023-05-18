@@ -1,3 +1,5 @@
+/** inpipe - libuv wrapper when reading from piped input */
+// std
 #include <stdlib.h>
 // deps
 #include <uv.h>
@@ -12,11 +14,11 @@
 static struct {
     uv_pipe_t stdin_pipe;
     char *buf;
-} ipipe_data;
+} inpipe_data;
 
 static void _uvcb_alloc(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 {
-    buf->base = ipipe_data.buf;
+    buf->base = inpipe_data.buf;
     buf->len = IPIPE_BUF_SIZE;
 }
 
@@ -57,7 +59,7 @@ static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t *buf)
 static void _on_port_write_done(const struct opq_item *itm)
 {
     assert(itm->u.data);
-    uv_pipe_t *pipe = &ipipe_data.stdin_pipe;
+    uv_pipe_t *pipe = &inpipe_data.stdin_pipe;
 
     int err = uv_read_start((uv_stream_t *)pipe, _uvcb_alloc, _uvcb_read);
     switch (err) {
@@ -74,17 +76,17 @@ static void _on_port_write_done(const struct opq_item *itm)
     }
 }
 
-int ipipe_init(void)
+int inpipe_init(void)
 {
     int err;
 
     opq_set_free_cb(&opq_rt, _on_port_write_done);
 
     // allocate once and reuse
-    ipipe_data.buf = malloc(IPIPE_BUF_SIZE);
-    assert(ipipe_data.buf);
+    inpipe_data.buf = malloc(IPIPE_BUF_SIZE);
+    assert(inpipe_data.buf);
 
-    uv_pipe_t *pipe = &ipipe_data.stdin_pipe;
+    uv_pipe_t *pipe = &inpipe_data.stdin_pipe;
     /* Create a stream that reads from the pipe. */
     err = uv_pipe_init(uv_default_loop(), pipe, 0);
     assert_uv_ok(err, "uv_pipe_init");
