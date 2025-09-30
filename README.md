@@ -1,31 +1,9 @@
 
+
 spcom - a serial console
 ========================
 
-
-Features:
-- [ ] Command mode. Press CTRL-B (default key mapping) to enter. Example send
-  raw hex and toggle DTR. This is also "scriptable" from command line options
-  which allow for sending a string after serial port is opened.
-
-- [ ] Canonical or raw mode.
-
-- [ ] handle frequent disconnect and reconnect of serial device.
-  never miss boot log message and no need to reconnect after power cycle.
-
-- [x] sticky/async prompt. Handle async output to stdout without interrupting user input.
-
-- [ ] Cross platform. Built upon
-  [sigroks/libserialport](https://sigrok.org/wiki/Libserialport) and
-  [libuv](https://libuv.org/) - both supported on GNU/Linux, MacOS, BSD,
-  Android and more (currently windows need some extra workarounds).
-
-- [ ] Sanitization of data before printed to stdout (does not mess up terminal settings).
-
-- [ ] autocomplete on serial devices and common baudrates
-
-- [x] list serial devices. try `spcom -lvv` for more verbose output.
-
+Use https://github.com/tio/tio/ instead! A lot more mature project with similar features!
 
 
 BUILD
