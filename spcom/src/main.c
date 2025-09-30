@@ -120,8 +120,8 @@ void spcom_exit(int exit_code, const char *file, unsigned int line,
 void _uvcb_on_signal(uv_signal_t *handle, int signum)
 {
     LOG_DBG("Signal received: %d", signum);
-    /** TODO? is there a prettier way to exit from signal handler?
-     * can not call SPCOM_EXIT here as it runs from "interrupt context"?  */
+    /** This should run from libuv event loop and safe to call exit(), printf()
+     * etc (which is not ok in POXIX signal callback) */
 
     /* store first signal received. (might not be needed when uv_signal_stop
      * used?)  */

@@ -41,14 +41,13 @@ struct log_opts_s {
 static struct log_data_s {
     bool initialized;
     FILE *filefp;
-    int level;
+    bool to_stderr;
 } log_data = { 0 };
 
 
 /* should only be called from strbuf if buf to small */
 static void log_strbuf_flush(struct strbuf *sb)
 {
-
     /* silent option do not apply to separate file output */
     if (log_data.filefp) {
         size_t rc = fwrite(sb->buf, 1, sb->len, log_data.filefp);
@@ -58,7 +57,7 @@ static void log_strbuf_flush(struct strbuf *sb)
     }
 
     /* output both to file and stderr in some cases */
-    if (!log_opts.silent && log_data.level <= LOG_LEVEL_INF) {
+    if (log_data.to_stderr) {
         shell_write(STDERR_FILENO, sb->buf, sb->len);
     }
 
@@ -100,8 +99,13 @@ void log_vprintf(int level,
         return;
     }
 
+    // bool used in strbuf callback
+    log_data.to_stderr = (!log_opts.silent && level <= LOG_LEVEL_INF);
+    if (log_data.to_stderr) {
+        // TODO outfmt_endline();
+    }
+
     struct strbuf *sb = &log_strbuf;
-    log_data.level = level; // used in strbuf callback
 
     strbuf_reset(sb);
 

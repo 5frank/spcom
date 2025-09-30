@@ -50,6 +50,7 @@ void shell_write(int fd, const void *data, size_t size)
     else {
         write_all_or_die(fd, data, size);
     }
+    //last_c
 }
 
 #if 0

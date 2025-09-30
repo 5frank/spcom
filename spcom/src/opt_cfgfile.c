@@ -1,10 +1,11 @@
-
+/* parse config file */
 #include <dirent.h>
 #include <stdio.h>
 #include <sys/types.h>
 
 static struct {
     const char *config;
+    int no_config;
 } opt_config_opts;
 
 
@@ -165,14 +166,18 @@ static int _parse_line(char *line)
 static int _parse_file(FILE* fp)
 {
     int err = 0;
-
     char buf[255];
 
     for (int i = 0; i < 1024; i++) {
         char *line = fgets(buf, sizeof(buf), fp);
-        if (!line)
+        if (!line) {
             break;
+        }
 
+        // empty line
+        if (!line[0]) {
+            continue;
+        }
 #if 1
         char *ep = strchr(line, '\n');
         if (!ep) {
@@ -181,9 +186,6 @@ static int _parse_file(FILE* fp)
         }
         *ep = '\0';
 #endif
-
-        if (!line[0])
-            continue;
 
         printf("line='%s'\n", line);
         err = _parse_line(line);
@@ -205,6 +207,9 @@ int opt_config_run(void)
 
     if (opt_config.config) {
         fpath = opt_config.config;
+    }
+    else if (opt_config.no_config) {
+        return 0;
     }
     else {
         fpath = _dot_config_fpath("default.conf");
@@ -249,6 +254,12 @@ static const struct opt_conf opt_config_opts_conf[] = {
         .dest = &opt_config.config,
         .parse = opt_parse_str,
         .descr = "config file path. Will override the default config file"
+    }.
+    {
+        .name = "no-config",
+        .dest = &opt_config.no_config,
+        .parse = opt_parse_true,
+        .descr = "do not read default config on startup."
     }
 };
 

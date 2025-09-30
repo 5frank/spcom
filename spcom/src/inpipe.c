@@ -8,6 +8,12 @@
 #include "common.h"
 #include "opq.h"
 
+#ifdef __GLIBC__
+// _flbf
+#include <stdio_ext.h>
+#define HAVE_FLBF 1
+#endif
+
 // at least 2048
 #define IPIPE_BUF_SIZE LINE_MAX
 
@@ -37,7 +43,9 @@ static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t *buf)
 
     char *line = buf->base;
     bool put_eol = false;
-    if (size > 0 && line[size - 1] == '\n') {
+
+    // assuming stdin pipe is line buffered
+    if (line[size - 1] == '\n') {
         // drop eol and replace it with configured char or sequence
         size--;
         put_eol = true;
@@ -49,8 +57,8 @@ static void _uvcb_read(uv_stream_t *stream, ssize_t size, const uv_buf_t *buf)
         opq_enqueue_val(&opq_rt, OP_PORT_PUT_EOL, 1);
     }
     /* stop reading stdin until all data sent to serial port, otherwise memory
-     * usage will grow as serial port output is much slower then reading input
-     * */
+     * usage will grow as serial port output is most likely much slower then
+     * reading stdin. */
     int err = uv_read_stop(stream);
     // uv_read_stop() will always succeed according to doc
     (void)err;
@@ -79,10 +87,16 @@ static void _on_port_write_done(const struct opq_item *itm)
 int inpipe_init(void)
 {
     int err;
+#if HAVE_FLBF
+    // __flbf returns nonzero if stream is line buffered.
+    if (!__flbf(stdin)) {
+        LOG_WRN("stdin pipe is not line buffered");
+    }
+#endif
 
     opq_set_free_cb(&opq_rt, _on_port_write_done);
 
-    // allocate once and reuse
+    // allocate once and reuse. 
     inpipe_data.buf = malloc(IPIPE_BUF_SIZE);
     assert(inpipe_data.buf);
 

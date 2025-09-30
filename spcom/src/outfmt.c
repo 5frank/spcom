@@ -49,7 +49,7 @@ static struct outfmt_opts_s {
 
 static void outfmt_strbuf_flush(struct strbuf *sb)
 {
-    shell_write(0, sb->buf, sb->len);
+    shell_write(STDOUT_FILENO, sb->buf, sb->len);
 
     outfmt_data.last_c_flushed = sb->buf[sb->len];
 

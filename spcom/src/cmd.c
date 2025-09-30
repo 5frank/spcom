@@ -18,7 +18,7 @@ struct cmd_ap_s {
     char matchbuf[32];
     enum cmd_src_e cmdsrc;
     int argc;
-    char *argv[32]; 
+    char *argv[32];
     struct opq *q;
 };
 
@@ -122,7 +122,7 @@ static CMD_FUNC(_cmd_send)
     while (optind < ap->argc) {
         const char *arg  = ap->argv[optind++];
         //LOG_DBG("optind:%d, argv:%s", optind, arg);
-        // TODO 
+        // TODO opq_enqueue_val(ap->q, OP_PORT_WRITE, ...);
 
     }
 

@@ -1,7 +1,6 @@
+#!/bin/sh
 
-# script based on project README.md
-
-# needed for building module
+# script to setup a "true" virtual serial port on linux.
 
 _show_installation_status()
 {
